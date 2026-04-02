@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
@@ -22,6 +24,7 @@ import { useWorkout } from "@/contexts/WorkoutContext";
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
 const MAX_PERSISTED_MESSAGES = 50;
+const SAFFRON = "#FF6B00";
 
 type MessageRole = "user" | "assistant";
 
@@ -52,12 +55,81 @@ function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
+function formatTimestamp(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m} ${ampm}`;
+}
+
+function TypingDots({ color }: { color: string }) {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const makePulse = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600),
+        ]),
+      );
+
+    const a1 = makePulse(dot1, 0);
+    const a2 = makePulse(dot2, 200);
+    const a3 = makePulse(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 4 }}>
+      {[dot1, dot2, dot3].map((dot, i) => (
+        <Animated.View
+          key={i}
+          style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, opacity: dot }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function PulsingStatusDot({ color }: { color: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.5, duration: 600, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, transform: [{ scale }] }}
+    />
+  );
+}
+
 export default function AssistantScreen() {
   const { user } = useUser();
   const { profile } = useApp();
   const { todayLog } = useNutrition();
   const { sessions } = useWorkout();
   const colors = useColors();
+  const typography = useTypography();
   const flatListRef = useRef<FlatList>(null);
 
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
@@ -200,22 +272,42 @@ export default function AssistantScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === "user";
+    const isStreaming = isLoading && item.content === "" && item.role === "assistant";
+    const tsLabel = item.timestamp ? formatTimestamp(item.timestamp) : null;
+
     return (
-      <View style={[styles.messageRow, isUser && styles.userRow]}>
+      <View style={[styles.messageWrapper, isUser && styles.userWrapper]}>
         {!isUser && (
-          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Feather name="cpu" size={14} color="#fff" />
+          <View style={[styles.avatar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Feather name="cpu" size={14} color={colors.primary} />
           </View>
         )}
-        <View style={[styles.bubble, isUser ? { backgroundColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-          {item.content ? (
-            <Text style={[styles.bubbleText, { color: isUser ? "#fff" : colors.text }]}>{item.content}</Text>
-          ) : (
-            <View style={styles.loadingDots}>
-              <ActivityIndicator size="small" color={colors.mutedForeground} />
-            </View>
-          )}
+        <View style={styles.bubbleCol}>
+          <View
+            style={[
+              styles.bubble,
+              isUser
+                ? [styles.userBubble, { backgroundColor: SAFFRON }]
+                : [styles.aiBubble, { backgroundColor: colors.card, borderColor: colors.border }],
+            ]}
+          >
+            {isStreaming ? (
+              <TypingDots color={colors.mutedForeground} />
+            ) : (
+              <Text style={[styles.bubbleText, { color: isUser ? "#fff" : colors.text }]}>{item.content}</Text>
+            )}
+          </View>
+          {tsLabel ? (
+            <Text style={[styles.timestamp, { color: colors.mutedForeground }, isUser && styles.tsRight]}>
+              {tsLabel}
+            </Text>
+          ) : null}
         </View>
+        {isUser && (
+          <View style={[styles.avatar, { backgroundColor: SAFFRON + "22", borderColor: SAFFRON + "44" }]}>
+            <Feather name="user" size={14} color={SAFFRON} />
+          </View>
+        )}
       </View>
     );
   };
@@ -232,15 +324,17 @@ export default function AssistantScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
         <View style={[styles.botAvatar, { backgroundColor: colors.primary }]}>
           <Feather name="cpu" size={18} color="#fff" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.botName, { color: colors.text }]}>GymOS AI Coach</Text>
+          <Text style={[styles.botName, typography.cardTitle, { color: colors.text }]}>GymOS AI Coach</Text>
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
-            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>Powered by Gemini</Text>
+            <PulsingStatusDot color={isLoading ? SAFFRON : colors.success} />
+            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
+              {isLoading ? "Thinking..." : "Powered by Gemini"}
+            </Text>
           </View>
         </View>
         <Pressable onPress={handleClearHistory} style={[styles.clearBtn, { borderColor: colors.border }]}>
@@ -286,7 +380,7 @@ export default function AssistantScreen() {
               onSubmitEditing={() => sendMessage(inputText)}
             />
             <Pressable
-              style={[styles.sendBtn, { backgroundColor: inputText.trim() && !isLoading ? colors.primary : colors.muted }]}
+              style={[styles.sendBtn, { backgroundColor: inputText.trim() && !isLoading ? SAFFRON : colors.muted }]}
               onPress={() => sendMessage(inputText)}
               disabled={!inputText.trim() || isLoading}
             >
@@ -302,20 +396,23 @@ export default function AssistantScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingBottom: 12 },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingBottom: 12, borderBottomWidth: 1 },
   botAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   botName: { fontSize: 16, fontWeight: "700" },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   statusText: { fontSize: 12 },
   clearBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  messageList: { paddingHorizontal: 16, gap: 12, paddingTop: 8 },
-  messageRow: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
-  userRow: { justifyContent: "flex-end" },
-  avatar: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  bubble: { maxWidth: "80%", borderRadius: 16, padding: 12 },
+  messageList: { paddingHorizontal: 16, gap: 12, paddingTop: 12 },
+  messageWrapper: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
+  userWrapper: { justifyContent: "flex-end" },
+  avatar: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", flexShrink: 0, borderWidth: 1 },
+  bubbleCol: { maxWidth: "75%", gap: 3 },
+  bubble: { borderRadius: 18, padding: 13 },
+  userBubble: { borderBottomRightRadius: 4 },
+  aiBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
   bubbleText: { fontSize: 15, lineHeight: 22 },
-  loadingDots: { padding: 4 },
+  timestamp: { fontSize: 11, paddingHorizontal: 4 },
+  tsRight: { textAlign: "right" },
   quickPromptsContainer: { paddingBottom: 16, gap: 8 },
   quickPromptsTitle: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: "600", marginBottom: 4 },
   quickPrompts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

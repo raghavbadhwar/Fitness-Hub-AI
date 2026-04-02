@@ -13,8 +13,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTypography } from "@/hooks/useTypography";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { EXERCISES } from "@/constants/exercises";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 
 type Colors = ReturnType<typeof useColors>;
 
@@ -25,6 +27,53 @@ function generateId() {
 const DEFAULT_REST_DURATION = 90;
 const RING_SIZE = 140;
 const STROKE = 10;
+const ACCENT_COLOR = "#FF6B00";
+
+const MUSCLE_GROUP_COLORS: Record<string, string> = {
+  Chest: "#EF4444",
+  Back: "#3B82F6",
+  Legs: "#22C55E",
+  Shoulders: "#F59E0B",
+  Arms: "#8B5CF6",
+  Biceps: "#8B5CF6",
+  Triceps: "#EC4899",
+  Core: "#14B8A6",
+  Cardio: "#FF6B00",
+  HIIT: "#FF6B00",
+  CrossFit: "#EF4444",
+  Strength: "#F97316",
+  Pilates: "#EC4899",
+  Yoga: "#22C55E",
+  Boxing: "#8B5CF6",
+  Spinning: "#3B82F6",
+  Zumba: "#F59E0B",
+  Other: "#9096B3",
+};
+
+function getMuscleColor(muscleGroup: string): string {
+  return MUSCLE_GROUP_COLORS[muscleGroup] || MUSCLE_GROUP_COLORS.Other;
+}
+
+function PulsingDot({ color }: { color: string }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.4, duration: 700, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, transform: [{ scale: scaleAnim }] }}
+    />
+  );
+}
 
 function ProgressRing({ progress, color, bgColor }: { progress: number; color: string; bgColor: string }) {
   const rotateAnim = useRef(new Animated.Value(progress)).current;
@@ -176,55 +225,6 @@ function RestTimerOverlay({
   );
 }
 
-function FinishModal({
-  visible,
-  elapsedText,
-  completedSets,
-  totalSets,
-  totalVolume,
-  onKeepGoing,
-  onFinish,
-  colors,
-}: {
-  visible: boolean;
-  elapsedText: string;
-  completedSets: number;
-  totalSets: number;
-  totalVolume: number;
-  onKeepGoing: () => void;
-  onFinish: () => void;
-  colors: Colors;
-}) {
-  if (!visible) return null;
-
-  return (
-    <View style={[styles.finishModalOverlay, { backgroundColor: colors.background + "F2" }]}>
-      <View style={[styles.finishModalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.finishModalTitle, { color: colors.text }]}>Finish Workout?</Text>
-        <View style={styles.finishModalStats}>
-          <Text style={[styles.finishModalStat, { color: colors.mutedForeground }]}>
-            <Text style={{ color: colors.primary, fontWeight: "700" }}>{elapsedText}</Text> elapsed
-          </Text>
-          <Text style={[styles.finishModalStat, { color: colors.mutedForeground }]}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>{completedSets}/{totalSets}</Text> sets
-          </Text>
-          <Text style={[styles.finishModalStat, { color: colors.mutedForeground }]}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>{totalVolume}kg</Text> volume
-          </Text>
-        </View>
-        <View style={styles.finishModalBtns}>
-          <Pressable style={[styles.keepGoingBtn, { borderColor: colors.border }]} onPress={onKeepGoing}>
-            <Text style={[styles.keepGoingText, { color: colors.text }]}>Keep Going</Text>
-          </Pressable>
-          <Pressable style={[styles.finishConfirmBtn, { backgroundColor: colors.success }]} onPress={onFinish}>
-            <Text style={styles.finishConfirmText}>Finish</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 function StepperInput({
   value,
   onChange,
@@ -288,6 +288,7 @@ export default function WorkoutSessionScreen() {
   const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } = useWorkout();
   const router = useRouter();
   const colors = useColors();
+  const typography = useTypography();
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -295,7 +296,7 @@ export default function WorkoutSessionScreen() {
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(DEFAULT_REST_DURATION);
-  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showFinishSheet, setShowFinishSheet] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const checkAnimations = useRef<Record<string, Animated.Value>>({});
 
@@ -341,7 +342,7 @@ export default function WorkoutSessionScreen() {
 
   const animateCheck = (setId: string) => {
     const anim = getCheckAnim(setId);
-    anim.setValue(0.7);
+    anim.setValue(0);
     Animated.spring(anim, { toValue: 1, tension: 200, friction: 6, useNativeDriver: true }).start();
   };
 
@@ -362,7 +363,7 @@ export default function WorkoutSessionScreen() {
   const handleFinishConfirm = async () => {
     if (finishing) return;
     setFinishing(true);
-    setShowFinishModal(false);
+    setShowFinishSheet(false);
     if (timerRef.current) clearInterval(timerRef.current);
     const summary = await endSession(session.id);
     if (summary) {
@@ -398,24 +399,30 @@ export default function WorkoutSessionScreen() {
     <View style={[styles.outerContainer, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.container}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <View>
-            <Text style={[styles.sessionName, { color: colors.text }]}>{session.name}</Text>
-            <Text style={[styles.timer, { color: colors.primary }]}>{formatTime(elapsed)}</Text>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.sessionName, typography.cardTitle, { color: colors.mutedForeground }]}>{session.name}</Text>
+            <View style={styles.timerRow}>
+              <Text style={[styles.timer, { color: ACCENT_COLOR }]}>{formatTime(elapsed)}</Text>
+              <View style={styles.activeBadge}>
+                <PulsingDot color={ACCENT_COLOR} />
+                <Text style={[styles.activeBadgeText, { color: ACCENT_COLOR }]}>ACTIVE</Text>
+              </View>
+            </View>
           </View>
           <View style={styles.headerStats}>
             <View style={styles.headerStat}>
               <Text style={[styles.headerStatVal, { color: colors.text }]}>{completedSets}/{totalSets}</Text>
               <Text style={[styles.headerStatLabel, { color: colors.mutedForeground }]}>Sets</Text>
             </View>
-            <View style={styles.headerStat}>
-              <Text style={[styles.headerStatVal, { color: colors.text }]}>{totalVolume}</Text>
-              <Text style={[styles.headerStatLabel, { color: colors.mutedForeground }]}>Vol (kg)</Text>
+            <View style={[styles.volumeStat, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.volumeVal, { color: ACCENT_COLOR }]}>{Math.round(totalVolume)}</Text>
+              <Text style={[styles.volumeLabel, { color: colors.mutedForeground }]}>Vol kg</Text>
             </View>
           </View>
         </View>
 
         <View style={[styles.progress, { backgroundColor: colors.border }]}>
-          <View style={[styles.progressFill, { width: `${totalSets > 0 ? (completedSets / totalSets) * 100 : 0}%`, backgroundColor: colors.primary }]} />
+          <View style={[styles.progressFill, { width: `${totalSets > 0 ? (completedSets / totalSets) * 100 : 0}%`, backgroundColor: ACCENT_COLOR }]} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -425,79 +432,96 @@ export default function WorkoutSessionScreen() {
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Tap "Add Exercise" to begin</Text>
             </View>
           ) : (
-            session.exercises.map((ex) => (
-              <Pressable key={ex.id} onPress={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}>
-                <View style={[styles.exerciseCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.exHeader}>
-                    <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
-                    <View style={styles.exHeaderRight}>
-                      <Text style={[styles.exSetsCount, { color: colors.mutedForeground }]}>
-                        {ex.sets.filter((s) => s.completed).length}/{ex.sets.length} sets
-                      </Text>
-                      <Feather name={expandedExercise === ex.id ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+            session.exercises.map((ex) => {
+              const exerciseData = EXERCISES.find((e) => e.id === ex.exerciseId);
+              const muscleColor = getMuscleColor(exerciseData?.muscleGroup || "Other");
+              return (
+                <Pressable key={ex.id} onPress={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}>
+                  <View style={[styles.exerciseCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.exerciseAccentBar, { backgroundColor: muscleColor }]} />
+                    <View style={styles.exerciseCardInner}>
+                      <View style={styles.exHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
+                          {exerciseData?.muscleGroup ? (
+                            <Text style={[styles.exMuscle, { color: muscleColor }]}>{exerciseData.muscleGroup}</Text>
+                          ) : null}
+                        </View>
+                        <View style={styles.exHeaderRight}>
+                          <Text style={[styles.exSetsCount, { color: colors.mutedForeground }]}>
+                            {ex.sets.filter((s) => s.completed).length}/{ex.sets.length} sets
+                          </Text>
+                          <Feather name={expandedExercise === ex.id ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+                        </View>
+                      </View>
+
+                      {(expandedExercise === ex.id || expandedExercise === null) && (
+                        <View style={styles.setsContainer}>
+                          <View style={styles.setHeaderRow}>
+                            <Text style={[styles.setHeaderLabel, styles.setNumHeader, { color: colors.mutedForeground }]}>#</Text>
+                            <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Weight (kg)</Text>
+                            <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Reps</Text>
+                            <Text style={[styles.setHeaderLabel, styles.setDoneHeader, { color: colors.mutedForeground }]}>Done</Text>
+                          </View>
+                          {ex.sets.map((set, idx) => {
+                            const checkAnim = getCheckAnim(set.id);
+                            return (
+                              <View key={set.id} style={[styles.setRow, set.completed && { opacity: 0.6 }]}>
+                                <Text style={[styles.setNum, { color: colors.mutedForeground }]}>{idx + 1}</Text>
+                                <View style={styles.setStepperCell}>
+                                  <StepperInput
+                                    value={set.weight}
+                                    onChange={(val) => updateSet(session.id, ex.id, set.id, { weight: val })}
+                                    step={2.5}
+                                    decimals={1}
+                                    editable={!set.completed}
+                                    colors={colors}
+                                  />
+                                </View>
+                                <View style={styles.setStepperCell}>
+                                  <StepperInput
+                                    value={set.reps}
+                                    onChange={(val) => updateSet(session.id, ex.id, set.id, { reps: val })}
+                                    step={1}
+                                    decimals={0}
+                                    editable={!set.completed}
+                                    colors={colors}
+                                  />
+                                </View>
+                                <Animated.View style={{ transform: [{ scale: checkAnim }] }}>
+                                  <Pressable
+                                    style={[
+                                      styles.doneBtn,
+                                      set.completed
+                                        ? { backgroundColor: "#22C55E", borderWidth: 0 }
+                                        : { backgroundColor: colors.border, borderWidth: 0 },
+                                    ]}
+                                    onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
+                                  >
+                                    <Feather name="check" size={18} color={set.completed ? "#fff" : colors.mutedForeground} />
+                                  </Pressable>
+                                </Animated.View>
+                              </View>
+                            );
+                          })}
+                          <Pressable style={[styles.addSetBtn, { borderColor: colors.border }]} onPress={() => {
+                            const lastSet = ex.sets[ex.sets.length - 1];
+                            addSetToExercise(session.id, ex.id, {
+                              weight: lastSet?.weight || 0,
+                              reps: lastSet?.reps || 10,
+                              completed: false,
+                            });
+                          }}>
+                            <Feather name="plus" size={14} color={colors.mutedForeground} />
+                            <Text style={[styles.addSetText, { color: colors.mutedForeground }]}>Add Set</Text>
+                          </Pressable>
+                        </View>
+                      )}
                     </View>
                   </View>
-
-                  {(expandedExercise === ex.id || expandedExercise === null) && (
-                    <View style={styles.setsContainer}>
-                      <View style={styles.setHeaderRow}>
-                        <Text style={[styles.setHeaderLabel, styles.setNumHeader, { color: colors.mutedForeground }]}>#</Text>
-                        <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Weight (kg)</Text>
-                        <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Reps</Text>
-                        <Text style={[styles.setHeaderLabel, styles.setDoneHeader, { color: colors.mutedForeground }]}>Done</Text>
-                      </View>
-                      {ex.sets.map((set, idx) => {
-                        const checkAnim = getCheckAnim(set.id);
-                        return (
-                          <View key={set.id} style={[styles.setRow, set.completed && { opacity: 0.6 }]}>
-                            <Text style={[styles.setNum, { color: colors.mutedForeground }]}>{idx + 1}</Text>
-                            <View style={styles.setStepperCell}>
-                              <StepperInput
-                                value={set.weight}
-                                onChange={(val) => updateSet(session.id, ex.id, set.id, { weight: val })}
-                                step={2.5}
-                                decimals={1}
-                                editable={!set.completed}
-                                colors={colors}
-                              />
-                            </View>
-                            <View style={styles.setStepperCell}>
-                              <StepperInput
-                                value={set.reps}
-                                onChange={(val) => updateSet(session.id, ex.id, set.id, { reps: val })}
-                                step={1}
-                                decimals={0}
-                                editable={!set.completed}
-                                colors={colors}
-                              />
-                            </View>
-                            <Animated.View style={{ transform: [{ scale: checkAnim }] }}>
-                              <Pressable
-                                style={[styles.doneBtn, { backgroundColor: set.completed ? colors.success : colors.border }]}
-                                onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
-                              >
-                                <Feather name="check" size={16} color={set.completed ? "#fff" : colors.mutedForeground} />
-                              </Pressable>
-                            </Animated.View>
-                          </View>
-                        );
-                      })}
-                      <Pressable style={[styles.addSetBtn, { borderColor: colors.border }]} onPress={() => {
-                        const lastSet = ex.sets[ex.sets.length - 1];
-                        addSetToExercise(session.id, ex.id, {
-                          weight: lastSet?.weight || 0,
-                          reps: lastSet?.reps || 10,
-                          completed: false,
-                        });
-                      }}>
-                        <Feather name="plus" size={14} color={colors.mutedForeground} />
-                        <Text style={[styles.addSetText, { color: colors.mutedForeground }]}>Add Set</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              </Pressable>
-            ))
+                </Pressable>
+              );
+            })
           )}
 
           <View style={styles.bottomButtons}>
@@ -505,7 +529,7 @@ export default function WorkoutSessionScreen() {
               <Feather name="plus" size={18} color={colors.text} />
               <Text style={[styles.addExerciseBtnText, { color: colors.text }]}>Add Exercise</Text>
             </Pressable>
-            <Pressable style={[styles.finishBtn, { backgroundColor: colors.success }]} onPress={() => setShowFinishModal(true)}>
+            <Pressable style={[styles.finishBtn, { backgroundColor: colors.success }]} onPress={() => setShowFinishSheet(true)}>
               <Feather name="check-circle" size={18} color="#fff" />
               <Text style={styles.finishBtnText}>Finish</Text>
             </Pressable>
@@ -514,12 +538,16 @@ export default function WorkoutSessionScreen() {
           {showExercisePicker && (
             <View style={[styles.exercisePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.exercisePickerTitle, { color: colors.text }]}>Add Exercise</Text>
-              {EXERCISES.slice(0, 20).map((ex) => (
-                <Pressable key={ex.id} style={[styles.exercisePickerItem, { borderBottomColor: colors.border }]} onPress={() => addExercise(ex.id)}>
-                  <Text style={[styles.exercisePickerName, { color: colors.text }]}>{ex.name}</Text>
-                  <Text style={[styles.exercisePickerMeta, { color: colors.mutedForeground }]}>{ex.muscleGroup}</Text>
-                </Pressable>
-              ))}
+              {EXERCISES.slice(0, 20).map((ex) => {
+                const muscleColor = getMuscleColor(ex.muscleGroup);
+                return (
+                  <Pressable key={ex.id} style={[styles.exercisePickerItem, { borderBottomColor: colors.border }]} onPress={() => addExercise(ex.id)}>
+                    <View style={[styles.exercisePickerAccent, { backgroundColor: muscleColor }]} />
+                    <Text style={[styles.exercisePickerName, { color: colors.text }]}>{ex.name}</Text>
+                    <Text style={[styles.exercisePickerMeta, { color: muscleColor }]}>{ex.muscleGroup}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </ScrollView>
@@ -533,15 +561,14 @@ export default function WorkoutSessionScreen() {
         colors={colors}
       />
 
-      <FinishModal
-        visible={showFinishModal}
-        elapsedText={formatTime(elapsed)}
-        completedSets={completedSets}
-        totalSets={totalSets}
-        totalVolume={totalVolume}
-        onKeepGoing={() => setShowFinishModal(false)}
-        onFinish={handleFinishConfirm}
-        colors={colors}
+      <ConfirmSheet
+        visible={showFinishSheet}
+        title="Finish Workout?"
+        message={`${formatTime(elapsed)} elapsed · ${completedSets}/${totalSets} sets · ${Math.round(totalVolume)}kg volume`}
+        confirmText="Finish"
+        cancelText="Keep Going"
+        onConfirm={handleFinishConfirm}
+        onCancel={() => setShowFinishSheet(false)}
       />
     </View>
   );
@@ -551,20 +578,30 @@ const styles = StyleSheet.create({
   outerContainer: { flex: 1 },
   container: { flex: 1 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1 },
-  sessionName: { fontSize: 18, fontWeight: "700" },
-  timer: { fontSize: 28, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  headerStats: { flexDirection: "row", gap: 20 },
+  headerLeft: { flex: 1 },
+  sessionName: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  timerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
+  timer: { fontSize: 38, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  activeBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "#FF6B0018" },
+  activeBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  headerStats: { flexDirection: "row", gap: 12, alignItems: "center" },
   headerStat: { alignItems: "center" },
   headerStatVal: { fontSize: 20, fontWeight: "700" },
   headerStatLabel: { fontSize: 11 },
+  volumeStat: { alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
+  volumeVal: { fontSize: 20, fontWeight: "800" },
+  volumeLabel: { fontSize: 10, fontWeight: "600" },
   progress: { height: 3 },
   progressFill: { height: 3 },
   scroll: { padding: 16, gap: 12, paddingBottom: 40 },
   emptyExercises: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: 15 },
-  exerciseCard: { borderRadius: 14, padding: 14, borderWidth: 1 },
-  exHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  exerciseCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden", flexDirection: "row" },
+  exerciseAccentBar: { width: 5 },
+  exerciseCardInner: { flex: 1, padding: 14 },
+  exHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 },
   exName: { fontSize: 16, fontWeight: "700" },
+  exMuscle: { fontSize: 12, fontWeight: "600", marginTop: 2 },
   exHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   exSetsCount: { fontSize: 13 },
   setsContainer: { gap: 8 },
@@ -580,7 +617,7 @@ const styles = StyleSheet.create({
   stepperBtn: { width: 28, height: 34, borderRadius: 7, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   stepperDisabled: { opacity: 0.4 },
   stepperInput: { flex: 1, borderRadius: 7, borderWidth: 1, paddingVertical: 6, paddingHorizontal: 4, fontSize: 14, textAlign: "center", minWidth: 0 },
-  doneBtn: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  doneBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   addSetBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderStyle: "dashed", borderRadius: 8, paddingVertical: 10 },
   addSetText: { fontSize: 14 },
   bottomButtons: { flexDirection: "row", gap: 12 },
@@ -590,9 +627,10 @@ const styles = StyleSheet.create({
   finishBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   exercisePicker: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 0 },
   exercisePickerTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  exercisePickerItem: { paddingVertical: 12, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between" },
-  exercisePickerName: { fontSize: 15, fontWeight: "500" },
-  exercisePickerMeta: { fontSize: 13 },
+  exercisePickerItem: { paddingVertical: 12, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  exercisePickerAccent: { width: 4, height: 32, borderRadius: 2 },
+  exercisePickerName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  exercisePickerMeta: { fontSize: 13, fontWeight: "600" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   errorText: { fontSize: 16 },
   backBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
@@ -606,14 +644,4 @@ const styles = StyleSheet.create({
   restLabel: { fontSize: 13, marginTop: 2 },
   skipRestBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   skipRestText: { fontSize: 14, fontWeight: "600" },
-  finishModalOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", zIndex: 200 },
-  finishModalCard: { borderRadius: 24, padding: 28, borderWidth: 1, alignItems: "center", gap: 20, width: 300 },
-  finishModalTitle: { fontSize: 20, fontWeight: "800" },
-  finishModalStats: { gap: 8, alignItems: "center" },
-  finishModalStat: { fontSize: 14 },
-  finishModalBtns: { flexDirection: "row", gap: 12, width: "100%" },
-  keepGoingBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, alignItems: "center" },
-  keepGoingText: { fontSize: 14, fontWeight: "600" },
-  finishConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
-  finishConfirmText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });

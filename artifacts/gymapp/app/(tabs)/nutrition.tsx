@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -14,7 +13,9 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition, MealType, FoodEntry } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
@@ -25,20 +26,88 @@ const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
 type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
 
-const MEAL_SECTIONS: { type: MealType; label: string; icon: FeatherIconName }[] = [
-  { type: "breakfast", label: "Breakfast", icon: "sun" },
-  { type: "lunch", label: "Lunch", icon: "coffee" },
-  { type: "snacks", label: "Snacks", icon: "package" },
-  { type: "dinner", label: "Dinner", icon: "moon" },
-  { type: "pre_workout", label: "Pre-Workout", icon: "zap" },
-  { type: "post_workout", label: "Post-Workout", icon: "activity" },
+const MEAL_SECTIONS: { type: MealType; label: string; icon: FeatherIconName; color: string }[] = [
+  { type: "breakfast", label: "Breakfast", icon: "sun", color: "#F59E0B" },
+  { type: "lunch", label: "Lunch", icon: "coffee", color: "#22C55E" },
+  { type: "snacks", label: "Snacks", icon: "package", color: "#3B82F6" },
+  { type: "dinner", label: "Dinner", icon: "moon", color: "#8B5CF6" },
+  { type: "pre_workout", label: "Pre-Workout", icon: "zap", color: "#FF6B00" },
+  { type: "post_workout", label: "Post-Workout", icon: "activity", color: "#14B8A6" },
 ];
+
+function MacroPill({
+  label,
+  value,
+  target,
+  color,
+  size = 72,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  color: string;
+  size?: number;
+}) {
+  const radius = (size - 10) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = Math.min(value / Math.max(target, 1), 1);
+  const strokeDashoffset = circumference * (1 - progress);
+  const cx = size / 2;
+  const cy = size / 2;
+
+  return (
+    <View style={[macroPillStyles.container, { backgroundColor: color + "15", borderColor: color + "30" }]}>
+      <View style={{ position: "relative", width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size}>
+          <Circle cx={cx} cy={cy} r={radius} stroke={color + "30"} strokeWidth={5} fill="none" />
+          <Circle
+            cx={cx}
+            cy={cy}
+            r={radius}
+            stroke={color}
+            strokeWidth={5}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+        </Svg>
+        <View style={{ position: "absolute", alignItems: "center" }}>
+          <Text style={[macroPillStyles.value, { color }]}>{Math.round(value)}</Text>
+          <Text style={[macroPillStyles.unit, { color }]}>g</Text>
+        </View>
+      </View>
+      <View style={macroPillStyles.labelRow}>
+        <Text style={[macroPillStyles.label, { color }]}>{label}</Text>
+        <Text style={[macroPillStyles.target, { color: color + "80" }]}>/{target}g</Text>
+      </View>
+    </View>
+  );
+}
+
+const macroPillStyles = StyleSheet.create({
+  container: {
+    alignItems: "center",
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1,
+    gap: 6,
+    flex: 1,
+  },
+  value: { fontSize: 14, fontWeight: "800" },
+  unit: { fontSize: 9, fontWeight: "600", marginTop: -2 },
+  labelRow: { flexDirection: "row", alignItems: "baseline", gap: 1 },
+  label: { fontSize: 12, fontWeight: "700" },
+  target: { fontSize: 10 },
+});
 
 export default function NutritionScreen() {
   const { profile } = useApp();
   const { todayLog, addFoodEntry, removeFoodEntry, updateWaterIntake } = useNutrition();
   const router = useRouter();
   const colors = useColors();
+  const typography = useTypography();
   const [activeMeal, setActiveMeal] = useState<MealType | null>(null);
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,7 +155,7 @@ export default function NutritionScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, { color: colors.text }]}>Nutrition</Text>
+        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>Nutrition</Text>
         <Pressable
           style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.push("/add-meal")}
@@ -103,6 +172,27 @@ export default function NutritionScreen() {
             <View style={styles.macroSummary}>
               <MacroBar protein={totals.protein} carbs={totals.carbs} fat={totals.fat} proteinTarget={profile.dailyProteinTarget} carbTarget={profile.dailyCarbTarget} fatTarget={profile.dailyFatTarget} />
             </View>
+          </View>
+
+          <View style={styles.macroPills}>
+            <MacroPill
+              label="P"
+              value={totals.protein}
+              target={profile.dailyProteinTarget}
+              color={colors.protein}
+            />
+            <MacroPill
+              label="C"
+              value={totals.carbs}
+              target={profile.dailyCarbTarget}
+              color={colors.carbs}
+            />
+            <MacroPill
+              label="F"
+              value={totals.fat}
+              target={profile.dailyFatTarget}
+              color={colors.fat}
+            />
           </View>
         </View>
 
@@ -125,7 +215,7 @@ export default function NutritionScreen() {
           const entries = getEntriesForMeal(meal.type);
           const mealCals = entries.reduce((sum, e) => sum + e.calories, 0);
           return (
-            <View key={meal.type} style={[styles.mealSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View key={meal.type} style={[styles.mealSection, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: meal.color, borderLeftWidth: 4 }]}>
               <Pressable
                 style={styles.mealHeader}
                 onPress={() => {
@@ -134,10 +224,14 @@ export default function NutritionScreen() {
                 }}
               >
                 <View style={styles.mealTitleRow}>
-                  <Feather name={meal.icon} size={16} color={colors.primary} />
-                  <Text style={[styles.mealTitle, { color: colors.text }]}>{meal.label}</Text>
+                  <View style={[styles.mealIconBg, { backgroundColor: meal.color + "20" }]}>
+                    <Feather name={meal.icon} size={14} color={meal.color} />
+                  </View>
+                  <Text style={[styles.mealTitle, typography.sectionTitle, { color: colors.text }]}>{meal.label}</Text>
                   {mealCals > 0 && (
-                    <Text style={[styles.mealCals, { color: colors.mutedForeground }]}>{mealCals} kcal</Text>
+                    <View style={[styles.mealCalsBadge, { backgroundColor: meal.color + "20" }]}>
+                      <Text style={[styles.mealCals, { color: meal.color }]}>{mealCals} kcal</Text>
+                    </View>
                   )}
                 </View>
                 <View style={[styles.addBtn, { backgroundColor: colors.primary + "20" }]}>
@@ -152,7 +246,10 @@ export default function NutritionScreen() {
                       {entry.servingSize} · P:{entry.protein}g C:{entry.carbs}g F:{entry.fat}g
                     </Text>
                   </View>
-                  <Text style={[styles.foodCals, { color: colors.text }]}>{entry.calories} kcal</Text>
+                  <View style={[styles.calorieChip, { backgroundColor: meal.color + "18" }]}>
+                    <Text style={[styles.calorieChipText, { color: meal.color }]}>{entry.calories}</Text>
+                    <Text style={[styles.calorieChipUnit, { color: meal.color + "90" }]}>kcal</Text>
+                  </View>
                   <Pressable onPress={() => removeFoodEntry(entry.id)} style={styles.deleteBtn}>
                     <Feather name="trash-2" size={14} color={colors.error} />
                   </Pressable>
@@ -226,7 +323,10 @@ export default function NutritionScreen() {
                       {item.servingSize} · P:{item.protein}g C:{item.carbs}g F:{item.fat}g
                     </Text>
                   </View>
-                  <Text style={[styles.foodResultCals, { color: colors.primary }]}>{item.calories}</Text>
+                  <View style={[styles.searchCalChip, { backgroundColor: colors.primary + "18" }]}>
+                    <Text style={[styles.searchCalVal, { color: colors.primary }]}>{item.calories}</Text>
+                    <Text style={[styles.searchCalUnit, { color: colors.primary + "90" }]}>kcal</Text>
+                  </View>
                 </Pressable>
               )}
               contentContainerStyle={{ paddingBottom: 40 }}
@@ -245,9 +345,10 @@ const styles = StyleSheet.create({
   cameraBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   cameraBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   scroll: { padding: 16, gap: 12 },
-  summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
+  summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 14 },
   ringRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   macroSummary: { flex: 1 },
+  macroPills: { flexDirection: "row", gap: 10 },
   waterCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
   waterHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   waterTitle: { fontSize: 15, fontWeight: "600", flex: 1 },
@@ -257,23 +358,29 @@ const styles = StyleSheet.create({
   mealSection: { borderRadius: 16, padding: 12, borderWidth: 1 },
   mealHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   mealTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  mealTitle: { fontSize: 15, fontWeight: "600" },
-  mealCals: { fontSize: 12 },
+  mealIconBg: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  mealTitle: {},
+  mealCalsBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  mealCals: { fontSize: 12, fontWeight: "600" },
   addBtn: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   foodEntry: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, marginTop: 10, borderTopWidth: 1 },
   foodName: { fontSize: 14, fontWeight: "500" },
   foodMeta: { fontSize: 12, marginTop: 2 },
-  foodCals: { fontSize: 14, fontWeight: "600" },
+  calorieChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, alignItems: "center" },
+  calorieChipText: { fontSize: 14, fontWeight: "700" },
+  calorieChipUnit: { fontSize: 9, fontWeight: "600" },
   deleteBtn: { padding: 4 },
   modalContainer: { flex: 1, padding: 20 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: "700" },
   searchBar: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
   searchInput: { flex: 1, fontSize: 16 },
-  foodResult: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1 },
+  foodResult: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, gap: 12 },
   foodResultName: { fontSize: 15, fontWeight: "500" },
   foodResultMeta: { fontSize: 12, marginTop: 2 },
-  foodResultCals: { fontSize: 16, fontWeight: "700" },
+  searchCalChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, alignItems: "center", minWidth: 55 },
+  searchCalVal: { fontSize: 15, fontWeight: "700" },
+  searchCalUnit: { fontSize: 9, fontWeight: "600" },
   selectedFoodCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
   selectedFoodName: { fontSize: 18, fontWeight: "700" },
   selectedFoodMeta: { fontSize: 13 },

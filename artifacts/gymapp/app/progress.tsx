@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Rect, Line, Text as SvgText, Path, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
+import { useTypography } from "@/hooks/useTypography";
 import { useApp, type BodyMeasurement } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
@@ -33,16 +34,30 @@ interface BarChartProps {
 
 function BarChart({ data, maxValue, color, height = CHART_HEIGHT, width = CHART_WIDTH }: BarChartProps) {
   const barWidth = (width - data.length * 4) / data.length;
+  const maxIdx = data.reduce((best, d, i, arr) => (d.value > arr[best].value ? i : best), 0);
   return (
-    <Svg width={width} height={height + 20}>
+    <Svg width={width} height={height + 32}>
       {data.map((d, i) => {
         const barHeight = maxValue > 0 ? (d.value / maxValue) * height : 0;
         const x = i * (barWidth + 4);
         const y = height - barHeight;
+        const isTallest = i === maxIdx && d.value > 0;
         return (
           <React.Fragment key={i}>
             <Rect x={x} y={y} width={barWidth} height={barHeight} rx={4} fill={d.value > 0 ? color : "#2A2D42"} />
-            <SvgText x={x + barWidth / 2} y={height + 14} fontSize={9} fill="#9096B3" textAnchor="middle">{d.label}</SvgText>
+            {isTallest && (
+              <SvgText
+                x={x + barWidth / 2}
+                y={y - 4}
+                fontSize={9}
+                fill={color}
+                textAnchor="middle"
+                fontWeight="700"
+              >
+                {d.value.toLocaleString()}
+              </SvgText>
+            )}
+            <SvgText x={x + barWidth / 2} y={height + 16} fontSize={9} fill="#9096B3" textAnchor="middle">{d.label}</SvgText>
           </React.Fragment>
         );
       })}
@@ -118,6 +133,52 @@ function LineChart({ data, color, height = CHART_HEIGHT, width = CHART_WIDTH, sh
     </Svg>
   );
 }
+
+interface ConsistencyHeatmapProps {
+  workoutDates: Set<string>;
+  colors: ReturnType<typeof useColors>;
+}
+
+function ConsistencyHeatmap({ workoutDates, colors }: ConsistencyHeatmapProps) {
+  const today = new Date();
+  const days = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (27 - i));
+    return d.toISOString().slice(0, 10);
+  });
+
+  const weeks: string[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+
+  return (
+    <View style={heatmapStyles.container}>
+      {weeks.map((week, wi) => (
+        <View key={wi} style={heatmapStyles.week}>
+          {week.map((d) => {
+            const hasWorkout = workoutDates.has(d);
+            return (
+              <View
+                key={d}
+                style={[
+                  heatmapStyles.cell,
+                  { backgroundColor: hasWorkout ? "#22C55E" : colors.surface, borderColor: colors.border },
+                ]}
+              />
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const heatmapStyles = StyleSheet.create({
+  container: { gap: 4 },
+  week: { flexDirection: "row", gap: 4 },
+  cell: { width: 18, height: 18, borderRadius: 4, borderWidth: 1 },
+});
 
 function LogWeightModal({ visible, onClose, onSave, currentWeight }: {
   visible: boolean;
@@ -267,6 +328,7 @@ export default function ProgressScreen() {
   const { getWeeklyCalories, get30DayCalories } = useNutrition();
   const { sessions, getWeeklyVolume, get30DayVolume, personalRecords } = useWorkout();
   const colors = useColors();
+  const typography = useTypography();
 
   const [showLogWeight, setShowLogWeight] = useState(false);
   const [showLogMeasure, setShowLogMeasure] = useState(false);
@@ -319,17 +381,32 @@ export default function ProgressScreen() {
     { key: "thighs" as const, label: "Thighs" },
   ];
 
+  const workoutDates = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 28);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return new Set(
+      sessions
+        .filter((s) => s.completed && s.date >= cutoffStr)
+        .map((s) => s.date),
+    );
+  }, [sessions]);
+
+  const consistencyCount = workoutDates.size;
+
+  const statItems = [
+    { label: "Total Workouts", value: totalWorkouts, color: colors.primary },
+    { label: "Total Volume", value: `${Math.round(totalVolume / 1000)}k kg`, color: colors.success },
+    { label: "Personal Records", value: prs.length, color: colors.warning },
+    { label: "Avg Daily Kcal", value: Math.round(avgCalories), color: colors.info },
+  ];
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.statsGrid}>
-          {[
-            { label: "Total Workouts", value: totalWorkouts, color: colors.primary },
-            { label: "Total Volume", value: `${Math.round(totalVolume / 1000)}k kg`, color: colors.success },
-            { label: "Personal Records", value: prs.length, color: colors.warning },
-            { label: "Avg Daily Kcal", value: Math.round(avgCalories), color: colors.info },
-          ].map((stat) => (
-            <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {statItems.map((stat) => (
+            <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: stat.color, borderLeftWidth: 4 }]}>
               <Text style={[styles.statVal, { color: stat.color }]}>{stat.value}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text>
             </View>
@@ -337,7 +414,8 @@ export default function ProgressScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Goal Progress</Text>
+          <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Goal Progress</Text>
+          <View style={[typography.sectionTitleUnderline, { marginBottom: 8 }]} />
           <View style={styles.goalRow}>
             <View style={styles.goalInfo}>
               <Text style={[styles.goalWeight, { color: colors.text }]}>{profile.weight}kg</Text>
@@ -358,7 +436,23 @@ export default function ProgressScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Weight Trend (30 days)</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>28-Day Consistency</Text>
+            <View style={[styles.consistencyBadge, { backgroundColor: colors.success + "22" }]}>
+              <Text style={[styles.consistencyCount, { color: colors.success }]}>{consistencyCount}/28</Text>
+            </View>
+          </View>
+          <ConsistencyHeatmap workoutDates={workoutDates} colors={colors} />
+          <View style={styles.heatmapLegend}>
+            <View style={[styles.heatmapCell, { backgroundColor: "#1A2035", borderColor: colors.border }]} />
+            <Text style={[styles.heatmapLegendText, { color: colors.mutedForeground }]}>Rest</Text>
+            <View style={[styles.heatmapCell, { backgroundColor: "#22C55E", borderColor: colors.border }]} />
+            <Text style={[styles.heatmapLegendText, { color: colors.mutedForeground }]}>Workout</Text>
+          </View>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Weight Trend (30 days)</Text>
             <Pressable
               style={[styles.logBtn, { backgroundColor: colors.primary }]}
               onPress={() => setShowLogWeight(true)}
@@ -379,7 +473,7 @@ export default function ProgressScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Body Measurements</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Body Measurements</Text>
             <Pressable
               style={[styles.logBtn, { backgroundColor: colors.success }]}
               onPress={() => setShowLogMeasure(true)}
@@ -414,7 +508,7 @@ export default function ProgressScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
               {calorieMode === "bar" ? "Weekly Calories" : "30-Day Calories"}
             </Text>
             <Pressable
@@ -443,7 +537,7 @@ export default function ProgressScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
               {volumeMode === "bar" ? "Weekly Workout Volume" : "30-Day Volume"}
             </Text>
             <Pressable
@@ -468,7 +562,8 @@ export default function ProgressScreen() {
 
         {prs.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Personal Records</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Personal Records</Text>
+            <View style={[typography.sectionTitleUnderline, { marginBottom: 8 }]} />
             {prs.map((pr) => (
               <View key={pr.exerciseId} style={[styles.prRow, { borderBottomColor: colors.border }]}>
                 <Feather name="award" size={16} color={colors.warning} />
@@ -515,6 +610,11 @@ const styles = StyleSheet.create({
   goalBar: { height: 10, borderRadius: 5, overflow: "hidden" },
   goalFill: { height: "100%", borderRadius: 5 },
   goalPercent: { fontSize: 11, marginTop: 4, textAlign: "center" },
+  consistencyBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  consistencyCount: { fontSize: 12, fontWeight: "700" },
+  heatmapLegend: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  heatmapCell: { width: 14, height: 14, borderRadius: 3, borderWidth: 1 },
+  heatmapLegendText: { fontSize: 11, marginRight: 8 },
   targetLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   targetDot: { width: 8, height: 8, borderRadius: 4 },
   targetLineText: { fontSize: 12 },

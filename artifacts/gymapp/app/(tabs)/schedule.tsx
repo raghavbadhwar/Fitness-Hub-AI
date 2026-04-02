@@ -1,9 +1,9 @@
 import { useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
 import {
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -13,12 +13,27 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
-import { useSchedule, GymClass } from "@/contexts/ScheduleContext";
+import { useSchedule, GymClass, ClassCategory } from "@/contexts/ScheduleContext";
+import { ConfirmSheet } from "@/components/ConfirmSheet";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const CATEGORY_EMOJI: Record<ClassCategory, string> = {
+  Yoga: "🧘",
+  Zumba: "💃",
+  CrossFit: "⚡",
+  HIIT: "🔥",
+  Spinning: "🚴",
+  Boxing: "🥊",
+  Pilates: "🤸",
+  Strength: "💪",
+  Cardio: "🏃",
+  Other: "🏋️",
+};
 
 export default function ScheduleScreen() {
   const { user } = useUser();
@@ -26,9 +41,11 @@ export default function ScheduleScreen() {
   const { classes, enrollInClass, unenrollFromClass, isEnrolled, getClassesForDate } = useSchedule();
   const router = useRouter();
   const colors = useColors();
+  const typography = useTypography();
 
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(today.toISOString().split("T")[0]);
+  const [confirmSheet, setConfirmSheet] = useState<{ cls: GymClass } | null>(null);
 
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
@@ -40,23 +57,25 @@ export default function ScheduleScreen() {
 
   const handleEnroll = async (cls: GymClass) => {
     if (isEnrolled(cls.id)) {
-      Alert.alert("Unenroll", `Leave ${cls.name}?`, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Unenroll", style: "destructive", onPress: () => unenrollFromClass(cls.id, user?.id || "me") },
-      ]);
+      setConfirmSheet({ cls });
     } else {
       if (cls.enrolledCount >= cls.maxParticipants) {
-        Alert.alert("Class Full", "This class is fully booked.");
         return;
       }
       await enrollInClass(cls.id, user?.id || "me");
     }
   };
 
+  const handleConfirmUnenroll = async () => {
+    if (!confirmSheet) return;
+    await unenrollFromClass(confirmSheet.cls.id, user?.id || "me");
+    setConfirmSheet(null);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, { color: colors.text }]}>Schedule</Text>
+        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>Schedule</Text>
         {(profile.role === "owner" || profile.role === "trainer") && (
           <Pressable style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => router.push("/manage-class")}>
             <Feather name="plus" size={18} color="#fff" />
@@ -109,44 +128,77 @@ export default function ScheduleScreen() {
           selectedClasses.map((cls) => {
             const enrolled = isEnrolled(cls.id);
             const full = cls.enrolledCount >= cls.maxParticipants && !enrolled;
+            const capacityPct = Math.min((cls.enrolledCount / cls.maxParticipants) * 100, 100);
+            const emoji = CATEGORY_EMOJI[cls.category] || "🏋️";
             return (
               <View key={cls.id} style={[styles.classCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[styles.colorStrip, { backgroundColor: cls.color }]} />
-                <View style={styles.classContent}>
-                  <View style={styles.classHeader}>
-                    <View>
-                      <Text style={[styles.className, { color: colors.text }]}>{cls.name}</Text>
-                      <View style={styles.classMetaRow}>
-                        <Feather name="clock" size={12} color={colors.mutedForeground} />
-                        <Text style={[styles.classMeta, { color: colors.mutedForeground }]}>{cls.startTime} · {cls.duration} min</Text>
-                        <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-                        <Text style={[styles.classMeta, { color: colors.mutedForeground }]}>{cls.room}</Text>
-                      </View>
-                      <View style={styles.classMetaRow}>
-                        <Feather name="user" size={12} color={colors.mutedForeground} />
-                        <Text style={[styles.classMeta, { color: colors.mutedForeground }]}>{cls.trainer}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.classRight}>
-                      <View style={[styles.categoryBadge, { backgroundColor: cls.color + "20" }]}>
-                        <Text style={[styles.categoryText, { color: cls.color }]}>{cls.category}</Text>
-                      </View>
-                      <Text style={[styles.spotsText, { color: full ? colors.error : colors.mutedForeground }]}>
-                        {full ? "Full" : `${cls.enrolledCount}/${cls.maxParticipants}`}
-                      </Text>
+                <LinearGradient
+                  colors={[cls.color, cls.color + "BB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cardHeader}
+                >
+                  <View style={styles.cardHeaderContent}>
+                    <Text style={styles.cardHeaderEmoji}>{emoji}</Text>
+                    <View style={styles.cardHeaderText}>
+                      <Text style={styles.cardHeaderName}>{cls.name}</Text>
+                      <Text style={styles.cardHeaderTime}>{cls.startTime} · {cls.duration} min</Text>
                     </View>
                   </View>
-                  {cls.description && (
-                    <Text style={[styles.classDesc, { color: colors.mutedForeground }]}>{cls.description}</Text>
+                  {enrolled && (
+                    <View style={styles.enrolledBadge}>
+                      <Feather name="check" size={12} color="#fff" />
+                    </View>
                   )}
+                </LinearGradient>
+
+                <View style={styles.classContent}>
+                  <View style={styles.classMetaRow}>
+                    <Feather name="map-pin" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.classMeta, { color: colors.mutedForeground }]}>{cls.room}</Text>
+                    <View style={styles.dot2} />
+                    <Feather name="user" size={12} color={colors.mutedForeground} />
+                    <Text style={[styles.classMeta, { color: colors.mutedForeground }]}>{cls.trainer}</Text>
+                  </View>
+
+                  {cls.description ? (
+                    <Text style={[styles.classDesc, { color: colors.mutedForeground }]}>{cls.description}</Text>
+                  ) : null}
+
+                  <View style={styles.capacityRow}>
+                    <Text style={[styles.capacityText, { color: full ? colors.error : colors.mutedForeground }]}>
+                      {cls.enrolledCount}/{cls.maxParticipants} enrolled
+                      {full ? " · Full" : ""}
+                    </Text>
+                  </View>
+                  <View style={[styles.capacityBar, { backgroundColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.capacityFill,
+                        {
+                          width: `${capacityPct}%`,
+                          backgroundColor: capacityPct >= 90 ? colors.error : capacityPct >= 70 ? colors.warning : cls.color,
+                        },
+                      ]}
+                    />
+                  </View>
+
                   <View style={styles.classActions}>
                     <Pressable
-                      style={[styles.enrollBtn, enrolled ? { backgroundColor: colors.surface, borderColor: colors.border } : full ? { backgroundColor: colors.muted, borderColor: colors.border } : { backgroundColor: cls.color }]}
+                      style={[
+                        styles.enrollBtn,
+                        enrolled
+                          ? { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }
+                          : full
+                          ? { backgroundColor: colors.muted, borderColor: colors.border, borderWidth: 1 }
+                          : { backgroundColor: cls.color },
+                      ]}
                       onPress={() => handleEnroll(cls)}
                       disabled={full && !enrolled}
                     >
+                      {enrolled && <Feather name="check" size={14} color={colors.text} style={{ marginRight: 4 }} />}
                       <Text style={[styles.enrollBtnText, { color: enrolled ? colors.text : full ? colors.mutedForeground : "#fff" }]}>
-                        {enrolled ? "Unenroll" : full ? "Class Full" : "Enroll Now"}
+                        {enrolled ? "Enrolled" : full ? "Class Full" : "Enroll Now"}
                       </Text>
                     </Pressable>
                     {(profile.role === "owner" || profile.role === "trainer") && (
@@ -162,24 +214,43 @@ export default function ScheduleScreen() {
         )}
 
         <View style={[styles.allClassesSection, { borderTopColor: colors.border }]}>
-          <Text style={[styles.allClassesTitle, { color: colors.text }]}>All Upcoming Classes</Text>
+          <Text style={[styles.allClassesTitle, typography.sectionTitle, { color: colors.text }]}>All Upcoming Classes</Text>
+          <View style={typography.sectionTitleUnderline} />
           {classes
             .filter((c) => c.date >= today.toISOString().split("T")[0])
             .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
             .slice(0, 10)
             .map((cls) => (
               <Pressable key={cls.id} style={[styles.miniClass, { borderLeftColor: cls.color, borderBottomColor: colors.border }]} onPress={() => setSelectedDate(cls.date)}>
-                <View>
-                  <Text style={[styles.miniClassName, { color: colors.text }]}>{cls.name}</Text>
-                  <Text style={[styles.miniClassMeta, { color: colors.mutedForeground }]}>
-                    {new Date(cls.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })} · {cls.startTime}
-                  </Text>
+                <View style={styles.miniClassLeft}>
+                  <Text style={styles.miniEmoji}>{CATEGORY_EMOJI[cls.category] || "🏋️"}</Text>
+                  <View>
+                    <Text style={[styles.miniClassName, { color: colors.text }]}>{cls.name}</Text>
+                    <Text style={[styles.miniClassMeta, { color: colors.mutedForeground }]}>
+                      {new Date(cls.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })} · {cls.startTime}
+                    </Text>
+                  </View>
                 </View>
-                {isEnrolled(cls.id) && <View style={[styles.enrolledDot, { backgroundColor: colors.success }]} />}
+                {isEnrolled(cls.id) && (
+                  <View style={[styles.miniEnrolledBadge, { backgroundColor: colors.success + "22" }]}>
+                    <Feather name="check" size={11} color={colors.success} />
+                  </View>
+                )}
               </Pressable>
             ))}
         </View>
       </ScrollView>
+
+      <ConfirmSheet
+        visible={!!confirmSheet}
+        title={`Leave ${confirmSheet?.cls.name}?`}
+        message="You will be removed from this class."
+        confirmText="Unenroll"
+        cancelText="Keep Spot"
+        destructive
+        onConfirm={handleConfirmUnenroll}
+        onCancel={() => setConfirmSheet(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -196,32 +267,39 @@ const styles = StyleSheet.create({
   dayName: { fontSize: 11, fontWeight: "600" },
   dayNum: { fontSize: 20, fontWeight: "700" },
   dot: { width: 6, height: 6, borderRadius: 3 },
+  dot2: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: "#666" },
   dateLabel: { fontSize: 13, paddingHorizontal: 16, paddingBottom: 8 },
-  scroll: { padding: 16, gap: 12 },
+  scroll: { padding: 16, gap: 14 },
   empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: 15, textAlign: "center" },
   scheduleBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
   scheduleBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  classCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", flexDirection: "row" },
-  colorStrip: { width: 4 },
-  classContent: { flex: 1, padding: 14, gap: 10 },
-  classHeader: { flexDirection: "row", justifyContent: "space-between" },
-  className: { fontSize: 16, fontWeight: "700" },
-  classMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  classCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
+  cardHeader: { padding: 16, position: "relative" },
+  cardHeaderContent: { flexDirection: "row", alignItems: "center", gap: 10 },
+  cardHeaderEmoji: { fontSize: 28 },
+  cardHeaderText: { flex: 1 },
+  cardHeaderName: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  cardHeaderTime: { fontSize: 13, color: "rgba(255,255,255,0.85)", marginTop: 2, fontWeight: "600" },
+  enrolledBadge: { position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)" },
+  classContent: { padding: 14, gap: 10 },
+  classMetaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   classMeta: { fontSize: 12 },
-  classRight: { alignItems: "flex-end", gap: 6 },
-  categoryBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  categoryText: { fontSize: 11, fontWeight: "600" },
-  spotsText: { fontSize: 12 },
   classDesc: { fontSize: 13, lineHeight: 18 },
+  capacityRow: { flexDirection: "row", alignItems: "center" },
+  capacityText: { fontSize: 12, fontWeight: "500" },
+  capacityBar: { height: 5, borderRadius: 3, overflow: "hidden" },
+  capacityFill: { height: "100%", borderRadius: 3 },
   classActions: { flexDirection: "row", gap: 10 },
-  enrollBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
+  enrollBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center" },
   enrollBtnText: { fontSize: 14, fontWeight: "600" },
   editBtn: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   allClassesSection: { paddingTop: 16, borderTopWidth: 1, gap: 0 },
-  allClassesTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  miniClass: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingLeft: 12, borderLeftWidth: 3, borderBottomWidth: 1, marginBottom: 0 },
+  allClassesTitle: { marginBottom: 4 },
+  miniClass: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingLeft: 12, borderLeftWidth: 3, borderBottomWidth: 1 },
+  miniClassLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  miniEmoji: { fontSize: 18 },
   miniClassName: { fontSize: 14, fontWeight: "600" },
   miniClassMeta: { fontSize: 12, marginTop: 2 },
-  enrolledDot: { width: 8, height: 8, borderRadius: 4 },
+  miniEnrolledBadge: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
 });
