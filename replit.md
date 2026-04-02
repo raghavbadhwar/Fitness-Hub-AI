@@ -4,6 +4,49 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## GymOS — AI-Powered Gym Management App
+
+### artifacts/gymapp (Expo / React Native)
+
+Mobile app for gym owners, trainers, and members. All data stored in AsyncStorage.
+
+**Key Features:**
+- **Auth**: Clerk v3 email/password (Core v3 API - `useSignIn().signIn.password()`, `signIn.finalize()`)
+- **Onboarding**: 4-step flow (personal info, fitness goals, diet preferences, role selection)
+- **Home**: Calorie ring, macro bars, streaks, today's classes, recent workouts
+- **Nutrition**: 6 meal types, 150+ Indian foods database, AI photo analysis via Gemini Vision
+- **Workout**: AI workout generator, quick-start templates, live session tracker, PRs
+- **Schedule**: Weekly calendar, class enrollment (owner/trainer can manage)
+- **AI Coach**: Gemini streaming chat, Indian nutrition awareness
+- **Progress**: Weekly charts (SVG bar charts), goal tracking, PR records
+- **Profile**: BMI calculator, macro targets, edit profile, sign out
+
+**Design Tokens:** Dark theme - saffron/orange `#FF6B00`, deep navy `#0C0E1A` background
+
+**Contexts:**
+- `AppContext`: user profile + BMR/TDEE calculation  
+- `NutritionContext`: meals/diary/water, `@gymapp_nutrition`
+- `WorkoutContext`: sessions/PRs, `@gymapp_sessions`, `@gymapp_prs`
+- `ScheduleContext`: classes + enrollments, `@gymapp_classes`, `@gymapp_enrolled`
+
+**AsyncStorage Keys:** `@gymapp_profile`, `@gymapp_nutrition`, `@gymapp_sessions`, `@gymapp_prs`, `@gymapp_classes`, `@gymapp_enrolled`
+
+**Important Clerk v3 API Pattern (Expo):**
+```ts
+const { signIn, errors, fetchStatus } = useSignIn(); // NOT setActive/isLoaded
+await signIn.password({ emailAddress, password });    // NOT signIn.create()
+await signIn.finalize({ navigate: ... });
+```
+
+### artifacts/api-server (Express)
+
+AI endpoints for GymOS:
+- `POST /api/ai/analyze-food` — Gemini Flash Vision photo food analysis
+- `POST /api/ai/chat` — SSE streaming chat with Gemini
+- `POST /api/ai/workout-suggestion` — AI workout recommendations
+
+Uses `@workspace/integrations-gemini-ai`, model: `gemini-2.5-flash-preview-04-17`
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

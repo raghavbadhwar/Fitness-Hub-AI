@@ -1,0 +1,285 @@
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import React, { useMemo, useState } from "react";
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Modal,
+  FlatList,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/contexts/AppContext";
+import { useNutrition, MealType, FoodEntry } from "@/contexts/NutritionContext";
+import { MacroRing } from "@/components/MacroRing";
+import { MacroBar } from "@/components/MacroBar";
+import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";
+
+const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
+
+const MEAL_SECTIONS: { type: MealType; label: string; icon: string }[] = [
+  { type: "breakfast", label: "Breakfast", icon: "sun" },
+  { type: "lunch", label: "Lunch", icon: "coffee" },
+  { type: "snacks", label: "Snacks", icon: "package" },
+  { type: "dinner", label: "Dinner", icon: "moon" },
+  { type: "pre_workout", label: "Pre-Workout", icon: "zap" },
+  { type: "post_workout", label: "Post-Workout", icon: "activity" },
+];
+
+export default function NutritionScreen() {
+  const { profile } = useApp();
+  const { todayLog, addFoodEntry, removeFoodEntry, updateWaterIntake } = useNutrition();
+  const router = useRouter();
+  const colors = useColors();
+  const [activeMeal, setActiveMeal] = useState<MealType | null>(null);
+  const [showFoodSearch, setShowFoodSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
+  const [servings, setServings] = useState("1");
+
+  const totals = useMemo(() => {
+    return todayLog.entries.reduce(
+      (acc, e) => ({ calories: acc.calories + e.calories, protein: acc.protein + e.protein, carbs: acc.carbs + e.carbs, fat: acc.fat + e.fat, fiber: acc.fiber + e.fiber }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+    );
+  }, [todayLog.entries]);
+
+  const searchResults = useMemo(() => {
+    return searchQuery.length > 0 ? searchFoods(searchQuery) : INDIAN_FOODS.slice(0, 30);
+  }, [searchQuery]);
+
+  const handleAddFood = async () => {
+    if (!selectedFood || !activeMeal) return;
+    const s = parseFloat(servings) || 1;
+    await addFoodEntry({
+      foodId: selectedFood.id,
+      name: selectedFood.name,
+      mealType: activeMeal,
+      servings: s,
+      servingSize: selectedFood.servingSize,
+      calories: Math.round(selectedFood.calories * s),
+      protein: Math.round(selectedFood.protein * s * 10) / 10,
+      carbs: Math.round(selectedFood.carbs * s * 10) / 10,
+      fat: Math.round(selectedFood.fat * s * 10) / 10,
+      fiber: Math.round(selectedFood.fiber * s * 10) / 10,
+    });
+    setShowFoodSearch(false);
+    setSelectedFood(null);
+    setSearchQuery("");
+    setServings("1");
+  };
+
+  const getEntriesForMeal = (type: MealType) => todayLog.entries.filter((e) => e.mealType === type);
+
+  const handleWaterToggle = (glasses: number) => {
+    updateWaterIntake(todayLog.waterIntake === glasses ? glasses - 1 : glasses);
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.topBar}>
+        <Text style={[styles.screenTitle, { color: colors.text }]}>Nutrition</Text>
+        <Pressable
+          style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push("/add-meal")}
+        >
+          <Feather name="camera" size={18} color="#fff" />
+          <Text style={styles.cameraBtnText}>AI Photo Log</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]} showsVerticalScrollIndicator={false}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.ringRow}>
+            <MacroRing calories={totals.calories} target={profile.dailyCalorieTarget} protein={totals.protein} carbs={totals.carbs} fat={totals.fat} size={140} />
+            <View style={styles.macroSummary}>
+              <MacroBar protein={totals.protein} carbs={totals.carbs} fat={totals.fat} proteinTarget={profile.dailyProteinTarget} carbTarget={profile.dailyCarbTarget} fatTarget={profile.dailyFatTarget} />
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.waterCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.waterHeader}>
+            <Feather name="droplet" size={16} color={colors.info} />
+            <Text style={[styles.waterTitle, { color: colors.text }]}>Water Intake</Text>
+            <Text style={[styles.waterCount, { color: colors.info }]}>{todayLog.waterIntake}/8 glasses</Text>
+          </View>
+          <View style={styles.waterGlasses}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Pressable key={i} onPress={() => handleWaterToggle(i + 1)} style={[styles.waterGlass, { backgroundColor: i < todayLog.waterIntake ? colors.info : colors.border }]}>
+                <Feather name="droplet" size={14} color={i < todayLog.waterIntake ? "#fff" : colors.mutedForeground} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {MEAL_SECTIONS.map((meal) => {
+          const entries = getEntriesForMeal(meal.type);
+          const mealCals = entries.reduce((sum, e) => sum + e.calories, 0);
+          return (
+            <View key={meal.type} style={[styles.mealSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Pressable
+                style={styles.mealHeader}
+                onPress={() => {
+                  setActiveMeal(meal.type);
+                  setShowFoodSearch(true);
+                }}
+              >
+                <View style={styles.mealTitleRow}>
+                  <Feather name={meal.icon as any} size={16} color={colors.primary} />
+                  <Text style={[styles.mealTitle, { color: colors.text }]}>{meal.label}</Text>
+                  {mealCals > 0 && (
+                    <Text style={[styles.mealCals, { color: colors.mutedForeground }]}>{mealCals} kcal</Text>
+                  )}
+                </View>
+                <View style={[styles.addBtn, { backgroundColor: colors.primary + "20" }]}>
+                  <Feather name="plus" size={18} color={colors.primary} />
+                </View>
+              </Pressable>
+              {entries.map((entry) => (
+                <View key={entry.id} style={[styles.foodEntry, { borderTopColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.foodName, { color: colors.text }]}>{entry.name}</Text>
+                    <Text style={[styles.foodMeta, { color: colors.mutedForeground }]}>
+                      {entry.servingSize} · P:{entry.protein}g C:{entry.carbs}g F:{entry.fat}g
+                    </Text>
+                  </View>
+                  <Text style={[styles.foodCals, { color: colors.text }]}>{entry.calories} kcal</Text>
+                  <Pressable onPress={() => removeFoodEntry(entry.id)} style={styles.deleteBtn}>
+                    <Feather name="trash-2" size={14} color={colors.error} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      <Modal visible={showFoodSearch} animationType="slide" presentationStyle="pageSheet">
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Add to {MEAL_SECTIONS.find((m) => m.type === activeMeal)?.label}
+            </Text>
+            <Pressable onPress={() => { setShowFoodSearch(false); setSelectedFood(null); }}>
+              <Feather name="x" size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search Indian foods..."
+              placeholderTextColor={colors.mutedForeground}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+          </View>
+          {selectedFood ? (
+            <View style={[styles.selectedFoodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.selectedFoodName, { color: colors.text }]}>{selectedFood.name}</Text>
+              <Text style={[styles.selectedFoodMeta, { color: colors.mutedForeground }]}>
+                {selectedFood.servingSize} · {selectedFood.calories} kcal · P:{selectedFood.protein}g C:{selectedFood.carbs}g F:{selectedFood.fat}g
+              </Text>
+              <View style={styles.servingRow}>
+                <Text style={[styles.servingLabel, { color: colors.mutedForeground }]}>Servings:</Text>
+                <TextInput
+                  style={[styles.servingInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  value={servings}
+                  onChangeText={setServings}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={[styles.servingTotal, { color: colors.text }]}>
+                  = {Math.round(selectedFood.calories * (parseFloat(servings) || 1))} kcal
+                </Text>
+              </View>
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={() => setSelectedFood(null)}>
+                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Back</Text>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={handleAddFood}>
+                  <Text style={[styles.modalBtnText, { color: "#fff" }]}>Add Food</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={[styles.foodResult, { borderBottomColor: colors.border }]}
+                  onPress={() => setSelectedFood(item)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.foodResultName, { color: colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.foodResultMeta, { color: colors.mutedForeground }]}>
+                      {item.servingSize} · P:{item.protein}g C:{item.carbs}g F:{item.fat}g
+                    </Text>
+                  </View>
+                  <Text style={[styles.foodResultCals, { color: colors.primary }]}>{item.calories}</Text>
+                </Pressable>
+              )}
+              contentContainerStyle={{ paddingBottom: 40 }}
+            />
+          )}
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, paddingBottom: 8 },
+  screenTitle: { fontSize: 28, fontWeight: "800" },
+  cameraBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  cameraBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  scroll: { padding: 16, gap: 12 },
+  summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
+  ringRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  macroSummary: { flex: 1 },
+  waterCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
+  waterHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  waterTitle: { fontSize: 15, fontWeight: "600", flex: 1 },
+  waterCount: { fontSize: 14, fontWeight: "600" },
+  waterGlasses: { flexDirection: "row", gap: 8 },
+  waterGlass: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  mealSection: { borderRadius: 16, padding: 12, borderWidth: 1 },
+  mealHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  mealTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  mealTitle: { fontSize: 15, fontWeight: "600" },
+  mealCals: { fontSize: 12 },
+  addBtn: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  foodEntry: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, marginTop: 10, borderTopWidth: 1 },
+  foodName: { fontSize: 14, fontWeight: "500" },
+  foodMeta: { fontSize: 12, marginTop: 2 },
+  foodCals: { fontSize: 14, fontWeight: "600" },
+  deleteBtn: { padding: 4 },
+  modalContainer: { flex: 1, padding: 20 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: "700" },
+  searchBar: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  searchInput: { flex: 1, fontSize: 16 },
+  foodResult: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1 },
+  foodResultName: { fontSize: 15, fontWeight: "500" },
+  foodResultMeta: { fontSize: 12, marginTop: 2 },
+  foodResultCals: { fontSize: 16, fontWeight: "700" },
+  selectedFoodCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
+  selectedFoodName: { fontSize: 18, fontWeight: "700" },
+  selectedFoodMeta: { fontSize: 13 },
+  servingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  servingLabel: { fontSize: 14 },
+  servingInput: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, width: 70, textAlign: "center" },
+  servingTotal: { fontSize: 14, fontWeight: "600" },
+  modalActions: { flexDirection: "row", gap: 12, marginTop: 4 },
+  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, borderWidth: 1, alignItems: "center" },
+  modalBtnText: { fontSize: 15, fontWeight: "600" },
+});

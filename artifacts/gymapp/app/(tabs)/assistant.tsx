@@ -1,0 +1,262 @@
+import { useUser } from "@clerk/expo";
+import { Feather } from "@expo/vector-icons";
+import React, { useCallback, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useColors } from "@/hooks/useColors";
+import { useApp } from "@/contexts/AppContext";
+import { useNutrition } from "@/contexts/NutritionContext";
+import { useWorkout } from "@/contexts/WorkoutContext";
+
+const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
+
+type MessageRole = "user" | "assistant";
+
+interface Message {
+  id: string;
+  role: MessageRole;
+  content: string;
+  timestamp: number;
+}
+
+const QUICK_PROMPTS = [
+  "What should I eat post-workout today?",
+  "Create a 5-day Indian meal plan for muscle gain",
+  "How many calories in 2 rotis with dal?",
+  "Give me a 30-minute home workout",
+  "Is paneer good for weight loss?",
+  "What's a good pre-workout snack?",
+];
+
+function generateId() {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+export default function AssistantScreen() {
+  const { user } = useUser();
+  const { profile } = useApp();
+  const { todayLog } = useNutrition();
+  const { sessions } = useWorkout();
+  const colors = useColors();
+  const flatListRef = useRef<FlatList>(null);
+
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: `Namaste! 🙏 I'm your AI fitness coach powered by Gemini. I specialize in Indian nutrition, workout planning, and holistic wellness.\n\nYou can ask me about:\n• Indian meal nutrition & recipes\n• Workout plans & exercise form\n• Calorie & macro guidance\n• Weight management tips\n• Yoga & wellness advice\n\nHow can I help you today?`,
+      timestamp: Date.now(),
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const todayCalories = todayLog.entries.reduce((sum, e) => sum + e.calories, 0);
+  const recentWorkouts = sessions.slice(0, 3).map((s) => ({ name: s.name, date: s.date }));
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      if (!text.trim() || isLoading) return;
+
+      const userMsg: Message = { id: generateId(), role: "user", content: text.trim(), timestamp: Date.now() };
+      const updatedMessages = [...messages, userMsg];
+      setMessages(updatedMessages);
+      setInputText("");
+      setIsLoading(true);
+
+      const assistantId = generateId();
+      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", timestamp: Date.now() }]);
+
+      try {
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        const apiBase = domain ? `https://${domain}` : "";
+
+        const chatHistory = updatedMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+        const userProfile = { name: profile.name, goal: profile.fitnessGoal, diet: profile.dietType, weight: profile.weight, height: profile.height };
+        const todayStats = { calories: todayCalories, target: profile.dailyCalorieTarget, recentWorkouts };
+
+        const response = await fetch(`${apiBase}/api/ai/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: chatHistory, userProfile, todayStats }),
+        });
+
+        if (!response.ok) throw new Error("Failed to get response");
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No stream available");
+
+        const decoder = new TextDecoder();
+        let accumulated = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.text) {
+                  accumulated += parsed.text;
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m)),
+                  );
+                }
+              } catch {}
+            }
+          }
+        }
+
+        if (!accumulated) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: "I apologize, I couldn't generate a response. Please try again." } : m)),
+          );
+        }
+      } catch (err) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: "Sorry, I'm having trouble connecting right now. Please check your internet connection and try again." }
+              : m,
+          ),
+        );
+      } finally {
+        setIsLoading(false);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    },
+    [messages, isLoading, profile, todayCalories, recentWorkouts],
+  );
+
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isUser = item.role === "user";
+    return (
+      <View style={[styles.messageRow, isUser && styles.userRow]}>
+        {!isUser && (
+          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+            <Feather name="cpu" size={14} color="#fff" />
+          </View>
+        )}
+        <View style={[styles.bubble, isUser ? { backgroundColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+          {item.content ? (
+            <Text style={[styles.bubbleText, { color: isUser ? "#fff" : colors.text }]}>{item.content}</Text>
+          ) : (
+            <View style={styles.loadingDots}>
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <View style={styles.topBar}>
+        <View style={[styles.botAvatar, { backgroundColor: colors.primary }]}>
+          <Feather name="cpu" size={18} color="#fff" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.botName, { color: colors.text }]}>GymOS AI Coach</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+            <Text style={[styles.statusText, { color: colors.mutedForeground }]}>Powered by Gemini</Text>
+          </View>
+        </View>
+        <Pressable onPress={() => setMessages([...messages.slice(0, 1)])} style={[styles.clearBtn, { borderColor: colors.border }]}>
+          <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={TAB_BAR_HEIGHT}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={[styles.messageList, { paddingBottom: 16 }]}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            messages.length <= 1 ? (
+              <View style={styles.quickPromptsContainer}>
+                <Text style={[styles.quickPromptsTitle, { color: colors.mutedForeground }]}>Quick questions</Text>
+                <View style={styles.quickPrompts}>
+                  {QUICK_PROMPTS.map((p) => (
+                    <Pressable key={p} style={[styles.quickPrompt, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => sendMessage(p)}>
+                      <Text style={[styles.quickPromptText, { color: colors.text }]}>{p}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null
+          }
+        />
+
+        <View style={[styles.inputContainer, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: TAB_BAR_HEIGHT + 4 }]}>
+          <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              placeholder="Ask your AI coach anything..."
+              placeholderTextColor={colors.mutedForeground}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={500}
+              onSubmitEditing={() => sendMessage(inputText)}
+            />
+            <Pressable
+              style={[styles.sendBtn, { backgroundColor: inputText.trim() && !isLoading ? colors.primary : colors.muted }]}
+              onPress={() => sendMessage(inputText)}
+              disabled={!inputText.trim() || isLoading}
+            >
+              {isLoading ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingBottom: 12 },
+  botAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  botName: { fontSize: 16, fontWeight: "700" },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 12 },
+  clearBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  messageList: { paddingHorizontal: 16, gap: 12, paddingTop: 8 },
+  messageRow: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
+  userRow: { justifyContent: "flex-end" },
+  avatar: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  bubble: { maxWidth: "80%", borderRadius: 16, padding: 12 },
+  bubbleText: { fontSize: 15, lineHeight: 22 },
+  loadingDots: { padding: 4 },
+  quickPromptsContainer: { paddingBottom: 16, gap: 8 },
+  quickPromptsTitle: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: "600", marginBottom: 4 },
+  quickPrompts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  quickPrompt: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
+  quickPromptText: { fontSize: 13 },
+  inputContainer: { borderTopWidth: 1, padding: 12 },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, borderRadius: 16, borderWidth: 1, padding: 8, paddingLeft: 14 },
+  input: { flex: 1, fontSize: 15, maxHeight: 100, paddingVertical: 4 },
+  sendBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+});

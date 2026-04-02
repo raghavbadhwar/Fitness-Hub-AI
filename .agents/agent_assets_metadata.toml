@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "tPOUf-ygZ8cShKs0o73qd"
+uri = "file://artifacts/gymapp/assets/images/icon.png"
+type = "image"
+title = "generated_image"
