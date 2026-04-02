@@ -115,7 +115,20 @@ export default function AssistantScreen() {
         const apiBase = domain ? `https://${domain}` : "";
 
         const chatHistory = updatedMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
-        const userProfile = { name: profile.name, goal: profile.fitnessGoal, diet: profile.dietType, weight: profile.weight, height: profile.height };
+        const userProfile = {
+          name: profile.name,
+          goal: profile.fitnessGoal,
+          diet: profile.dietType,
+          weight: profile.weight,
+          height: profile.height,
+          fitnessExperience: profile.fitnessExperience,
+          equipment: profile.equipment,
+          injuries: profile.injuries,
+          workoutTime: profile.workoutTime,
+          mealTiming: profile.mealTiming,
+          gymName: profile.gymName,
+          role: profile.role,
+        };
         const todayStats = { calories: todayCalories, target: profile.dailyCalorieTarget, recentWorkouts };
 
         const response = await fetch(`${apiBase}/api/ai/chat`, {

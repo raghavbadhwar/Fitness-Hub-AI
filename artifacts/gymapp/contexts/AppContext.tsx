@@ -5,6 +5,11 @@ export type UserRole = "member" | "trainer" | "owner";
 export type FitnessGoal = "lose_weight" | "build_muscle" | "maintain" | "improve_fitness";
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "active" | "very_active";
 export type DietType = "veg" | "non_veg" | "vegan" | "eggetarian";
+export type FitnessExperience = "beginner" | "intermediate" | "advanced";
+export type Equipment = "commercial_gym" | "home_gym" | "outdoor" | "minimal" | "no_equipment";
+export type WorkoutTime = "morning" | "afternoon" | "evening" | "flexible";
+export type MealTiming = "3_meals" | "5_small_meals" | "intermittent_fasting" | "intuitive_eating";
+export type Injury = "knee" | "lower_back" | "shoulder" | "wrist" | "none";
 
 export interface UserProfile {
   name: string;
@@ -23,6 +28,13 @@ export interface UserProfile {
   dailyFatTarget: number;
   onboardingComplete: boolean;
   profileImageUri?: string;
+  fitnessExperience: FitnessExperience;
+  equipment: Equipment;
+  injuries: Injury[];
+  workoutTime: WorkoutTime;
+  mealTiming: MealTiming;
+  gymName: string;
+  numTrainers: string;
 }
 
 export interface WeightEntry {
@@ -55,6 +67,13 @@ const DEFAULT_PROFILE: UserProfile = {
   dailyCarbTarget: 200,
   dailyFatTarget: 60,
   onboardingComplete: false,
+  fitnessExperience: "beginner",
+  equipment: "commercial_gym",
+  injuries: [],
+  workoutTime: "flexible",
+  mealTiming: "3_meals",
+  gymName: "",
+  numTrainers: "",
 };
 
 function calculateTargets(profile: Partial<UserProfile>): Partial<UserProfile> {
@@ -104,7 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(WEIGHT_LOG_KEY),
           AsyncStorage.getItem(MEASUREMENTS_KEY),
         ]);
-        if (storedProfile) setProfile(JSON.parse(storedProfile));
+        if (storedProfile) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) });
         if (storedWeightLog) setWeightLog(JSON.parse(storedWeightLog));
         if (storedMeasurements) setBodyMeasurements(JSON.parse(storedMeasurements));
       } catch (e) {
