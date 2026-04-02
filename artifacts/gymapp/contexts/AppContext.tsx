@@ -25,6 +25,20 @@ export interface UserProfile {
   profileImageUri?: string;
 }
 
+export interface WeightEntry {
+  date: string;
+  weight: number;
+}
+
+export interface BodyMeasurement {
+  date: string;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  biceps?: number;
+  thighs?: number;
+}
+
 const DEFAULT_PROFILE: UserProfile = {
   name: "",
   age: 25,
@@ -65,19 +79,34 @@ interface AppContextType {
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   completeOnboarding: (data: Partial<UserProfile>) => Promise<void>;
   isLoading: boolean;
+  weightLog: WeightEntry[];
+  logWeight: (weight: number) => Promise<void>;
+  bodyMeasurements: BodyMeasurement[];
+  logMeasurement: (measurement: Omit<BodyMeasurement, "date">) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const WEIGHT_LOG_KEY = "@gymapp_weight_log";
+const MEASUREMENTS_KEY = "@gymapp_measurements";
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
+  const [weightLog, setWeightLog] = useState<WeightEntry[]>([]);
+  const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const stored = await AsyncStorage.getItem("@gymapp_profile");
-        if (stored) setProfile(JSON.parse(stored));
+        const [storedProfile, storedWeightLog, storedMeasurements] = await Promise.all([
+          AsyncStorage.getItem("@gymapp_profile"),
+          AsyncStorage.getItem(WEIGHT_LOG_KEY),
+          AsyncStorage.getItem(MEASUREMENTS_KEY),
+        ]);
+        if (storedProfile) setProfile(JSON.parse(storedProfile));
+        if (storedWeightLog) setWeightLog(JSON.parse(storedWeightLog));
+        if (storedMeasurements) setBodyMeasurements(JSON.parse(storedMeasurements));
       } catch (e) {
         console.error("Failed to load profile", e);
       } finally {
@@ -100,8 +129,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem("@gymapp_profile", JSON.stringify(newProfile));
   }, [profile]);
 
+  const logWeight = useCallback(async (weight: number) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const updated = weightLog.filter((e) => e.date !== today);
+    updated.push({ date: today, weight });
+    updated.sort((a, b) => a.date.localeCompare(b.date));
+    setWeightLog(updated);
+    const newProfile = { ...profile, weight };
+    setProfile(newProfile);
+    await Promise.all([
+      AsyncStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(updated)),
+      AsyncStorage.setItem("@gymapp_profile", JSON.stringify(newProfile)),
+    ]);
+  }, [weightLog, profile]);
+
+  const logMeasurement = useCallback(async (measurement: Omit<BodyMeasurement, "date">) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const updated = bodyMeasurements.filter((e) => e.date !== today);
+    updated.push({ date: today, ...measurement });
+    updated.sort((a, b) => a.date.localeCompare(b.date));
+    setBodyMeasurements(updated);
+    await AsyncStorage.setItem(MEASUREMENTS_KEY, JSON.stringify(updated));
+  }, [bodyMeasurements]);
+
   return (
-    <AppContext.Provider value={{ profile, updateProfile, completeOnboarding, isLoading }}>
+    <AppContext.Provider value={{ profile, updateProfile, completeOnboarding, isLoading, weightLog, logWeight, bodyMeasurements, logMeasurement }}>
       {children}
     </AppContext.Provider>
   );

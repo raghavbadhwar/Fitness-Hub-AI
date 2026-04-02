@@ -50,6 +50,7 @@ interface NutritionContextType {
   removeFoodEntry: (entryId: string, date?: string) => Promise<void>;
   updateWaterIntake: (glasses: number, date?: string) => Promise<void>;
   getWeeklyCalories: () => { date: string; calories: number }[];
+  get30DayCalories: () => { date: string; calories: number }[];
   isLoading: boolean;
 }
 
@@ -131,9 +132,22 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [logs]);
 
+  const get30DayCalories = useCallback(() => {
+    const result = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateKey = getDateKey(d);
+      const log = logs[dateKey] || { date: dateKey, entries: [], waterIntake: 0 };
+      const calories = log.entries.reduce((sum, e) => sum + e.calories, 0);
+      result.push({ date: dateKey, calories });
+    }
+    return result;
+  }, [logs]);
+
   return (
     <NutritionContext.Provider
-      value={{ todayLog, getLogForDate, addFoodEntry, removeFoodEntry, updateWaterIntake, getWeeklyCalories, isLoading }}
+      value={{ todayLog, getLogForDate, addFoodEntry, removeFoodEntry, updateWaterIntake, getWeeklyCalories, get30DayCalories, isLoading }}
     >
       {children}
     </NutritionContext.Provider>

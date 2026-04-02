@@ -71,6 +71,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[styles.bmiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.text, alignSelf: "flex-start" }]}>Body Stats & BMI</Text>
           <View style={styles.bmiRow}>
             <View style={styles.bmiItem}>
               <Text style={[styles.bmiVal, { color: colors.text }]}>{profile.weight}kg</Text>
@@ -84,10 +85,10 @@ export default function ProfileScreen() {
               <Text style={[styles.bmiVal, { color: bmiColor }]}>{bmi.toFixed(1)}</Text>
               <Text style={[styles.bmiLabel, { color: colors.mutedForeground }]}>BMI</Text>
             </View>
-            <View style={styles.bmiItem}>
-              <Text style={[styles.bmiVal, { color: bmiColor, fontSize: 14 }]}>{bmiCategory}</Text>
-              <Text style={[styles.bmiLabel, { color: colors.mutedForeground }]}>Status</Text>
-            </View>
+          </View>
+          <View style={[styles.bmiBadge, { backgroundColor: bmiColor + "20" }]}>
+            <View style={[styles.bmiBadgeDot, { backgroundColor: bmiColor }]} />
+            <Text style={[styles.bmiBadgeText, { color: bmiColor }]}>{bmiCategory}</Text>
           </View>
         </View>
 
@@ -177,11 +178,14 @@ const styles = StyleSheet.create({
   userEmail: { fontSize: 14 },
   roleBadge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
   roleText: { fontSize: 13, fontWeight: "600" },
-  bmiCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
+  bmiCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
   bmiRow: { flexDirection: "row", justifyContent: "space-around" },
   bmiItem: { alignItems: "center" },
   bmiVal: { fontSize: 20, fontWeight: "700" },
   bmiLabel: { fontSize: 11, marginTop: 2 },
+  bmiBadge: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: "flex-start" },
+  bmiBadgeDot: { width: 8, height: 8, borderRadius: 4 },
+  bmiBadgeText: { fontSize: 14, fontWeight: "700" },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignSelf: "stretch", marginBottom: 4 },
   cardTitle: { fontSize: 16, fontWeight: "700" },
   targetsGrid: { flexDirection: "row", gap: 10, alignSelf: "stretch" },

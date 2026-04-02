@@ -55,6 +55,7 @@ interface WorkoutContextType {
   deleteSession: (sessionId: string) => Promise<void>;
   getRecentSessions: (count?: number) => WorkoutSession[];
   getWeeklyVolume: () => { date: string; volume: number }[];
+  get30DayVolume: () => { date: string; volume: number }[];
   isLoading: boolean;
 }
 
@@ -219,6 +220,20 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [sessions]);
 
+  const get30DayVolume = useCallback(() => {
+    const result = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().split("T")[0];
+      const dayVolume = sessions
+        .filter((s) => s.date === dateKey && s.completed)
+        .reduce((sum, s) => sum + s.totalVolume, 0);
+      result.push({ date: dateKey, volume: dayVolume });
+    }
+    return result;
+  }, [sessions]);
+
   return (
     <WorkoutContext.Provider
       value={{
@@ -233,6 +248,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         deleteSession,
         getRecentSessions,
         getWeeklyVolume,
+        get30DayVolume,
         isLoading,
       }}
     >
