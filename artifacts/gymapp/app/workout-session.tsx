@@ -284,7 +284,7 @@ function StepperInput({
 }
 
 export default function WorkoutSessionScreen() {
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const { sessionId, assignedWorkoutId } = useLocalSearchParams<{ sessionId: string; assignedWorkoutId?: string }>();
   const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } = useWorkout();
   const router = useRouter();
   const colors = useColors();
@@ -368,7 +368,10 @@ export default function WorkoutSessionScreen() {
     if (summary) {
       router.replace({
         pathname: "/workout-complete",
-        params: { summaryJson: JSON.stringify(summary) },
+        params: {
+          summaryJson: JSON.stringify(summary),
+          ...(assignedWorkoutId ? { assignedWorkoutId } : {}),
+        },
       });
     } else {
       router.back();

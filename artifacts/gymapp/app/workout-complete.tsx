@@ -14,13 +14,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { SessionSummary, WorkoutExercise, ExerciseSet, PersonalRecord } from "@/contexts/WorkoutContext";
+import { useAuth } from "@clerk/expo";
+
+function getApiBase() {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  return domain ? `https://${domain}` : "";
+}
 
 export default function WorkoutCompleteScreen() {
   const params = useLocalSearchParams<{
     summaryJson: string;
+    assignedWorkoutId?: string;
   }>();
   const router = useRouter();
   const colors = useColors();
+  const { getToken } = useAuth();
 
   let summary: SessionSummary | null = null;
   try {
@@ -39,6 +47,21 @@ export default function WorkoutCompleteScreen() {
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (params.assignedWorkoutId) {
+      const markComplete = async () => {
+        try {
+          const token = await getToken();
+          await fetch(`${getApiBase()}/api/workouts/assigned/${params.assignedWorkoutId}/complete`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch (err) {
+          console.error("Failed to mark assigned workout complete", err);
+        }
+      };
+      markComplete();
+    }
 
     Animated.parallel([
       Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
