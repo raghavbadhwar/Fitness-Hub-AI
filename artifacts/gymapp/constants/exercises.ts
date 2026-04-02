@@ -142,7 +142,11 @@ export const MUSCLE_GROUPS = [...new Set(EXERCISES.map((e) => e.muscleGroup))];
 export function searchExercises(query: string, category?: string): Exercise[] {
   let results = EXERCISES;
   if (category && category !== "All") {
-    results = results.filter((e) => e.category === category || e.muscleGroup === category);
+    if (category === "Arms") {
+      results = results.filter((e) => e.muscleGroup === "Biceps" || e.muscleGroup === "Triceps");
+    } else {
+      results = results.filter((e) => e.category === category || e.muscleGroup === category);
+    }
   }
   if (query) {
     const q = query.toLowerCase();

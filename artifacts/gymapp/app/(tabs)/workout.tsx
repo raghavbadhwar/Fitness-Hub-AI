@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +17,18 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { EXERCISES, searchExercises } from "@/constants/exercises";
+
+const MUSCLE_FILTER_CHIPS = [
+  "All",
+  "Chest",
+  "Back",
+  "Legs",
+  "Shoulders",
+  "Arms",
+  "Core",
+  "Cardio",
+  "Yoga",
+];
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
@@ -35,10 +48,16 @@ export default function WorkoutScreen() {
   const colors = useColors();
   const [loadingAI, setLoadingAI] = useState(false);
   const [activeTab, setActiveTab] = useState<"workouts" | "exercises" | "records">("workouts");
+  const [exerciseSearch, setExerciseSearch] = useState("");
+  const [selectedMuscle, setSelectedMuscle] = useState("All");
 
   const weeklyVolume = getWeeklyVolume();
   const thisWeekVolume = weeklyVolume.reduce((sum, d) => sum + d.volume, 0);
   const recentSessions = sessions.slice(0, 10);
+
+  const filteredExercises = useMemo(() => {
+    return searchExercises(exerciseSearch, selectedMuscle === "All" ? undefined : selectedMuscle);
+  }, [exerciseSearch, selectedMuscle]);
 
   const handleQuickStart = (template: typeof QUICK_STARTS[0]) => {
     const exercises = template.exercises.map((id) => {
@@ -204,18 +223,77 @@ export default function WorkoutScreen() {
         )}
 
         {activeTab === "exercises" && (
-          <View style={styles.exerciseList}>
-            {EXERCISES.map((ex) => (
-              <View key={ex.id} style={[styles.exerciseItem, { borderBottomColor: colors.border }]}>
-                <View style={[styles.exCategory, { backgroundColor: colors.primary + "20" }]}>
-                  <Text style={[styles.exCategoryText, { color: colors.primary }]}>{ex.muscleGroup[0]}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
-                  <Text style={[styles.exMeta, { color: colors.mutedForeground }]}>{ex.muscleGroup} · {ex.equipment} · {ex.defaultSets}×{ex.defaultReps}</Text>
-                </View>
+          <View>
+            <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="search" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search exercises..."
+                placeholderTextColor={colors.mutedForeground}
+                value={exerciseSearch}
+                onChangeText={setExerciseSearch}
+                clearButtonMode="while-editing"
+                returnKeyType="search"
+              />
+              {exerciseSearch.length > 0 && (
+                <Pressable onPress={() => setExerciseSearch("")}>
+                  <Feather name="x" size={16} color={colors.mutedForeground} />
+                </Pressable>
+              )}
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipScroll}
+              contentContainerStyle={styles.chipContainer}
+            >
+              {MUSCLE_FILTER_CHIPS.map((chip) => (
+                <Pressable
+                  key={chip}
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: selectedMuscle === chip ? colors.primary : colors.card,
+                      borderColor: selectedMuscle === chip ? colors.primary : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSelectedMuscle(chip)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      { color: selectedMuscle === chip ? "#fff" : colors.mutedForeground },
+                    ]}
+                  >
+                    {chip}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {filteredExercises.length === 0 ? (
+              <View style={styles.empty}>
+                <Feather name="search" size={40} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  No exercises found. Try a different search or filter.
+                </Text>
               </View>
-            ))}
+            ) : (
+              <View style={styles.exerciseList}>
+                {filteredExercises.map((ex) => (
+                  <View key={ex.id} style={[styles.exerciseItem, { borderBottomColor: colors.border }]}>
+                    <View style={[styles.exCategory, { backgroundColor: colors.primary + "20" }]}>
+                      <Text style={[styles.exCategoryText, { color: colors.primary }]}>{ex.muscleGroup[0]}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
+                      <Text style={[styles.exMeta, { color: colors.mutedForeground }]}>
+                        {ex.muscleGroup} · {ex.equipment} · {ex.defaultSets}×{ex.defaultReps}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
@@ -275,6 +353,21 @@ const styles = StyleSheet.create({
   sessionDate: { fontSize: 12 },
   sessionStats: { flexDirection: "row", gap: 16 },
   sessionStat: { fontSize: 13 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14 },
+  chipScroll: { marginBottom: 10 },
+  chipContainer: { flexDirection: "row", gap: 8, paddingRight: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontSize: 13, fontWeight: "600" },
   exerciseList: {},
   exerciseItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
   exCategory: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
