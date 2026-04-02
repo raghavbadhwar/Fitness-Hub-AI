@@ -14,9 +14,44 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-import { useApp, UserRole, FitnessGoal, ActivityLevel, DietType } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/AppContext";
+import type { FitnessGoal, ActivityLevel, DietType, UserRole } from "@/contexts/AppContext";
 
 const STEPS = ["Personal", "Goals", "Diet", "Role"];
+
+const GENDER_OPTIONS: { label: string; value: "male" | "female" | "other" }[] = [
+  { label: "Male", value: "male" },
+  { label: "Female", value: "female" },
+  { label: "Other", value: "other" },
+];
+
+const FITNESS_GOAL_OPTIONS: { label: string; value: FitnessGoal }[] = [
+  { label: "Lose Weight", value: "lose_weight" },
+  { label: "Build Muscle", value: "build_muscle" },
+  { label: "Maintain", value: "maintain" },
+  { label: "Improve Fitness", value: "improve_fitness" },
+];
+
+const ACTIVITY_LEVEL_OPTIONS: { label: string; value: ActivityLevel }[] = [
+  { label: "Sedentary", value: "sedentary" },
+  { label: "Light", value: "light" },
+  { label: "Moderate", value: "moderate" },
+  { label: "Active", value: "active" },
+  { label: "Very Active", value: "very_active" },
+];
+
+const DIET_TYPE_OPTIONS: { label: string; value: DietType }[] = [
+  { label: "Non-Vegetarian", value: "non_veg" },
+  { label: "Vegetarian", value: "veg" },
+  { label: "Vegan", value: "vegan" },
+  { label: "Eggetarian", value: "eggetarian" },
+];
+
+const ROLE_OPTIONS: { label: string; value: UserRole }[] = [
+  { label: "Member", value: "member" },
+  { label: "Trainer", value: "trainer" },
+  { label: "Gym Owner", value: "owner" },
+];
 
 export default function Onboarding() {
   const { user } = useUser();
@@ -110,7 +145,7 @@ export default function Onboarding() {
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>Gender</Text>
                 <View style={styles.optionRow}>
-                  {options([{ label: "Male", value: "male" }, { label: "Female", value: "female" }, { label: "Other", value: "other" }] as any, "gender", data.gender)}
+                  {options(GENDER_OPTIONS, "gender", data.gender)}
                 </View>
               </View>
             </View>
@@ -124,11 +159,11 @@ export default function Onboarding() {
             <View style={styles.form}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Fitness Goal</Text>
               <View style={styles.optionGrid}>
-                {options([{ label: "Lose Weight", value: "lose_weight" }, { label: "Build Muscle", value: "build_muscle" }, { label: "Maintain", value: "maintain" }, { label: "Improve Fitness", value: "improve_fitness" }] as any, "fitnessGoal", data.fitnessGoal)}
+                {options(FITNESS_GOAL_OPTIONS, "fitnessGoal", data.fitnessGoal)}
               </View>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Activity Level</Text>
               <View style={styles.optionGrid}>
-                {options([{ label: "Sedentary", value: "sedentary" }, { label: "Light", value: "light" }, { label: "Moderate", value: "moderate" }, { label: "Active", value: "active" }, { label: "Very Active", value: "very_active" }] as any, "activityLevel", data.activityLevel)}
+                {options(ACTIVITY_LEVEL_OPTIONS, "activityLevel", data.activityLevel)}
               </View>
             </View>
           </View>
@@ -140,7 +175,7 @@ export default function Onboarding() {
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>We'll suggest Indian meals that fit your preferences</Text>
             <View style={styles.form}>
               <View style={styles.optionGrid}>
-                {options([{ label: "Non-Vegetarian", value: "non_veg" }, { label: "Vegetarian", value: "veg" }, { label: "Vegan", value: "vegan" }, { label: "Eggetarian", value: "eggetarian" }] as any, "dietType", data.dietType)}
+                {options(DIET_TYPE_OPTIONS, "dietType", data.dietType)}
               </View>
             </View>
           </View>
@@ -152,7 +187,7 @@ export default function Onboarding() {
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>Different features unlock based on your role</Text>
             <View style={styles.form}>
               <View style={styles.optionGrid}>
-                {options([{ label: "Member", value: "member" }, { label: "Trainer", value: "trainer" }, { label: "Gym Owner", value: "owner" }] as any, "role", data.role)}
+                {options(ROLE_OPTIONS, "role", data.role)}
               </View>
             </View>
           </View>

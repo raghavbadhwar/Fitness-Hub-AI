@@ -1,5 +1,5 @@
 import { useSignUp } from "@clerk/expo";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -27,6 +27,11 @@ export default function SignUp() {
 
   const isLoading = fetchStatus === "fetching";
 
+  function fieldError(field: string): string | undefined {
+    const fields = errors?.fields as Record<string, { message: string }> | undefined;
+    return fields?.[field]?.message;
+  }
+
   const handleSignUp = async () => {
     if (!email || !password) return;
     const { error } = await signUp.password({
@@ -43,8 +48,7 @@ export default function SignUp() {
       await signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
-          const url = decorateUrl("/");
-          router.replace(url as any);
+          router.replace(decorateUrl("/") as Href);
         },
       });
     }
@@ -77,8 +81,8 @@ export default function SignUp() {
               textAlign="center"
               autoFocus
             />
-            {errors?.fields?.code && (
-              <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).code.message}</Text>
+            {fieldError("code") && (
+              <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>
             )}
             <Pressable
               style={[styles.button, { backgroundColor: colors.primary }, isLoading && styles.buttonDisabled]}
@@ -131,8 +135,8 @@ export default function SignUp() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {errors?.fields?.emailAddress && (
-                <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).emailAddress.message}</Text>
+              {fieldError("emailAddress") && (
+                <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("emailAddress")}</Text>
               )}
             </View>
             <View style={styles.field}>
@@ -145,8 +149,8 @@ export default function SignUp() {
                 onChangeText={setPassword}
                 secureTextEntry
               />
-              {errors?.fields?.password && (
-                <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).password.message}</Text>
+              {fieldError("password") && (
+                <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("password")}</Text>
               )}
             </View>
             <Pressable

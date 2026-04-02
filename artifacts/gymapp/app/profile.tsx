@@ -115,14 +115,21 @@ export default function ProfileScreen() {
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Edit Profile</Text>
             <View style={styles.editForm}>
-              {[["name", "Name", "default"], ["weight", "Weight (kg)", "decimal-pad"], ["height", "Height (cm)", "decimal-pad"], ["targetWeight", "Target Weight (kg)", "decimal-pad"]].map(([key, label, kbType]) => (
+              {(
+                [
+                  { key: "name" as const, label: "Name", kbType: "default" as const },
+                  { key: "weight" as const, label: "Weight (kg)", kbType: "decimal-pad" as const },
+                  { key: "height" as const, label: "Height (cm)", kbType: "decimal-pad" as const },
+                  { key: "targetWeight" as const, label: "Target Weight (kg)", kbType: "decimal-pad" as const },
+                ] as const
+              ).map(({ key, label, kbType }) => (
                 <View key={key} style={styles.editField}>
                   <Text style={[styles.editLabel, { color: colors.mutedForeground }]}>{label}</Text>
                   <TextInput
                     style={[styles.editInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                    value={(form as any)[key]}
+                    value={form[key]}
                     onChangeText={(v) => setForm({ ...form, [key]: v })}
-                    keyboardType={kbType as any}
+                    keyboardType={kbType}
                     autoCapitalize={key === "name" ? "words" : "none"}
                   />
                 </View>

@@ -180,7 +180,7 @@ export default function AddMealScreen() {
                 </View>
               ) : (
                 <View style={styles.imageContainer}>
-                  <Image source={{ uri: imageUri }} style={styles.foodImage as any} resizeMode="cover" />
+                  <Image source={{ uri: imageUri }} style={styles.foodImage} resizeMode="cover" />
                   <Pressable style={[styles.retakeBtn, { backgroundColor: colors.card }]} onPress={() => { setImageUri(null); setAnalysisResult(null); }}>
                     <Feather name="refresh-cw" size={16} color={colors.text} />
                     <Text style={[styles.retakeBtnText, { color: colors.text }]}>Retake</Text>
@@ -265,10 +265,17 @@ export default function AddMealScreen() {
                 <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} placeholder="1 bowl (200g)" placeholderTextColor={colors.mutedForeground} value={manualFood.servingSize} onChangeText={(v) => setManualFood({ ...manualFood, servingSize: v })} />
               </View>
               <View style={styles.macroInputs}>
-                {[["calories", "kcal *"], ["protein", "Protein (g)"], ["carbs", "Carbs (g)"], ["fat", "Fat (g)"]].map(([key, label]) => (
+                {(
+                  [
+                    { key: "calories" as const, label: "kcal *" },
+                    { key: "protein" as const, label: "Protein (g)" },
+                    { key: "carbs" as const, label: "Carbs (g)" },
+                    { key: "fat" as const, label: "Fat (g)" },
+                  ] as const
+                ).map(({ key, label }) => (
                   <View key={key} style={[styles.macroInput, { flex: 1 }]}>
                     <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} placeholder="0" placeholderTextColor={colors.mutedForeground} value={(manualFood as any)[key]} onChangeText={(v) => setManualFood({ ...manualFood, [key]: v })} keyboardType="decimal-pad" />
+                    <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]} placeholder="0" placeholderTextColor={colors.mutedForeground} value={manualFood[key]} onChangeText={(v) => setManualFood({ ...manualFood, [key]: v })} keyboardType="decimal-pad" />
                   </View>
                 ))}
               </View>

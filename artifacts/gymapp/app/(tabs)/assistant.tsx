@@ -1,9 +1,9 @@
 import { useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +20,8 @@ import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
+const CHAT_STORAGE_KEY = "@gymapp_chat_history";
+const MAX_PERSISTED_MESSAGES = 50;
 
 type MessageRole = "user" | "assistant";
 
@@ -29,6 +31,13 @@ interface Message {
   content: string;
   timestamp: number;
 }
+
+const WELCOME_MESSAGE: Message = {
+  id: "welcome",
+  role: "assistant",
+  content: `Namaste! I'm your AI fitness coach powered by Gemini. I specialize in Indian nutrition, workout planning, and holistic wellness.\n\nYou can ask me about:\n• Indian meal nutrition & recipes\n• Workout plans & exercise form\n• Calorie & macro guidance\n• Weight management tips\n• Yoga & wellness advice\n\nHow can I help you today?`,
+  timestamp: 0,
+};
 
 const QUICK_PROMPTS = [
   "What should I eat post-workout today?",
@@ -51,16 +60,39 @@ export default function AssistantScreen() {
   const colors = useColors();
   const flatListRef = useRef<FlatList>(null);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: `Namaste! 🙏 I'm your AI fitness coach powered by Gemini. I specialize in Indian nutrition, workout planning, and holistic wellness.\n\nYou can ask me about:\n• Indian meal nutrition & recipes\n• Workout plans & exercise form\n• Calorie & macro guidance\n• Weight management tips\n• Yoga & wellness advice\n\nHow can I help you today?`,
-      timestamp: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
+        if (stored) {
+          const parsed: Message[] = JSON.parse(stored);
+          if (parsed.length > 0) {
+            setMessages([WELCOME_MESSAGE, ...parsed]);
+          }
+        }
+      } catch {
+        // silently keep default welcome message
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  const persistMessages = useCallback(async (msgs: Message[]) => {
+    try {
+      const userAndAssistant = msgs.filter((m) => m.id !== "welcome");
+      const trimmed = userAndAssistant.slice(-MAX_PERSISTED_MESSAGES);
+      await AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(trimmed));
+    } catch {
+      // non-critical: storage write failure doesn't break chat
+    }
+  }, []);
 
   const todayCalories = todayLog.entries.reduce((sum, e) => sum + e.calories, 0);
   const recentWorkouts = sessions.slice(0, 3).map((s) => ({ name: s.name, date: s.date }));
@@ -110,38 +142,48 @@ export default function AssistantScreen() {
               const data = line.slice(6);
               if (data === "[DONE]") break;
               try {
-                const parsed = JSON.parse(data);
+                const parsed = JSON.parse(data) as { text?: string };
                 if (parsed.text) {
                   accumulated += parsed.text;
                   setMessages((prev) =>
                     prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m)),
                   );
                 }
-              } catch {}
+              } catch {
+                // skip malformed SSE chunk
+              }
             }
           }
         }
 
-        if (!accumulated) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: "I apologize, I couldn't generate a response. Please try again." } : m)),
-          );
-        }
-      } catch (err) {
-        setMessages((prev) =>
-          prev.map((m) =>
+        const finalContent = accumulated || "I apologize, I couldn't generate a response. Please try again.";
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m.id === assistantId ? { ...m, content: finalContent } : m));
+          persistMessages(updated);
+          return updated;
+        });
+      } catch {
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
             m.id === assistantId
               ? { ...m, content: "Sorry, I'm having trouble connecting right now. Please check your internet connection and try again." }
               : m,
-          ),
-        );
+          );
+          persistMessages(updated);
+          return updated;
+        });
       } finally {
         setIsLoading(false);
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
       }
     },
-    [messages, isLoading, profile, todayCalories, recentWorkouts],
+    [messages, isLoading, profile, todayCalories, recentWorkouts, persistMessages],
   );
+
+  const handleClearHistory = useCallback(async () => {
+    setMessages([WELCOME_MESSAGE]);
+    await AsyncStorage.removeItem(CHAT_STORAGE_KEY);
+  }, []);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === "user";
@@ -165,6 +207,16 @@ export default function AssistantScreen() {
     );
   };
 
+  if (!historyLoaded) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
       <View style={styles.topBar}>
@@ -178,7 +230,7 @@ export default function AssistantScreen() {
             <Text style={[styles.statusText, { color: colors.mutedForeground }]}>Powered by Gemini</Text>
           </View>
         </View>
-        <Pressable onPress={() => setMessages([...messages.slice(0, 1)])} style={[styles.clearBtn, { borderColor: colors.border }]}>
+        <Pressable onPress={handleClearHistory} style={[styles.clearBtn, { borderColor: colors.border }]}>
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
         </Pressable>
       </View>
@@ -236,6 +288,7 @@ export default function AssistantScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   topBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingBottom: 12 },
   botAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   botName: { fontSize: 16, fontWeight: "700" },

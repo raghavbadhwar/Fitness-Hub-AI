@@ -1,14 +1,43 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
+import { requireAuth } from "@clerk/express";
 import { ai } from "@workspace/integrations-gemini-ai";
 
 const router = Router();
 
-router.post("/analyze-food", async (req, res) => {
-  try {
-    const { imageBase64, mimeType = "image/jpeg" } = req.body;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_PER_WINDOW = 20;
+const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
-    if (!imageBase64) {
-      return res.status(400).json({ error: "imageBase64 is required" });
+function rateLimit(req: Request, res: Response, next: NextFunction): void {
+  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+  const now = Date.now();
+  const entry = ipRequestCounts.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    next();
+    return;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX_PER_WINDOW) {
+    res.status(429).json({ error: "Too many requests. Please wait a moment and try again." });
+    return;
+  }
+
+  entry.count += 1;
+  next();
+}
+
+router.use(requireAuth());
+router.use(rateLimit);
+
+router.post("/analyze-food", async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, mimeType = "image/jpeg" } = req.body as { imageBase64?: string; mimeType?: string };
+
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      res.status(400).json({ error: "imageBase64 is required" });
+      return;
     }
 
     const prompt = `You are an expert nutritionist specializing in Indian cuisine. Analyze this food image and provide detailed nutritional information.
@@ -39,15 +68,8 @@ Return only the JSON, no other text.`;
         {
           role: "user",
           parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: imageBase64,
-              },
-            },
-            {
-              text: prompt,
-            },
+            { inlineData: { mimeType, data: imageBase64 } },
+            { text: prompt },
           ],
         },
       ],
@@ -57,10 +79,10 @@ Return only the JSON, no other text.`;
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
     try {
-      const parsed = JSON.parse(cleaned);
-      return res.json(parsed);
+      const parsed: unknown = JSON.parse(cleaned);
+      res.json(parsed);
     } catch {
-      return res.json({
+      res.json({
         dishName: "Unknown Food",
         cuisine: "Unknown",
         servingSize: "1 serving",
@@ -72,21 +94,31 @@ Return only the JSON, no other text.`;
         confidence: "low",
         ingredients: [],
         healthTip: "Unable to analyze this food item accurately.",
-        rawResponse: cleaned,
       });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Food analysis error:", err);
-    return res.status(500).json({ error: "Failed to analyze food", details: err.message });
+    res.status(500).json({ error: "Failed to analyze food", details: message });
   }
 });
 
-router.post("/chat", async (req, res) => {
+router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const { messages, userProfile, todayStats } = req.body;
+    const { messages, userProfile, todayStats } = req.body as {
+      messages?: Array<{ role: string; content: string }>;
+      userProfile?: Record<string, unknown>;
+      todayStats?: Record<string, unknown>;
+    };
 
     if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "messages array is required" });
+      res.status(400).json({ error: "messages array is required" });
+      return;
+    }
+
+    if (messages.length > 30) {
+      res.status(400).json({ error: "Too many messages in history" });
+      return;
     }
 
     const systemContext = `You are GymOS AI, a personal health and fitness coach integrated into a gym management app. You specialize in:
@@ -96,12 +128,12 @@ router.post("/chat", async (req, res) => {
 - Ayurvedic-inspired wellness advice
 - Motivation and habit building
 
-User Profile: ${JSON.stringify(userProfile || {})}
-Today's Stats: ${JSON.stringify(todayStats || {})}
+User Profile: ${JSON.stringify(userProfile ?? {})}
+Today's Stats: ${JSON.stringify(todayStats ?? {})}
 
 Keep responses concise, actionable, and encouraging. Use Indian food examples when relevant. Address the user warmly.`;
 
-    const geminiMessages = messages.map((m: any) => ({
+    const geminiMessages = messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
@@ -133,26 +165,33 @@ Keep responses concise, actionable, and encouraging. Use Indian food examples wh
 
     res.write("data: [DONE]\n\n");
     res.end();
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("AI chat error:", err);
     if (!res.headersSent) {
-      return res.status(500).json({ error: "AI chat failed", details: err.message });
+      res.status(500).json({ error: "AI chat failed", details: message });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.end();
     }
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
   }
 });
 
-router.post("/workout-suggestion", async (req, res) => {
+router.post("/workout-suggestion", async (req: Request, res: Response) => {
   try {
-    const { recentWorkouts, goals, fitnessLevel, availableTime } = req.body;
+    const { recentWorkouts, goals, fitnessLevel, availableTime } = req.body as {
+      recentWorkouts?: unknown[];
+      goals?: string;
+      fitnessLevel?: string;
+      availableTime?: number;
+    };
 
     const prompt = `You are a professional fitness coach. Based on the following user data, suggest a workout plan.
 
-Recent Workouts: ${JSON.stringify(recentWorkouts || [])}
-Goals: ${goals || "general fitness"}
-Fitness Level: ${fitnessLevel || "intermediate"}
-Available Time: ${availableTime || 45} minutes
+Recent Workouts: ${JSON.stringify(recentWorkouts ?? [])}
+Goals: ${goals ?? "general fitness"}
+Fitness Level: ${fitnessLevel ?? "intermediate"}
+Available Time: ${availableTime ?? 45} minutes
 
 Return ONLY this JSON (no markdown):
 {
@@ -182,14 +221,15 @@ Return ONLY this JSON (no markdown):
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
     try {
-      const parsed = JSON.parse(cleaned);
-      return res.json(parsed);
+      const parsed: unknown = JSON.parse(cleaned);
+      res.json(parsed);
     } catch {
-      return res.status(500).json({ error: "Failed to parse workout suggestion" });
+      res.status(500).json({ error: "Failed to parse workout suggestion" });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Workout suggestion error:", err);
-    return res.status(500).json({ error: "Failed to generate workout", details: err.message });
+    res.status(500).json({ error: "Failed to generate workout", details: message });
   }
 });
 

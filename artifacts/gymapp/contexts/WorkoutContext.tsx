@@ -50,6 +50,7 @@ interface WorkoutContextType {
   startSession: (name: string, exercises?: Omit<WorkoutExercise, "id">[]) => WorkoutSession;
   endSession: (sessionId: string, caloriesBurned?: number) => Promise<void>;
   addExerciseToSession: (sessionId: string, exercise: Omit<WorkoutExercise, "id">) => void;
+  addSetToExercise: (sessionId: string, exerciseId: string, set: Omit<ExerciseSet, "id">) => void;
   updateSet: (sessionId: string, exerciseId: string, setId: string, updates: Partial<ExerciseSet>) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   getRecentSessions: (count?: number) => WorkoutSession[];
@@ -152,19 +153,26 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const addExerciseToSession = useCallback(
     (sessionId: string, exercise: Omit<WorkoutExercise, "id">) => {
       if (!activeSession || activeSession.id !== sessionId) return;
-      const existing = activeSession.exercises.find((ex) => ex.exerciseId === exercise.exerciseId && ex.sets.length === exercise.sets.length - 1);
-      if (existing && exercise.sets.length > existing.sets.length) {
-        const updated = {
-          ...activeSession,
-          exercises: activeSession.exercises.map((ex) =>
-            ex.exerciseId === exercise.exerciseId ? { ...ex, sets: exercise.sets } : ex,
-          ),
-        };
-        setActiveSession(updated);
-      } else {
-        const updated = { ...activeSession, exercises: [...activeSession.exercises, { ...exercise, id: generateId() }] };
-        setActiveSession(updated);
-      }
+      const updated = {
+        ...activeSession,
+        exercises: [...activeSession.exercises, { ...exercise, id: generateId() }],
+      };
+      setActiveSession(updated);
+    },
+    [activeSession],
+  );
+
+  const addSetToExercise = useCallback(
+    (sessionId: string, exerciseId: string, set: Omit<ExerciseSet, "id">) => {
+      if (!activeSession || activeSession.id !== sessionId) return;
+      const newSet: ExerciseSet = { ...set, id: generateId() };
+      const updated = {
+        ...activeSession,
+        exercises: activeSession.exercises.map((ex) =>
+          ex.id === exerciseId ? { ...ex, sets: [...ex.sets, newSet] } : ex,
+        ),
+      };
+      setActiveSession(updated);
     },
     [activeSession],
   );
@@ -220,6 +228,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         startSession,
         endSession,
         addExerciseToSession,
+        addSetToExercise,
         updateSet,
         deleteSession,
         getRecentSessions,

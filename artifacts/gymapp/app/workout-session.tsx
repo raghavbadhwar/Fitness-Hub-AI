@@ -22,7 +22,7 @@ function generateId() {
 
 export default function WorkoutSessionScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const { activeSession, endSession, addExerciseToSession, updateSet } = useWorkout();
+  const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } = useWorkout();
   const router = useRouter();
   const colors = useColors();
 
@@ -80,12 +80,11 @@ export default function WorkoutSessionScreen() {
 
   const handleAddSet = (exerciseId: string, exercise: WorkoutExercise) => {
     const lastSet = exercise.sets[exercise.sets.length - 1];
-    updateSet(session.id, exerciseId, "__add__", {
-      id: generateId(),
-      weight: lastSet?.weight || 0,
-      reps: lastSet?.reps || 10,
+    addSetToExercise(session.id, exerciseId, {
+      weight: lastSet?.weight ?? 0,
+      reps: lastSet?.reps ?? 10,
       completed: false,
-    } as any);
+    });
   };
 
   const addExercise = (exerciseId: string) => {

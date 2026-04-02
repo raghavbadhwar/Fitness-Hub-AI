@@ -23,7 +23,9 @@ import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFood
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
-const MEAL_SECTIONS: { type: MealType; label: string; icon: string }[] = [
+type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
+
+const MEAL_SECTIONS: { type: MealType; label: string; icon: FeatherIconName }[] = [
   { type: "breakfast", label: "Breakfast", icon: "sun" },
   { type: "lunch", label: "Lunch", icon: "coffee" },
   { type: "snacks", label: "Snacks", icon: "package" },
@@ -132,7 +134,7 @@ export default function NutritionScreen() {
                 }}
               >
                 <View style={styles.mealTitleRow}>
-                  <Feather name={meal.icon as any} size={16} color={colors.primary} />
+                  <Feather name={meal.icon} size={16} color={colors.primary} />
                   <Text style={[styles.mealTitle, { color: colors.text }]}>{meal.label}</Text>
                   {mealCals > 0 && (
                     <Text style={[styles.mealCals, { color: colors.mutedForeground }]}>{mealCals} kcal</Text>

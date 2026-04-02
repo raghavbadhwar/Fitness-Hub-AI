@@ -1,5 +1,5 @@
 import { useSignIn } from "@clerk/expo";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +26,11 @@ export default function SignIn() {
 
   const isLoading = fetchStatus === "fetching";
 
+  function fieldError(field: string): string | undefined {
+    const fields = errors?.fields as Record<string, { message: string }> | undefined;
+    return fields?.[field]?.message;
+  }
+
   const handleSignIn = async () => {
     if (!email || !password) return;
     const { error } = await signIn.password({ emailAddress: email, password });
@@ -35,8 +40,7 @@ export default function SignIn() {
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
-          const url = decorateUrl("/");
-          router.replace(url as any);
+          router.replace(decorateUrl("/") as Href);
         },
       });
     } else if (signIn.status === "needs_client_trust") {
@@ -50,8 +54,7 @@ export default function SignIn() {
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
-          const url = decorateUrl("/");
-          router.replace(url as any);
+          router.replace(decorateUrl("/") as Href);
         },
       });
     }
@@ -76,7 +79,7 @@ export default function SignIn() {
               keyboardType="number-pad"
               autoFocus
             />
-            {errors?.fields?.code && <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).code.message}</Text>}
+            {fieldError("code") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>}
             <Pressable style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleVerify} disabled={isLoading}>
               {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
             </Pressable>
@@ -114,7 +117,7 @@ export default function SignIn() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {errors?.fields?.identifier && <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).identifier.message}</Text>}
+              {fieldError("identifier") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("identifier")}</Text>}
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
@@ -126,7 +129,7 @@ export default function SignIn() {
                 onChangeText={setPassword}
                 secureTextEntry
               />
-              {errors?.fields?.password && <Text style={[styles.errorText, { color: colors.error }]}>{(errors.fields as any).password.message}</Text>}
+              {fieldError("password") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("password")}</Text>}
             </View>
             <Pressable
               style={[styles.button, { backgroundColor: colors.primary }, (!email || !password || isLoading) && styles.buttonDisabled]}
