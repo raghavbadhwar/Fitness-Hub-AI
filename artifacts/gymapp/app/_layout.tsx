@@ -65,6 +65,10 @@ function RootLayoutNav() {
         name="manage-class"
         options={{ headerShown: true, title: "Manage Class", presentation: "modal", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
       />
+      <Stack.Screen
+        name="workout-complete"
+        options={{ headerShown: false, presentation: "modal", gestureEnabled: false }}
+      />
     </Stack>
   );
 }

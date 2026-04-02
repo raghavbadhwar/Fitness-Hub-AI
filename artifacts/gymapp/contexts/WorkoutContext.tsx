@@ -43,12 +43,17 @@ function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
+export interface SessionSummary {
+  session: WorkoutSession;
+  newPRs: PersonalRecord[];
+}
+
 interface WorkoutContextType {
   sessions: WorkoutSession[];
   personalRecords: Record<string, PersonalRecord>;
   activeSession: WorkoutSession | null;
   startSession: (name: string, exercises?: Omit<WorkoutExercise, "id">[]) => WorkoutSession;
-  endSession: (sessionId: string, caloriesBurned?: number) => Promise<void>;
+  endSession: (sessionId: string, caloriesBurned?: number) => Promise<SessionSummary | null>;
   addExerciseToSession: (sessionId: string, exercise: Omit<WorkoutExercise, "id">) => void;
   addSetToExercise: (sessionId: string, exerciseId: string, set: Omit<ExerciseSet, "id">) => void;
   updateSet: (sessionId: string, exerciseId: string, setId: string, updates: Partial<ExerciseSet>) => void;
@@ -109,9 +114,9 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   );
 
   const endSession = useCallback(
-    async (sessionId: string, caloriesBurned = 0) => {
+    async (sessionId: string, caloriesBurned = 0): Promise<SessionSummary | null> => {
       const session = activeSession?.id === sessionId ? activeSession : sessions.find((s) => s.id === sessionId);
-      if (!session) return;
+      if (!session) return null;
 
       const totalVolume = session.exercises.reduce(
         (total, ex) =>
@@ -133,6 +138,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       await saveSessions(newSessions);
 
       const newPRs = { ...personalRecords };
+      const sessionNewPRs: PersonalRecord[] = [];
       for (const ex of completedSession.exercises) {
         for (const set of ex.sets) {
           if (!set.completed || set.weight === 0) continue;
@@ -140,13 +146,18 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           const current = newPRs[key];
           const oneRM = Math.round(set.weight * (1 + set.reps / 30));
           if (!current || oneRM > current.weight * (1 + current.reps / 30)) {
-            newPRs[key] = { exerciseId: key, name: ex.name, weight: set.weight, reps: set.reps, date: completedSession.date };
+            const pr: PersonalRecord = { exerciseId: key, name: ex.name, weight: set.weight, reps: set.reps, date: completedSession.date };
+            newPRs[key] = pr;
+            if (!sessionNewPRs.find((p) => p.exerciseId === key)) {
+              sessionNewPRs.push(pr);
+            }
           }
         }
       }
       setPersonalRecords(newPRs);
       await AsyncStorage.setItem("@gymapp_prs", JSON.stringify(newPRs));
       setActiveSession(null);
+      return { session: completedSession, newPRs: sessionNewPRs };
     },
     [activeSession, sessions, personalRecords, saveSessions],
   );
