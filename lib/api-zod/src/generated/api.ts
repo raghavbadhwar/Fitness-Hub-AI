@@ -14,3 +14,241 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns all upcoming gym classes (public endpoint for mobile app)
+ * @summary List all gym classes
+ */
+export const ListClassesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListClassesResponse = zod.array(ListClassesResponseItem);
+
+/**
+ * Returns all gym classes for admin management
+ * @summary List all classes (admin)
+ */
+export const AdminListClassesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const AdminListClassesResponse = zod.array(AdminListClassesResponseItem);
+
+/**
+ * Creates a new gym class (owner-only)
+ * @summary Create a new class
+ */
+export const AdminCreateClassBody = zod.object({
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string().optional(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  room: zod.string(),
+  status: zod
+    .enum(["scheduled", "in_progress", "completed", "cancelled"])
+    .optional(),
+});
+
+/**
+ * Updates an existing gym class (owner-only)
+ * @summary Update a class
+ */
+export const AdminUpdateClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminUpdateClassBody = zod.object({
+  name: zod.string().optional(),
+  category: zod
+    .enum([
+      "Yoga",
+      "Zumba",
+      "CrossFit",
+      "HIIT",
+      "Spinning",
+      "Boxing",
+      "Pilates",
+      "Strength",
+      "Cardio",
+      "Other",
+    ])
+    .optional(),
+  description: zod.string().optional(),
+  trainer: zod.string().optional(),
+  date: zod.string().optional(),
+  startTime: zod.string().optional(),
+  duration: zod.number().optional(),
+  maxParticipants: zod.number().optional(),
+  room: zod.string().optional(),
+  status: zod
+    .enum(["scheduled", "in_progress", "completed", "cancelled"])
+    .optional(),
+});
+
+export const AdminUpdateClassResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Deletes a gym class (owner-only)
+ * @summary Delete a class
+ */
+export const AdminDeleteClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * Returns the gym settings (owner-only)
+ * @summary Get gym settings
+ */
+export const AdminGetSettingsResponse = zod.object({
+  id: zod.number(),
+  gymName: zod.string(),
+  address: zod.string(),
+  phone: zod.string(),
+  workingHours: zod.string(),
+  description: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Updates the gym settings (owner-only)
+ * @summary Update gym settings
+ */
+export const AdminUpdateSettingsBody = zod.object({
+  gymName: zod.string().optional(),
+  address: zod.string().optional(),
+  phone: zod.string().optional(),
+  workingHours: zod.string().optional(),
+  description: zod.string().optional(),
+});
+
+export const AdminUpdateSettingsResponse = zod.object({
+  id: zod.number(),
+  gymName: zod.string(),
+  address: zod.string(),
+  phone: zod.string(),
+  workingHours: zod.string(),
+  description: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Returns all registered members from Clerk (owner-only)
+ * @summary List all members
+ */
+export const AdminListMembersResponseItem = zod.object({
+  id: zod.string(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  email: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+});
+export const AdminListMembersResponse = zod.array(AdminListMembersResponseItem);
+
+/**
+ * Returns at-a-glance dashboard statistics (owner-only)
+ * @summary Get dashboard stats
+ */
+export const AdminGetDashboardResponse = zod.object({
+  totalClassesThisWeek: zod.number(),
+  totalEnrollments: zod.number(),
+  mostPopularCategory: zod.string(),
+  totalActiveMembers: zod.number(),
+  weeklyClassCounts: zod.array(
+    zod.object({
+      day: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+});

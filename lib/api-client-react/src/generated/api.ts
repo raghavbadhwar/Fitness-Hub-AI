@@ -5,18 +5,31 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  CreateGymClassBody,
+  DashboardStats,
+  ErrorResponse,
+  GymClass,
+  GymSettings,
+  HealthStatus,
+  Member,
+  UpdateGymClassBody,
+  UpdateGymSettingsBody,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +105,733 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns all upcoming gym classes (public endpoint for mobile app)
+ * @summary List all gym classes
+ */
+export const getListClassesUrl = () => {
+  return `/api/classes`;
+};
+
+export const listClasses = async (
+  options?: RequestInit,
+): Promise<GymClass[]> => {
+  return customFetch<GymClass[]>(getListClassesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListClassesQueryKey = () => {
+  return [`/api/classes`] as const;
+};
+
+export const getListClassesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listClasses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClasses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListClassesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listClasses>>> = ({
+    signal,
+  }) => listClasses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listClasses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListClassesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listClasses>>
+>;
+export type ListClassesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all gym classes
+ */
+
+export function useListClasses<
+  TData = Awaited<ReturnType<typeof listClasses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listClasses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListClassesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns all gym classes for admin management
+ * @summary List all classes (admin)
+ */
+export const getAdminListClassesUrl = () => {
+  return `/api/admin/classes`;
+};
+
+export const adminListClasses = async (
+  options?: RequestInit,
+): Promise<GymClass[]> => {
+  return customFetch<GymClass[]>(getAdminListClassesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListClassesQueryKey = () => {
+  return [`/api/admin/classes`] as const;
+};
+
+export const getAdminListClassesQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListClasses>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListClasses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListClassesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListClasses>>
+  > = ({ signal }) => adminListClasses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListClasses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListClassesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListClasses>>
+>;
+export type AdminListClassesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List all classes (admin)
+ */
+
+export function useAdminListClasses<
+  TData = Awaited<ReturnType<typeof adminListClasses>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListClasses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListClassesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates a new gym class (owner-only)
+ * @summary Create a new class
+ */
+export const getAdminCreateClassUrl = () => {
+  return `/api/admin/classes`;
+};
+
+export const adminCreateClass = async (
+  createGymClassBody: CreateGymClassBody,
+  options?: RequestInit,
+): Promise<GymClass> => {
+  return customFetch<GymClass>(getAdminCreateClassUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createGymClassBody),
+  });
+};
+
+export const getAdminCreateClassMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateClass>>,
+    TError,
+    { data: BodyType<CreateGymClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminCreateClass>>,
+  TError,
+  { data: BodyType<CreateGymClassBody> },
+  TContext
+> => {
+  const mutationKey = ["adminCreateClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminCreateClass>>,
+    { data: BodyType<CreateGymClassBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminCreateClass(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminCreateClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminCreateClass>>
+>;
+export type AdminCreateClassMutationBody = BodyType<CreateGymClassBody>;
+export type AdminCreateClassMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a new class
+ */
+export const useAdminCreateClass = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminCreateClass>>,
+    TError,
+    { data: BodyType<CreateGymClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminCreateClass>>,
+  TError,
+  { data: BodyType<CreateGymClassBody> },
+  TContext
+> => {
+  return useMutation(getAdminCreateClassMutationOptions(options));
+};
+
+/**
+ * Updates an existing gym class (owner-only)
+ * @summary Update a class
+ */
+export const getAdminUpdateClassUrl = (id: number) => {
+  return `/api/admin/classes/${id}`;
+};
+
+export const adminUpdateClass = async (
+  id: number,
+  updateGymClassBody: UpdateGymClassBody,
+  options?: RequestInit,
+): Promise<GymClass> => {
+  return customFetch<GymClass>(getAdminUpdateClassUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateGymClassBody),
+  });
+};
+
+export const getAdminUpdateClassMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateClass>>,
+    TError,
+    { id: number; data: BodyType<UpdateGymClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateClass>>,
+  TError,
+  { id: number; data: BodyType<UpdateGymClassBody> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateClass>>,
+    { id: number; data: BodyType<UpdateGymClassBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminUpdateClass(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateClass>>
+>;
+export type AdminUpdateClassMutationBody = BodyType<UpdateGymClassBody>;
+export type AdminUpdateClassMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a class
+ */
+export const useAdminUpdateClass = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateClass>>,
+    TError,
+    { id: number; data: BodyType<UpdateGymClassBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateClass>>,
+  TError,
+  { id: number; data: BodyType<UpdateGymClassBody> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateClassMutationOptions(options));
+};
+
+/**
+ * Deletes a gym class (owner-only)
+ * @summary Delete a class
+ */
+export const getAdminDeleteClassUrl = (id: number) => {
+  return `/api/admin/classes/${id}`;
+};
+
+export const adminDeleteClass = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getAdminDeleteClassUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getAdminDeleteClassMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteClass"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteClass>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return adminDeleteClass(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteClassMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminDeleteClass>>
+>;
+
+export type AdminDeleteClassMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a class
+ */
+export const useAdminDeleteClass = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteClass>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteClass>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAdminDeleteClassMutationOptions(options));
+};
+
+/**
+ * Returns the gym settings (owner-only)
+ * @summary Get gym settings
+ */
+export const getAdminGetSettingsUrl = () => {
+  return `/api/admin/settings`;
+};
+
+export const adminGetSettings = async (
+  options?: RequestInit,
+): Promise<GymSettings> => {
+  return customFetch<GymSettings>(getAdminGetSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetSettingsQueryKey = () => {
+  return [`/api/admin/settings`] as const;
+};
+
+export const getAdminGetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetSettings>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetSettings>>
+  > = ({ signal }) => adminGetSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetSettings>>
+>;
+export type AdminGetSettingsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get gym settings
+ */
+
+export function useAdminGetSettings<
+  TData = Awaited<ReturnType<typeof adminGetSettings>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Updates the gym settings (owner-only)
+ * @summary Update gym settings
+ */
+export const getAdminUpdateSettingsUrl = () => {
+  return `/api/admin/settings`;
+};
+
+export const adminUpdateSettings = async (
+  updateGymSettingsBody: UpdateGymSettingsBody,
+  options?: RequestInit,
+): Promise<GymSettings> => {
+  return customFetch<GymSettings>(getAdminUpdateSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateGymSettingsBody),
+  });
+};
+
+export const getAdminUpdateSettingsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateSettings>>,
+    TError,
+    { data: BodyType<UpdateGymSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateSettings>>,
+  TError,
+  { data: BodyType<UpdateGymSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateSettings>>,
+    { data: BodyType<UpdateGymSettingsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return adminUpdateSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateSettings>>
+>;
+export type AdminUpdateSettingsMutationBody = BodyType<UpdateGymSettingsBody>;
+export type AdminUpdateSettingsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update gym settings
+ */
+export const useAdminUpdateSettings = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateSettings>>,
+    TError,
+    { data: BodyType<UpdateGymSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateSettings>>,
+  TError,
+  { data: BodyType<UpdateGymSettingsBody> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateSettingsMutationOptions(options));
+};
+
+/**
+ * Returns all registered members from Clerk (owner-only)
+ * @summary List all members
+ */
+export const getAdminListMembersUrl = () => {
+  return `/api/admin/members`;
+};
+
+export const adminListMembers = async (
+  options?: RequestInit,
+): Promise<Member[]> => {
+  return customFetch<Member[]>(getAdminListMembersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListMembersQueryKey = () => {
+  return [`/api/admin/members`] as const;
+};
+
+export const getAdminListMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListMembers>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListMembersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminListMembers>>
+  > = ({ signal }) => adminListMembers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListMembers>>
+>;
+export type AdminListMembersQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List all members
+ */
+
+export function useAdminListMembers<
+  TData = Awaited<ReturnType<typeof adminListMembers>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminListMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListMembersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns at-a-glance dashboard statistics (owner-only)
+ * @summary Get dashboard stats
+ */
+export const getAdminGetDashboardUrl = () => {
+  return `/api/admin/dashboard`;
+};
+
+export const adminGetDashboard = async (
+  options?: RequestInit,
+): Promise<DashboardStats> => {
+  return customFetch<DashboardStats>(getAdminGetDashboardUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetDashboardQueryKey = () => {
+  return [`/api/admin/dashboard`] as const;
+};
+
+export const getAdminGetDashboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetDashboard>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetDashboardQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetDashboard>>
+  > = ({ signal }) => adminGetDashboard({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetDashboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetDashboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetDashboard>>
+>;
+export type AdminGetDashboardQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get dashboard stats
+ */
+
+export function useAdminGetDashboard<
+  TData = Awaited<ReturnType<typeof adminGetDashboard>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetDashboard>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetDashboardQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

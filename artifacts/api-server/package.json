@@ -10,17 +10,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@clerk/backend": "^3.2.4",
     "@clerk/express": "^2.0.8",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/integrations-gemini-ai": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
     "http-proxy-middleware": "^3.0.5",
     "pino": "^9",
-    "pino-http": "^10",
-    "@workspace/integrations-gemini-ai": "workspace:*"
+    "pino-http": "^10"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

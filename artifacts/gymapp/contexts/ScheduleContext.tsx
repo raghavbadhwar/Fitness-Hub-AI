@@ -161,6 +161,36 @@ interface ScheduleContextType {
 
 const ScheduleContext = createContext<ScheduleContextType | null>(null);
 
+async function fetchClassesFromAPI(): Promise<GymClass[] | null> {
+  try {
+    const domain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (!domain) return null;
+    const url = `https://${domain}/api/classes`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!Array.isArray(data)) return null;
+    return data.map((c: Record<string, unknown>) => ({
+      id: String(c.id),
+      name: String(c.name ?? ""),
+      category: (c.category as ClassCategory) ?? "Other",
+      description: String(c.description ?? ""),
+      trainer: String(c.trainer ?? ""),
+      date: String(c.date ?? ""),
+      startTime: String(c.startTime ?? ""),
+      duration: Number(c.duration ?? 60),
+      maxParticipants: Number(c.maxParticipants ?? 20),
+      enrolledCount: Number(c.enrolledCount ?? 0),
+      enrolledMembers: [],
+      room: String(c.room ?? ""),
+      status: (c.status as ClassStatus) ?? "scheduled",
+      color: String(c.color ?? CLASS_COLORS.Other),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const [classes, setClasses] = useState<GymClass[]>(SAMPLE_CLASSES);
   const [enrolledClassIds, setEnrolledClassIds] = useState<string[]>([]);
@@ -169,11 +199,22 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const [storedClasses, storedEnrolled] = await Promise.all([
-          AsyncStorage.getItem("@gymapp_classes"),
+        const [storedEnrolled, storedClasses, apiClasses] = await Promise.all([
           AsyncStorage.getItem("@gymapp_enrolled"),
+          AsyncStorage.getItem("@gymapp_classes"),
+          fetchClassesFromAPI(),
         ]);
-        if (storedClasses) setClasses(JSON.parse(storedClasses));
+
+        const localClasses: GymClass[] = storedClasses ? JSON.parse(storedClasses) : [];
+
+        if (apiClasses !== null) {
+          const apiIds = new Set(apiClasses.map((c) => c.id));
+          const localOnly = localClasses.filter((c) => !apiIds.has(c.id));
+          setClasses([...apiClasses, ...localOnly]);
+        } else if (localClasses.length > 0) {
+          setClasses(localClasses);
+        }
+
         if (storedEnrolled) setEnrolledClassIds(JSON.parse(storedEnrolled));
       } catch (e) {
         console.error("Failed to load schedule", e);

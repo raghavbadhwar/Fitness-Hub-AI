@@ -6,4 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./createGymClassBody";
+export * from "./createGymClassBodyCategory";
+export * from "./createGymClassBodyStatus";
+export * from "./dashboardStats";
+export * from "./errorResponse";
+export * from "./gymClass";
+export * from "./gymClassCategory";
+export * from "./gymClassStatus";
+export * from "./gymSettings";
 export * from "./healthStatus";
+export * from "./member";
+export * from "./updateGymClassBody";
+export * from "./updateGymClassBodyCategory";
+export * from "./updateGymClassBodyStatus";
+export * from "./updateGymSettingsBody";
+export * from "./weeklyClassCount";

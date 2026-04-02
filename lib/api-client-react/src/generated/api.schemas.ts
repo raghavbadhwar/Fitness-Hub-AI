@@ -8,3 +8,171 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export type GymClassCategory =
+  (typeof GymClassCategory)[keyof typeof GymClassCategory];
+
+export const GymClassCategory = {
+  Yoga: "Yoga",
+  Zumba: "Zumba",
+  CrossFit: "CrossFit",
+  HIIT: "HIIT",
+  Spinning: "Spinning",
+  Boxing: "Boxing",
+  Pilates: "Pilates",
+  Strength: "Strength",
+  Cardio: "Cardio",
+  Other: "Other",
+} as const;
+
+export type GymClassStatus =
+  (typeof GymClassStatus)[keyof typeof GymClassStatus];
+
+export const GymClassStatus = {
+  scheduled: "scheduled",
+  in_progress: "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface GymClass {
+  id: number;
+  name: string;
+  category: GymClassCategory;
+  description: string;
+  trainer: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  maxParticipants: number;
+  enrolledCount: number;
+  room: string;
+  status: GymClassStatus;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateGymClassBodyCategory =
+  (typeof CreateGymClassBodyCategory)[keyof typeof CreateGymClassBodyCategory];
+
+export const CreateGymClassBodyCategory = {
+  Yoga: "Yoga",
+  Zumba: "Zumba",
+  CrossFit: "CrossFit",
+  HIIT: "HIIT",
+  Spinning: "Spinning",
+  Boxing: "Boxing",
+  Pilates: "Pilates",
+  Strength: "Strength",
+  Cardio: "Cardio",
+  Other: "Other",
+} as const;
+
+export type CreateGymClassBodyStatus =
+  (typeof CreateGymClassBodyStatus)[keyof typeof CreateGymClassBodyStatus];
+
+export const CreateGymClassBodyStatus = {
+  scheduled: "scheduled",
+  in_progress: "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface CreateGymClassBody {
+  name: string;
+  category: CreateGymClassBodyCategory;
+  description?: string;
+  trainer: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  maxParticipants: number;
+  room: string;
+  status?: CreateGymClassBodyStatus;
+}
+
+export type UpdateGymClassBodyCategory =
+  (typeof UpdateGymClassBodyCategory)[keyof typeof UpdateGymClassBodyCategory];
+
+export const UpdateGymClassBodyCategory = {
+  Yoga: "Yoga",
+  Zumba: "Zumba",
+  CrossFit: "CrossFit",
+  HIIT: "HIIT",
+  Spinning: "Spinning",
+  Boxing: "Boxing",
+  Pilates: "Pilates",
+  Strength: "Strength",
+  Cardio: "Cardio",
+  Other: "Other",
+} as const;
+
+export type UpdateGymClassBodyStatus =
+  (typeof UpdateGymClassBodyStatus)[keyof typeof UpdateGymClassBodyStatus];
+
+export const UpdateGymClassBodyStatus = {
+  scheduled: "scheduled",
+  in_progress: "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface UpdateGymClassBody {
+  name?: string;
+  category?: UpdateGymClassBodyCategory;
+  description?: string;
+  trainer?: string;
+  date?: string;
+  startTime?: string;
+  duration?: number;
+  maxParticipants?: number;
+  room?: string;
+  status?: UpdateGymClassBodyStatus;
+}
+
+export interface GymSettings {
+  id: number;
+  gymName: string;
+  address: string;
+  phone: string;
+  workingHours: string;
+  description: string;
+  updatedAt: string;
+}
+
+export interface UpdateGymSettingsBody {
+  gymName?: string;
+  address?: string;
+  phone?: string;
+  workingHours?: string;
+  description?: string;
+}
+
+export interface Member {
+  id: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface WeeklyClassCount {
+  day: string;
+  count: number;
+}
+
+export interface DashboardStats {
+  totalClassesThisWeek: number;
+  totalEnrollments: number;
+  mostPopularCategory: string;
+  totalActiveMembers: number;
+  weeklyClassCounts: WeeklyClassCount[];
+}

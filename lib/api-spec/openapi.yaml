@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: classes
+    description: Gym class operations
+  - name: admin
+    description: Admin operations (owner-only)
 paths:
   /healthz:
     get:
@@ -24,6 +28,285 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /classes:
+    get:
+      operationId: listClasses
+      tags: [classes]
+      summary: List all gym classes
+      description: Returns all upcoming gym classes (public endpoint for mobile app)
+      responses:
+        "200":
+          description: List of gym classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GymClass"
+
+  /admin/classes:
+    get:
+      operationId: adminListClasses
+      tags: [admin]
+      summary: List all classes (admin)
+      description: Returns all gym classes for admin management
+      responses:
+        "200":
+          description: List of gym classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GymClass"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - not an owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: adminCreateClass
+      tags: [admin]
+      summary: Create a new class
+      description: Creates a new gym class (owner-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGymClassBody"
+      responses:
+        "201":
+          description: Class created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - not an owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/classes/{id}:
+    put:
+      operationId: adminUpdateClass
+      tags: [admin]
+      summary: Update a class
+      description: Updates an existing gym class (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGymClassBody"
+      responses:
+        "200":
+          description: Class updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: adminDeleteClass
+      tags: [admin]
+      summary: Delete a class
+      description: Deletes a gym class (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Class deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/settings:
+    get:
+      operationId: adminGetSettings
+      tags: [admin]
+      summary: Get gym settings
+      description: Returns the gym settings (owner-only)
+      responses:
+        "200":
+          description: Gym settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymSettings"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: adminUpdateSettings
+      tags: [admin]
+      summary: Update gym settings
+      description: Updates the gym settings (owner-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGymSettingsBody"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymSettings"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/members:
+    get:
+      operationId: adminListMembers
+      tags: [admin]
+      summary: List all members
+      description: Returns all registered members from Clerk (owner-only)
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/dashboard:
+    get:
+      operationId: adminGetDashboard
+      tags: [admin]
+      summary: Get dashboard stats
+      description: Returns at-a-glance dashboard statistics (owner-only)
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +317,217 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    GymClass:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+          enum: [Yoga, Zumba, CrossFit, HIIT, Spinning, Boxing, Pilates, Strength, Cardio, Other]
+        description:
+          type: string
+        trainer:
+          type: string
+        date:
+          type: string
+        startTime:
+          type: string
+        duration:
+          type: integer
+        maxParticipants:
+          type: integer
+        enrolledCount:
+          type: integer
+        room:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+        color:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - category
+        - description
+        - trainer
+        - date
+        - startTime
+        - duration
+        - maxParticipants
+        - enrolledCount
+        - room
+        - status
+        - color
+        - createdAt
+        - updatedAt
+
+    CreateGymClassBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [Yoga, Zumba, CrossFit, HIIT, Spinning, Boxing, Pilates, Strength, Cardio, Other]
+        description:
+          type: string
+        trainer:
+          type: string
+        date:
+          type: string
+        startTime:
+          type: string
+        duration:
+          type: integer
+        maxParticipants:
+          type: integer
+        room:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+      required:
+        - name
+        - category
+        - trainer
+        - date
+        - startTime
+        - duration
+        - maxParticipants
+        - room
+
+    UpdateGymClassBody:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [Yoga, Zumba, CrossFit, HIIT, Spinning, Boxing, Pilates, Strength, Cardio, Other]
+        description:
+          type: string
+        trainer:
+          type: string
+        date:
+          type: string
+        startTime:
+          type: string
+        duration:
+          type: integer
+        maxParticipants:
+          type: integer
+        room:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+
+    GymSettings:
+      type: object
+      properties:
+        id:
+          type: integer
+        gymName:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        workingHours:
+          type: string
+        description:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - gymName
+        - address
+        - phone
+        - workingHours
+        - description
+        - updatedAt
+
+    UpdateGymSettingsBody:
+      type: object
+      properties:
+        gymName:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        workingHours:
+          type: string
+        description:
+          type: string
+
+    Member:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        email:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - email
+        - role
+        - createdAt
+
+    WeeklyClassCount:
+      type: object
+      properties:
+        day:
+          type: string
+        count:
+          type: integer
+      required:
+        - day
+        - count
+
+    DashboardStats:
+      type: object
+      properties:
+        totalClassesThisWeek:
+          type: integer
+        totalEnrollments:
+          type: integer
+        mostPopularCategory:
+          type: string
+        totalActiveMembers:
+          type: integer
+        weeklyClassCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyClassCount"
+      required:
+        - totalClassesThisWeek
+        - totalEnrollments
+        - mostPopularCategory
+        - totalActiveMembers
+        - weeklyClassCounts

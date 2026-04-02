@@ -38,6 +38,20 @@ await signIn.password({ emailAddress, password });    // NOT signIn.create()
 await signIn.finalize({ navigate: ... });
 ```
 
+### artifacts/admin (React + Vite)
+
+Gym owner web admin panel at `/admin/` preview path. Secured with Clerk Auth (owner role only).
+
+**Pages:**
+- `/admin/` — Dashboard with stats cards (classes this week, enrollments, members, popular category) + Recharts weekly bar chart
+- `/admin/classes` — Sortable class table, create/edit modal, delete confirmation
+- `/admin/members` — Read-only searchable member table (pulls from Clerk API)
+- `/admin/settings` — Gym info form (name, address, phone, hours, description)
+
+**Auth:** Only Clerk users with `publicMetadata.role === "owner"` can access. Non-owners see "Access Denied".
+
+**Brand:** Saffron orange `#FF6B00` for primary actions, consistent with mobile app.
+
 ### artifacts/api-server (Express)
 
 AI endpoints for GymOS:
@@ -45,7 +59,22 @@ AI endpoints for GymOS:
 - `POST /api/ai/chat` — SSE streaming chat with Gemini
 - `POST /api/ai/workout-suggestion` — AI workout recommendations
 
+Admin endpoints (owner-only via Clerk requireAuth + role check):
+- `GET/POST /api/admin/classes` — list/create gym classes
+- `PUT/DELETE /api/admin/classes/:id` — update/delete gym class
+- `GET/PUT /api/admin/settings` — gym settings (name, address, phone, hours, description)
+- `GET /api/admin/members` — list members from Clerk backend API
+- `GET /api/admin/dashboard` — dashboard stats
+
+Public endpoints:
+- `GET /api/classes` — public class list for mobile app (no auth)
+
 Uses `@workspace/integrations-gemini-ai`, model: `gemini-2.5-flash-preview-04-17`
+Uses `@clerk/backend` for member list from Clerk user directory.
+
+**DB Tables:**
+- `gym_classes` — class schedule (name, category, trainer, date, time, duration, room, status, etc.)
+- `gym_settings` — gym info (name, address, phone, working hours, description)
 
 ## Stack
 
@@ -64,7 +93,9 @@ Uses `@workspace/integrations-gemini-ai`, model: `gemini-2.5-flash-preview-04-17
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   ├── admin/              # Gym owner admin panel (React+Vite, /admin/)
+│   └── gymapp/             # GymOS mobile app (Expo, /)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
