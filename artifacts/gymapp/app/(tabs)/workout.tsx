@@ -108,6 +108,33 @@ interface AssignableMember {
   email: string;
 }
 
+interface AISuggestedExercise {
+  name?: string;
+  sets?: number | string;
+  reps?: string | number;
+  restSeconds?: number | string;
+  notes?: string;
+}
+
+interface AIWorkoutSuggestion {
+  workoutName?: string;
+  focus?: string;
+  duration?: number;
+  exercises?: AISuggestedExercise[];
+  warmup?: string;
+  cooldown?: string;
+  motivationalTip?: string;
+}
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
+  }
+
+  const parsed = parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export default function WorkoutScreen() {
   const { profile, refreshProfile } = useApp();
   const {
@@ -390,22 +417,25 @@ export default function WorkoutScreen() {
         }),
       });
       if (!response.ok) throw new Error("Failed to get workout");
-      const suggestion = await response.json();
+      const suggestion: AIWorkoutSuggestion = await response.json();
 
-      const exercises = (suggestion.exercises || []).map((ex: any) => {
+      const exercises = (suggestion.exercises || []).map((ex) => {
+        const exName = typeof ex.name === "string" ? ex.name : "Custom Exercise";
+        const setCount = parsePositiveInteger(ex.sets, 3);
+        const reps = parsePositiveInteger(ex.reps, 10);
         const found = EXERCISES.find((e) =>
-          e.name.toLowerCase().includes(ex.name.toLowerCase().split(" ")[0]),
+          e.name.toLowerCase().includes(exName.toLowerCase().split(" ")[0]),
         );
         return {
           exerciseId: found?.id || "custom",
-          name: ex.name,
-          sets: Array.from({ length: ex.sets || 3 }, (_, i) => ({
+          name: exName,
+          sets: Array.from({ length: setCount }, (_, i) => ({
             id: Date.now().toString() + i,
             weight: 0,
-            reps: parseInt(ex.reps) || 10,
+            reps,
             completed: false,
           })),
-          notes: ex.notes,
+          notes: typeof ex.notes === "string" ? ex.notes : undefined,
         };
       });
 
