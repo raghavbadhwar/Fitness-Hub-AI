@@ -11,6 +11,55 @@ export interface HealthStatus {
 
 export interface ErrorResponse {
   error: string;
+  /** @nullable */
+  details?: string | null;
+}
+
+export interface OkResponse {
+  ok: boolean;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+}
+
+export type AccessCheckResponseStatus =
+  (typeof AccessCheckResponseStatus)[keyof typeof AccessCheckResponseStatus];
+
+export const AccessCheckResponseStatus = {
+  missing_profile: "missing_profile",
+  ready: "ready",
+} as const;
+
+export interface AccessCheckResponse {
+  status: AccessCheckResponseStatus;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  role?: string | null;
+}
+
+export interface SyncProfileBody {
+  name?: string;
+}
+
+export type ProfileRole = (typeof ProfileRole)[keyof typeof ProfileRole];
+
+export const ProfileRole = {
+  member: "member",
+  trainer: "trainer",
+  owner: "owner",
+} as const;
+
+export interface Profile {
+  clerkId: string;
+  name: string;
+  role: ProfileRole;
+  updatedAt: string;
+}
+
+export interface EnrolledClassIdsResponse {
+  classIds: string[];
 }
 
 export type GymClassCategory =
@@ -156,12 +205,31 @@ export interface UpdateGymSettingsBody {
 export interface Member {
   id: string;
   /** @nullable */
+  name?: string | null;
+  /** @nullable */
   firstName?: string | null;
   /** @nullable */
   lastName?: string | null;
   email: string;
   role: string;
   createdAt: string;
+  /** @nullable */
+  aiMemorySummary?: string | null;
+  /** @nullable */
+  aiLastUpdatedAt?: string | null;
+  aiRecentMessageCount: number;
+}
+
+export type UpdateMemberBodyRole =
+  (typeof UpdateMemberBodyRole)[keyof typeof UpdateMemberBodyRole];
+
+export const UpdateMemberBodyRole = {
+  member: "member",
+  trainer: "trainer",
+} as const;
+
+export interface UpdateMemberBody {
+  role: UpdateMemberBodyRole;
 }
 
 export interface WeeklyClassCount {
@@ -176,3 +244,212 @@ export interface DashboardStats {
   totalActiveMembers: number;
   weeklyClassCounts: WeeklyClassCount[];
 }
+
+export type AiMemoryMessageRole =
+  (typeof AiMemoryMessageRole)[keyof typeof AiMemoryMessageRole];
+
+export const AiMemoryMessageRole = {
+  user: "user",
+  assistant: "assistant",
+} as const;
+
+export interface AiMemoryMessage {
+  role: AiMemoryMessageRole;
+  content: string;
+  timestamp: string;
+}
+
+export interface AiHistoryResponse {
+  messages: AiMemoryMessage[];
+  memorySummary: string;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  lastConversationAt: string | null;
+}
+
+export interface AiAnalyzeFoodRequest {
+  imageBase64: string;
+  mimeType?: string;
+}
+
+export type AiFoodAnalysisConfidence =
+  (typeof AiFoodAnalysisConfidence)[keyof typeof AiFoodAnalysisConfidence];
+
+export const AiFoodAnalysisConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface AiFoodAnalysis {
+  dishName: string;
+  cuisine: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  confidence: AiFoodAnalysisConfidence;
+  ingredients: string[];
+  healthTip: string;
+}
+
+export interface JsonObject {
+  [key: string]: unknown;
+}
+
+export type AiChatMessageRole =
+  (typeof AiChatMessageRole)[keyof typeof AiChatMessageRole];
+
+export const AiChatMessageRole = {
+  user: "user",
+  assistant: "assistant",
+} as const;
+
+export interface AiChatMessage {
+  role: AiChatMessageRole;
+  content: string;
+}
+
+export interface AiChatRequest {
+  messages: AiChatMessage[];
+  userProfile?: JsonObject;
+  todayStats?: JsonObject;
+  behaviorProfile?: JsonObject;
+  savedPlans?: JsonObject[];
+}
+
+export interface AiWorkoutSuggestionRequest {
+  recentWorkouts?: JsonObject[];
+  goals?: string;
+  fitnessLevel?: string;
+  availableTime?: number;
+  behaviorProfile?: JsonObject;
+  savedPlans?: JsonObject[];
+}
+
+export interface AiWorkoutSuggestionExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface AiWorkoutSuggestion {
+  workoutName: string;
+  focus: string;
+  duration: number;
+  exercises: AiWorkoutSuggestionExercise[];
+  warmup: string;
+  cooldown: string;
+  motivationalTip: string;
+}
+
+export interface WorkoutMember {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface WorkoutTemplateExercise {
+  exerciseId: string;
+  name: string;
+  sets: number;
+  reps: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface WorkoutTemplate {
+  id: number;
+  trainerId: string;
+  trainerName: string;
+  name: string;
+  exercises: WorkoutTemplateExercise[];
+  createdAt: string;
+}
+
+export interface CreateWorkoutTemplateBody {
+  name: string;
+  exercises: WorkoutTemplateExercise[];
+  trainerName?: string;
+}
+
+export interface WorkoutAssignment {
+  id: number;
+  templateId: number;
+  trainerId: string;
+  memberName: string;
+  /** @nullable */
+  memberClerkId: string | null;
+  assignedAt: string;
+  /** @nullable */
+  completedAt: string | null;
+}
+
+export interface WorkoutAssignBody {
+  templateId: number;
+  memberId: string;
+}
+
+export interface MemberWorkoutPlanExercise {
+  exerciseId: string;
+  name: string;
+  sets: number;
+  reps: number;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type MemberWorkoutPlanSource =
+  (typeof MemberWorkoutPlanSource)[keyof typeof MemberWorkoutPlanSource];
+
+export const MemberWorkoutPlanSource = {
+  member: "member",
+} as const;
+
+export interface MemberWorkoutPlan {
+  id: string;
+  memberClerkId: string;
+  name: string;
+  /** @nullable */
+  focus: string | null;
+  exercises: MemberWorkoutPlanExercise[];
+  createdAt: string;
+  updatedAt: string;
+  source: MemberWorkoutPlanSource;
+}
+
+export interface UpsertMemberWorkoutPlanBody {
+  name: string;
+  /** @nullable */
+  focus?: string | null;
+  exercises: MemberWorkoutPlanExercise[];
+}
+
+export interface WorkoutAssignmentsBindResponse {
+  bound: number;
+}
+
+export interface AssignedWorkout {
+  id: number;
+  templateId: number;
+  trainerId: string;
+  memberName: string;
+  /** @nullable */
+  memberClerkId: string | null;
+  assignedAt: string;
+  /** @nullable */
+  completedAt: string | null;
+  templateName: string;
+  trainerName: string;
+  exercises: WorkoutTemplateExercise[];
+}
+
+export type WorkoutsListAssignedParams = {
+  memberId: string;
+};

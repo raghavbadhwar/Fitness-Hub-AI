@@ -14,7 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import type {
@@ -30,6 +30,7 @@ import type {
 } from "@/contexts/AppContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 const STEP_LABELS = ["Personal", "Experience", "Health", "Goals", "Diet", "Role", "Summary"];
 
@@ -63,8 +64,6 @@ const DIET_TYPE_OPTIONS: { label: string; value: DietType }[] = [
 
 const ROLE_OPTIONS: { label: string; value: UserRole }[] = [
   { label: "Member", value: "member" },
-  { label: "Trainer", value: "trainer" },
-  { label: "Gym Owner", value: "owner" },
 ];
 
 const EXPERIENCE_OPTIONS: { label: string; value: FitnessExperience }[] = [
@@ -210,7 +209,7 @@ export default function Onboarding() {
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
-      useNativeDriver: true,
+      useNativeDriver: USE_NATIVE_DRIVER,
     }).start();
   };
 
@@ -258,7 +257,7 @@ export default function Onboarding() {
         gymName: data.gymName,
         numTrainers: data.numTrainers,
       });
-      router.replace("/(tabs)");
+      router.replace("/");
     } catch {
       Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
@@ -487,37 +486,18 @@ export default function Onboarding() {
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: colors.text }]}>How will you use GymOS?</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Different features unlock based on your role
+              Your account starts as a member. Trainer and owner access is enabled by your gym admin after signup.
             </Text>
             <View style={styles.form}>
               <View style={styles.optionGrid}>
                 {renderOption(ROLE_OPTIONS, "role", data.role)}
               </View>
-              {data.role === "owner" && (
-                <>
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: colors.mutedForeground }]}>Gym Name</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                      placeholder="e.g. Iron Paradise Gym"
-                      placeholderTextColor={colors.mutedForeground}
-                      value={data.gymName}
-                      onChangeText={(v) => update("gymName", v)}
-                    />
-                  </View>
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: colors.mutedForeground }]}>Number of Trainers</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                      placeholder="e.g. 5"
-                      placeholderTextColor={colors.mutedForeground}
-                      value={data.numTrainers}
-                      onChangeText={(v) => update("numTrainers", v)}
-                      keyboardType="number-pad"
-                    />
-                  </View>
-                </>
-              )}
+              <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.summaryCardTitle, { color: colors.text }]}>Access model</Text>
+                <Text style={[styles.summaryNote, { color: colors.mutedForeground }]}>
+                  Members can start using the app immediately. If you should have trainer tools, your gym admin can promote your account from the admin panel and the Expo app will pick it up automatically.
+                </Text>
+              </View>
             </View>
           </View>
         );
@@ -696,6 +676,7 @@ const styles = StyleSheet.create({
   nextText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   summaryCard: { borderRadius: 16, borderWidth: 1, padding: 20, gap: 16, marginBottom: 12 },
   summaryCardTitle: { fontSize: 16, fontWeight: "700" },
+  summaryNote: { fontSize: 14, lineHeight: 20 },
   calorieRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   calorieValue: { fontSize: 48, fontWeight: "900" },
   calorieUnit: { fontSize: 16 },

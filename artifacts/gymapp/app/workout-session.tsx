@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
 import { useWorkout } from "@/contexts/WorkoutContext";
@@ -28,6 +29,7 @@ const DEFAULT_REST_DURATION = 90;
 const RING_SIZE = 140;
 const STROKE = 10;
 const ACCENT_COLOR = "#FF6B00";
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
   Chest: "#EF4444",
@@ -60,8 +62,8 @@ function PulsingDot({ color }: { color: string }) {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.4, duration: 700, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1.4, duration: 700, useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: USE_NATIVE_DRIVER }),
       ]),
     );
     loop.start();
@@ -343,7 +345,7 @@ export default function WorkoutSessionScreen() {
   const animateCheck = (setId: string) => {
     const anim = getCheckAnim(setId);
     anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, tension: 200, friction: 6, useNativeDriver: true }).start();
+    Animated.spring(anim, { toValue: 1, tension: 200, friction: 6, useNativeDriver: USE_NATIVE_DRIVER }).start();
   };
 
   const handleToggleSet = (exerciseId: string, setId: string, currentCompleted: boolean) => {

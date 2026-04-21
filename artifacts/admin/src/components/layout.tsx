@@ -65,7 +65,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <UserButton afterSignOutUrl={`${window.location.origin}/admin/sign-in`} />
+            <UserButton />
           </div>
         </div>
       </header>

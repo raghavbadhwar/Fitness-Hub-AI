@@ -50,6 +50,86 @@ export const ListClassesResponseItem = zod.object({
 export const ListClassesResponse = zod.array(ListClassesResponseItem);
 
 /**
+ * Returns upcoming class ids that the authenticated member is enrolled in
+ * @summary List the caller's enrolled class ids
+ */
+export const ListEnrolledClassIdsResponse = zod.object({
+  classIds: zod.array(zod.string()),
+});
+
+/**
+ * @summary Enroll the caller in a class
+ */
+export const EnrollInClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const EnrollInClassResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Remove the caller from a class
+ */
+export const LeaveClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const LeaveClassResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
  * Returns all gym classes for admin management
  * @summary List all classes (admin)
  */
@@ -179,6 +259,30 @@ export const AdminUpdateClassResponse = zod.object({
 });
 
 /**
+ * Returns enrolled member identity data for a class (owner-only)
+ * @summary List enrolled members for a class
+ */
+export const AdminListClassEnrollmentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminListClassEnrollmentsResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  email: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+  aiMemorySummary: zod.string().nullish(),
+  aiLastUpdatedAt: zod.string().nullish(),
+  aiRecentMessageCount: zod.number(),
+});
+export const AdminListClassEnrollmentsResponse = zod.array(
+  AdminListClassEnrollmentsResponseItem,
+);
+
+/**
  * Deletes a gym class (owner-only)
  * @summary Delete a class
  */
@@ -223,18 +327,47 @@ export const AdminUpdateSettingsResponse = zod.object({
 });
 
 /**
- * Returns all registered members from Clerk (owner-only)
+ * Returns all registered members merged with synced profile roles (owner-only)
  * @summary List all members
  */
 export const AdminListMembersResponseItem = zod.object({
   id: zod.string(),
+  name: zod.string().nullish(),
   firstName: zod.string().nullish(),
   lastName: zod.string().nullish(),
   email: zod.string(),
   role: zod.string(),
   createdAt: zod.string(),
+  aiMemorySummary: zod.string().nullish(),
+  aiLastUpdatedAt: zod.string().nullish(),
+  aiRecentMessageCount: zod.number(),
 });
 export const AdminListMembersResponse = zod.array(AdminListMembersResponseItem);
+
+/**
+ * Promotes or demotes a synced member between member and trainer access (owner-only)
+ * @summary Update a member role
+ */
+export const AdminUpdateMemberParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AdminUpdateMemberBody = zod.object({
+  role: zod.enum(["member", "trainer"]),
+});
+
+export const AdminUpdateMemberResponse = zod.object({
+  id: zod.string(),
+  name: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  email: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+  aiMemorySummary: zod.string().nullish(),
+  aiLastUpdatedAt: zod.string().nullish(),
+  aiRecentMessageCount: zod.number(),
+});
 
 /**
  * Returns at-a-glance dashboard statistics (owner-only)
@@ -251,4 +384,359 @@ export const AdminGetDashboardResponse = zod.object({
       count: zod.number(),
     }),
   ),
+});
+
+/**
+ * Returns whether the signed-in user already has a synced server profile.
+ * @summary Check the caller profile access state
+ */
+export const ProfilesAccessCheckResponse = zod.object({
+  status: zod.enum(["missing_profile", "ready"]),
+  name: zod.string().nullish(),
+  role: zod.string().nullish(),
+});
+
+/**
+ * Creates or updates the server-side profile using the signed-in Clerk user.
+ * @summary Sync the caller profile
+ */
+export const ProfilesSyncBody = zod.object({
+  name: zod.string().optional(),
+});
+
+export const ProfilesSyncResponse = zod.object({
+  clerkId: zod.string(),
+  name: zod.string(),
+  role: zod.enum(["member", "trainer", "owner"]),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Returns the persisted server-side profile for the signed-in user.
+ * @summary Fetch the caller profile
+ */
+export const ProfilesGetMeResponse = zod.object({
+  clerkId: zod.string(),
+  name: zod.string(),
+  role: zod.enum(["member", "trainer", "owner"]),
+  updatedAt: zod.string(),
+});
+
+/**
+ * Returns recent coaching messages and stored memory metadata for the signed-in member.
+ * @summary Fetch AI conversation history
+ */
+export const AiGetHistoryResponse = zod.object({
+  messages: zod.array(
+    zod.object({
+      role: zod.enum(["user", "assistant"]),
+      content: zod.string(),
+      timestamp: zod.string(),
+    }),
+  ),
+  memorySummary: zod.string(),
+  updatedAt: zod.string().nullable(),
+  lastConversationAt: zod.string().nullable(),
+});
+
+/**
+ * Resets recent messages and memory metadata for the signed-in member.
+ * @summary Clear AI conversation history
+ */
+export const AiClearHistoryResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * Uses the AI integration to estimate the nutrition of a submitted food image.
+ * @summary Analyze a food image
+ */
+export const AiAnalyzeFoodBody = zod.object({
+  imageBase64: zod.string(),
+  mimeType: zod.string().optional(),
+});
+
+export const AiAnalyzeFoodResponse = zod.object({
+  dishName: zod.string(),
+  cuisine: zod.string(),
+  servingSize: zod.string(),
+  calories: zod.number(),
+  protein: zod.number(),
+  carbs: zod.number(),
+  fat: zod.number(),
+  fiber: zod.number(),
+  confidence: zod.enum(["high", "medium", "low"]),
+  ingredients: zod.array(zod.string()),
+  healthTip: zod.string(),
+});
+
+/**
+ * Accepts recent messages and contextual member data, then streams a coaching response over server-sent events.
+ * @summary Stream an AI coaching response
+ */
+export const AiChatBody = zod.object({
+  messages: zod.array(
+    zod.object({
+      role: zod.enum(["user", "assistant"]),
+      content: zod.string(),
+    }),
+  ),
+  userProfile: zod.record(zod.string(), zod.unknown()).optional(),
+  todayStats: zod.record(zod.string(), zod.unknown()).optional(),
+  behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
+  savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+});
+
+/**
+ * Produces a personalized workout suggestion using recent activity, goals, and saved-plan context.
+ * @summary Generate an AI workout suggestion
+ */
+export const AiWorkoutSuggestionBody = zod.object({
+  recentWorkouts: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  goals: zod.string().optional(),
+  fitnessLevel: zod.string().optional(),
+  availableTime: zod.number().optional(),
+  behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
+  savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+});
+
+export const AiWorkoutSuggestionResponse = zod.object({
+  workoutName: zod.string(),
+  focus: zod.string(),
+  duration: zod.number(),
+  exercises: zod.array(
+    zod.object({
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.string(),
+      restSeconds: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  warmup: zod.string(),
+  cooldown: zod.string(),
+  motivationalTip: zod.string(),
+});
+
+/**
+ * Returns member accounts that a trainer or owner can assign workouts to.
+ * @summary List assignable members
+ */
+export const WorkoutsListMembersResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  email: zod.string(),
+});
+export const WorkoutsListMembersResponse = zod.array(
+  WorkoutsListMembersResponseItem,
+);
+
+/**
+ * Returns workout templates owned by the signed-in trainer or owner.
+ * @summary List trainer workout templates
+ */
+export const WorkoutsListTemplatesResponseItem = zod.object({
+  id: zod.number(),
+  trainerId: zod.string(),
+  trainerName: zod.string(),
+  name: zod.string(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  createdAt: zod.string(),
+});
+export const WorkoutsListTemplatesResponse = zod.array(
+  WorkoutsListTemplatesResponseItem,
+);
+
+/**
+ * @summary Create a workout template
+ */
+export const WorkoutsCreateTemplateBody = zod.object({
+  name: zod.string(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  trainerName: zod.string().optional(),
+});
+
+/**
+ * @summary Delete a workout template
+ */
+export const WorkoutsDeleteTemplateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const WorkoutsDeleteTemplateResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Assign a workout template to a member
+ */
+export const WorkoutsAssignTemplateBody = zod.object({
+  templateId: zod.number(),
+  memberId: zod.string(),
+});
+
+/**
+ * Returns the saved workout plans for the signed-in member.
+ * @summary List member-created workout plans
+ */
+export const WorkoutsListMemberPlansResponseItem = zod.object({
+  id: zod.string(),
+  memberClerkId: zod.string(),
+  name: zod.string(),
+  focus: zod.string().nullable(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+  source: zod.enum(["member"]),
+});
+export const WorkoutsListMemberPlansResponse = zod.array(
+  WorkoutsListMemberPlansResponseItem,
+);
+
+/**
+ * @summary Create a member workout plan
+ */
+export const WorkoutsCreateMemberPlanBody = zod.object({
+  name: zod.string(),
+  focus: zod.string().nullish(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update a member workout plan
+ */
+export const WorkoutsUpdateMemberPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const WorkoutsUpdateMemberPlanBody = zod.object({
+  name: zod.string(),
+  focus: zod.string().nullish(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+
+export const WorkoutsUpdateMemberPlanResponse = zod.object({
+  id: zod.string(),
+  memberClerkId: zod.string(),
+  name: zod.string(),
+  focus: zod.string().nullable(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+  source: zod.enum(["member"]),
+});
+
+/**
+ * @summary Delete a member workout plan
+ */
+export const WorkoutsDeleteMemberPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const WorkoutsDeleteMemberPlanResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * Associates trainer-created assignments with the signed-in member profile name.
+ * @summary Bind legacy assignments to the signed-in member
+ */
+export const WorkoutsBindAssignedWorkoutsResponse = zod.object({
+  bound: zod.number(),
+});
+
+/**
+ * @summary List assigned workouts for the signed-in member
+ */
+export const WorkoutsListAssignedQueryParams = zod.object({
+  memberId: zod.coerce.string(),
+});
+
+export const WorkoutsListAssignedResponseItem = zod.object({
+  id: zod.number(),
+  templateId: zod.number(),
+  trainerId: zod.string(),
+  memberName: zod.string(),
+  memberClerkId: zod.string().nullable(),
+  assignedAt: zod.string(),
+  completedAt: zod.string().nullable(),
+  templateName: zod.string(),
+  trainerName: zod.string(),
+  exercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.number(),
+      reps: zod.number(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+export const WorkoutsListAssignedResponse = zod.array(
+  WorkoutsListAssignedResponseItem,
+);
+
+/**
+ * @summary Mark an assigned workout complete
+ */
+export const WorkoutsCompleteAssignedParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const WorkoutsCompleteAssignedResponse = zod.object({
+  id: zod.number(),
+  templateId: zod.number(),
+  trainerId: zod.string(),
+  memberName: zod.string(),
+  memberClerkId: zod.string().nullable(),
+  assignedAt: zod.string(),
+  completedAt: zod.string().nullable(),
 });

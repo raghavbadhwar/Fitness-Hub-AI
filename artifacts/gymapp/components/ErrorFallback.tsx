@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "@/components/native-compat";
 
 import { useColors } from "@/hooks/useColors";
 

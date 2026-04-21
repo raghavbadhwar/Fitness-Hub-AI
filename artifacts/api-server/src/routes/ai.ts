@@ -1,6 +1,18 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { requireAuth } from "@clerk/express";
+import { getAuth, requireAuth } from "@clerk/express";
+import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
+import { db, memberAiProfiles } from "@workspace/db";
+import {
+  appendRecentMessages,
+  buildSystemInstruction,
+  MAX_CLIENT_HISTORY_MESSAGES,
+  mergeMemoryUpdate,
+  normalizeStoredMessages,
+  parseMemoryExtraction,
+  sanitizeIncomingMessages,
+  toGeminiHistory,
+} from "../lib/member-ai-memory.ts";
 
 const router = Router();
 
@@ -31,9 +43,82 @@ function rateLimit(req: Request, res: Response, next: NextFunction): void {
 router.use(requireAuth());
 router.use(rateLimit);
 
+router.get("/history", async (req: Request, res: Response) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const [profile] = await db
+      .select()
+      .from(memberAiProfiles)
+      .where(eq(memberAiProfiles.memberClerkId, auth.userId))
+      .limit(1);
+
+    const recentMessages = normalizeStoredMessages(profile?.recentMessages ?? []);
+
+    res.json({
+      messages: recentMessages,
+      memorySummary: profile?.memorySummary ?? "",
+      updatedAt: profile?.updatedAt?.toISOString() ?? null,
+      lastConversationAt: profile?.lastConversationAt?.toISOString() ?? null,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("AI history load error:", err);
+    res.status(500).json({ error: "Failed to load AI history", details: message });
+  }
+});
+
+router.delete("/history", async (req: Request, res: Response) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    await db
+      .insert(memberAiProfiles)
+      .values({
+        memberClerkId: auth.userId,
+        recentMessages: [],
+        memorySummary: "",
+        goals: [],
+        preferences: [],
+        barriers: [],
+        motivators: [],
+        injuries: [],
+        lastConversationAt: null,
+      })
+      .onConflictDoUpdate({
+        target: memberAiProfiles.memberClerkId,
+        set: {
+          recentMessages: [],
+          memorySummary: "",
+          goals: [],
+          preferences: [],
+          barriers: [],
+          motivators: [],
+          injuries: [],
+          lastConversationAt: null,
+          updatedAt: new Date(),
+        },
+      });
+
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("AI history clear error:", err);
+    res.status(500).json({ error: "Failed to clear AI history", details: message });
+  }
+});
+
 router.post("/analyze-food", async (req: Request, res: Response) => {
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = req.body as { imageBase64?: string; mimeType?: string };
+    const { imageBase64, mimeType = "image/jpeg" } = (req.body ?? {}) as { imageBase64?: string; mimeType?: string };
 
     if (!imageBase64 || typeof imageBase64 !== "string") {
       res.status(400).json({ error: "imageBase64 is required" });
@@ -105,41 +190,61 @@ Return only the JSON, no other text.`;
 
 router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const { messages, userProfile, todayStats } = req.body as {
+    const auth = getAuth(req);
+    if (!auth.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const { messages, userProfile, todayStats, behaviorProfile, savedPlans } =
+      (req.body ?? {}) as {
       messages?: Array<{ role: string; content: string }>;
       userProfile?: Record<string, unknown>;
       todayStats?: Record<string, unknown>;
+      behaviorProfile?: Record<string, unknown>;
+      savedPlans?: unknown[];
     };
 
-    if (!messages || !Array.isArray(messages)) {
+    const sanitizedIncomingMessages = sanitizeIncomingMessages(messages);
+
+    if (sanitizedIncomingMessages.length === 0) {
       res.status(400).json({ error: "messages array is required" });
       return;
     }
 
-    if (messages.length > 30) {
+    if (sanitizedIncomingMessages.length > MAX_CLIENT_HISTORY_MESSAGES) {
       res.status(400).json({ error: "Too many messages in history" });
       return;
     }
 
-    const systemContext = `You are GymOS AI, a personal health and fitness coach integrated into a gym management app. You specialize in:
-- Indian nutrition and meal planning (familiar with roti, dal, sabzi, biryani, idli, dosa, paneer dishes etc.)
-- Workout programming and gym coaching
-- Weight management tailored to South Asian body types
-- Ayurvedic-inspired wellness advice
-- Motivation and habit building
+    const [memoryProfile] = await db
+      .select()
+      .from(memberAiProfiles)
+      .where(eq(memberAiProfiles.memberClerkId, auth.userId))
+      .limit(1);
 
-User Profile: ${JSON.stringify(userProfile ?? {})}
-Today's Stats: ${JSON.stringify(todayStats ?? {})}
-
-Keep responses concise, actionable, and encouraging. Use Indian food examples when relevant. Address the user warmly.`;
-
-    const geminiMessages = messages.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+    const storedMessages = normalizeStoredMessages(memoryProfile?.recentMessages ?? []);
+    const fallbackMessages = sanitizedIncomingMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      timestamp: new Date().toISOString(),
     }));
+    const workingMessages = storedMessages.length > 0 ? storedMessages : fallbackMessages;
+    const lastMessage = workingMessages[workingMessages.length - 1];
+    const history = toGeminiHistory(workingMessages.slice(0, -1));
 
-    const lastMessage = geminiMessages.pop();
-    const history = geminiMessages;
+    if (!lastMessage) {
+      res.status(400).json({ error: "A user message is required" });
+      return;
+    }
+
+    const systemContext = buildSystemInstruction({
+      userProfile,
+      todayStats,
+      behaviorProfile,
+      savedPlans,
+      memory: memoryProfile,
+    });
 
     const chatSession = ai.chats.create({
       model: "gemini-2.5-flash-preview-04-17",
@@ -154,14 +259,106 @@ Keep responses concise, actionable, and encouraging. Use Indian food examples wh
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    const stream = await chatSession.sendMessageStream({ message: lastMessage?.parts[0]?.text ?? "" });
+    const stream = await chatSession.sendMessageStream({ message: lastMessage.content });
+    let finalAssistantText = "";
 
     for await (const chunk of stream) {
       const text = chunk.text;
       if (text) {
+        finalAssistantText += text;
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
+
+    const persistedMessages = appendRecentMessages(memoryProfile?.recentMessages ?? [], [
+      { role: "user", content: lastMessage.content },
+      {
+        role: "assistant",
+        content: finalAssistantText.trim() || "I apologize, but I could not generate a helpful response this time.",
+      },
+    ]);
+
+    let mergedMemory = mergeMemoryUpdate(memoryProfile, undefined);
+
+    try {
+      const memoryUpdateResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-04-17",
+        config: {
+          responseMimeType: "application/json",
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Update the member memory for a fitness coaching app using only durable details worth remembering across future chats.
+
+Return JSON only with this shape:
+{
+  "memorySummary": "short paragraph",
+  "goals": ["..."],
+  "preferences": ["..."],
+  "barriers": ["..."],
+  "motivators": ["..."],
+  "injuries": ["..."]
+}
+
+Current memory:
+${JSON.stringify({
+                  memorySummary: memoryProfile?.memorySummary ?? "",
+                  goals: memoryProfile?.goals ?? [],
+                  preferences: memoryProfile?.preferences ?? [],
+                  barriers: memoryProfile?.barriers ?? [],
+                  motivators: memoryProfile?.motivators ?? [],
+                  injuries: memoryProfile?.injuries ?? [],
+                })}
+
+Latest context:
+${JSON.stringify({
+                  userProfile: userProfile ?? {},
+                  todayStats: todayStats ?? {},
+                  behaviorProfile: behaviorProfile ?? {},
+                  savedPlans: savedPlans ?? [],
+                  recentMessages: persistedMessages.slice(-6),
+                })}`,
+              },
+            ],
+          },
+        ],
+      });
+
+      mergedMemory = mergeMemoryUpdate(memoryProfile, parseMemoryExtraction(memoryUpdateResponse.text));
+    } catch (memoryErr) {
+      console.error("AI memory extraction error:", memoryErr);
+    }
+
+    await db
+      .insert(memberAiProfiles)
+      .values({
+        memberClerkId: auth.userId,
+        memorySummary: mergedMemory.memorySummary,
+        goals: mergedMemory.goals,
+        preferences: mergedMemory.preferences,
+        barriers: mergedMemory.barriers,
+        motivators: mergedMemory.motivators,
+        injuries: mergedMemory.injuries,
+        recentMessages: persistedMessages,
+        lastConversationAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: memberAiProfiles.memberClerkId,
+        set: {
+          memorySummary: mergedMemory.memorySummary,
+          goals: mergedMemory.goals,
+          preferences: mergedMemory.preferences,
+          barriers: mergedMemory.barriers,
+          motivators: mergedMemory.motivators,
+          injuries: mergedMemory.injuries,
+          recentMessages: persistedMessages,
+          lastConversationAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
 
     res.write("data: [DONE]\n\n");
     res.end();
@@ -179,11 +376,20 @@ Keep responses concise, actionable, and encouraging. Use Indian food examples wh
 
 router.post("/workout-suggestion", async (req: Request, res: Response) => {
   try {
-    const { recentWorkouts, goals, fitnessLevel, availableTime } = req.body as {
+    const {
+      recentWorkouts,
+      goals,
+      fitnessLevel,
+      availableTime,
+      behaviorProfile,
+      savedPlans,
+    } = (req.body ?? {}) as {
       recentWorkouts?: unknown[];
       goals?: string;
       fitnessLevel?: string;
       availableTime?: number;
+      behaviorProfile?: Record<string, unknown>;
+      savedPlans?: unknown[];
     };
 
     const prompt = `You are a professional fitness coach. Based on the following user data, suggest a workout plan.
@@ -192,6 +398,10 @@ Recent Workouts: ${JSON.stringify(recentWorkouts ?? [])}
 Goals: ${goals ?? "general fitness"}
 Fitness Level: ${fitnessLevel ?? "intermediate"}
 Available Time: ${availableTime ?? 45} minutes
+Behavior Profile: ${JSON.stringify(behaviorProfile ?? {})}
+Saved Plans: ${JSON.stringify(savedPlans ?? [])}
+
+Make the workout feel premium but easy to execute. Reuse familiar movement patterns when the behavior profile shows the user is building consistency, and bias toward saved-plan themes before inventing a completely different routine.
 
 Return ONLY this JSON (no markdown):
 {

@@ -1,19 +1,42 @@
 import { useSignUp } from "@clerk/expo";
-import { Link, useRouter, type Href } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useColors } from "@/hooks/useColors";
+
+function fieldErrorMessage(source: unknown, field: string): string | undefined {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  const fields = "fields" in source ? source.fields : undefined;
+  if (!fields || typeof fields !== "object") {
+    return undefined;
+  }
+
+  const candidate = (fields as Record<string, unknown>)[field];
+  if (!candidate || typeof candidate !== "object") {
+    return undefined;
+  }
+
+  const candidateRecord = candidate as { message?: unknown };
+  return typeof candidateRecord.message === "string"
+    ? candidateRecord.message
+    : undefined;
+}
 
 export default function SignUp() {
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -28,8 +51,7 @@ export default function SignUp() {
   const isLoading = fetchStatus === "fetching";
 
   function fieldError(field: string): string | undefined {
-    const fields = errors?.fields as Record<string, { message: string }> | undefined;
-    return fields?.[field]?.message;
+    return fieldErrorMessage(errors, field);
   }
 
   const handleSignUp = async () => {
@@ -112,6 +134,12 @@ export default function SignUp() {
             </Text>
           </View>
           <View style={styles.form}>
+            <GoogleAuthButton />
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Full Name</Text>
               <TextInput
@@ -163,11 +191,9 @@ export default function SignUp() {
             {errors && <Text style={styles.debugText}>{JSON.stringify(errors, null, 2)}</Text>}
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Already have an account? </Text>
-              <Link href="/(auth)/sign-in" asChild>
-                <Pressable>
-                  <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
-                </Pressable>
-              </Link>
+              <Pressable onPress={() => router.push("/sign-in")}>
+                <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
+              </Pressable>
             </View>
           </View>
           <View nativeID="clerk-captcha" />
@@ -191,6 +217,9 @@ const styles = StyleSheet.create({
   button: { borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  divider: { alignItems: "center", flexDirection: "row", gap: 12 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase" },
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 16 },
   footerText: { fontSize: 14 },
   link: { fontSize: 14, fontWeight: "600" },

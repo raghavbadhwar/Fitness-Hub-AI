@@ -12,7 +12,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
@@ -309,10 +309,10 @@ export default function NutritionScreen() {
               </View>
             </View>
           ) : (
-            <FlatList
+            <FlatList<FoodItem>
               data={searchResults}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
+              renderItem={({ item }: { item: FoodItem }) => (
                 <Pressable
                   style={[styles.foodResult, { borderBottomColor: colors.border }]}
                   onPress={() => setSelectedFood(item)}

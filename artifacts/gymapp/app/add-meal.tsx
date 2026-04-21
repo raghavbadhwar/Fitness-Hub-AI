@@ -15,9 +15,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
+import { getApiBase } from "@/lib/api-base";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -75,8 +76,7 @@ export default function AddMealScreen() {
   const analyzeFood = async (base64: string) => {
     setAnalyzing(true);
     try {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const apiBase = domain ? `https://${domain}` : "";
+      const apiBase = getApiBase();
       const response = await fetch(`${apiBase}/api/ai/analyze-food`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

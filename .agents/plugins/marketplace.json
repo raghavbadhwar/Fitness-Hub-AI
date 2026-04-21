@@ -1,0 +1,20 @@
+{
+  "name": "fitness-hub-ai-local",
+  "interface": {
+    "displayName": "Fitness Hub AI Local Plugins"
+  },
+  "plugins": [
+    {
+      "name": "linkedin-operator",
+      "source": {
+        "source": "local",
+        "path": "./plugins/linkedin-operator"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

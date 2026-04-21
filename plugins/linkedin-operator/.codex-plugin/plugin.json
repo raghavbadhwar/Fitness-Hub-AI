@@ -1,0 +1,45 @@
+{
+  "name": "linkedin-operator",
+  "version": "0.1.0",
+  "description": "Drive a logged-in LinkedIn session from Codex with browser automation, structured extraction, and confirmation-first outbound actions.",
+  "author": {
+    "name": "Codex",
+    "email": "noreply@openai.com",
+    "url": "https://openai.com"
+  },
+  "homepage": "https://openai.com",
+  "repository": "https://openai.com",
+  "license": "MIT",
+  "keywords": [
+    "linkedin",
+    "browser-automation",
+    "playwright",
+    "outreach",
+    "research"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LinkedIn Operator",
+    "shortDescription": "Control LinkedIn safely through browser automation and structured workflows.",
+    "longDescription": "A local Codex plugin for operating a real LinkedIn session. It supports login checks, people and company research, inbox review, draft-first outreach, and confirmation-gated actions such as sending messages, connection requests, comments, or posts.",
+    "developerName": "OpenAI Codex",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com",
+    "privacyPolicyURL": "https://openai.com/policies/privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/terms-of-use/",
+    "defaultPrompt": [
+      "Open LinkedIn, check whether I am logged in, and tell me what actions are safe right now.",
+      "Search LinkedIn for AI founders in Bengaluru and return 10 structured results.",
+      "Open my LinkedIn inbox, summarize unread threads, and draft replies without sending."
+    ],
+    "brandColor": "#1565D8",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useAuth, useUser } from "@clerk/expo";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { getApiBase } from "@/lib/api-base";
 
 export type UserRole = "member" | "trainer" | "owner";
 export type FitnessGoal = "lose_weight" | "build_muscle" | "maintain" | "improve_fitness";
@@ -97,6 +99,7 @@ interface AppContextType {
   profile: UserProfile;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   completeOnboarding: (data: Partial<UserProfile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isLoading: boolean;
   weightLog: WeightEntry[];
   logWeight: (weight: number) => Promise<void>;
@@ -106,47 +109,245 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const PROFILE_STORAGE_KEY = "@gymapp_profile";
 const WEIGHT_LOG_KEY = "@gymapp_weight_log";
 const MEASUREMENTS_KEY = "@gymapp_measurements";
 
+function getScopedStorageKey(baseKey: string, userId?: string | null) {
+  return userId ? `${baseKey}:${userId}` : baseKey;
+}
+
+async function readScopedValue(
+  scopedKey: string,
+  legacyKey: string,
+  options?: { allowLegacyFallback?: boolean },
+) {
+  const scopedValue = await AsyncStorage.getItem(scopedKey);
+  if (scopedValue !== null) {
+    return scopedValue;
+  }
+
+  if (scopedKey === legacyKey || !options?.allowLegacyFallback) {
+    return null;
+  }
+
+  return AsyncStorage.getItem(legacyKey);
+}
+
+function hasNonEmptyValue(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { getToken, isLoaded: authLoaded, isSignedIn, userId } = useAuth();
+  const { user } = useUser();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
   const [weightLog, setWeightLog] = useState<WeightEntry[]>([]);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
+  const profileRef = useRef(profile);
+  const lastSyncedUserIdRef = useRef<string | null>(null);
+
+  const storageKeys = useMemo(
+    () => ({
+      profile: getScopedStorageKey(PROFILE_STORAGE_KEY, userId),
+      weightLog: getScopedStorageKey(WEIGHT_LOG_KEY, userId),
+      measurements: getScopedStorageKey(MEASUREMENTS_KEY, userId),
+    }),
+    [userId],
+  );
 
   useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  const clerkFallbackName = useMemo(
+    () =>
+      user?.fullName?.trim() ||
+      user?.firstName?.trim() ||
+      user?.primaryEmailAddress?.emailAddress?.split("@")[0]?.trim() ||
+      "",
+    [
+      user?.firstName,
+      user?.fullName,
+      user?.primaryEmailAddress?.emailAddress,
+    ],
+  );
+
+  useEffect(() => {
+    if (!authLoaded) {
+      return;
+    }
+
+    if (!isSignedIn || !userId) {
+      lastSyncedUserIdRef.current = null;
+      setProfile(DEFAULT_PROFILE);
+      setWeightLog([]);
+      setBodyMeasurements([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const load = async () => {
+      setIsLoading(true);
       try {
         const [storedProfile, storedWeightLog, storedMeasurements] = await Promise.all([
-          AsyncStorage.getItem("@gymapp_profile"),
-          AsyncStorage.getItem(WEIGHT_LOG_KEY),
-          AsyncStorage.getItem(MEASUREMENTS_KEY),
+          readScopedValue(storageKeys.profile, PROFILE_STORAGE_KEY),
+          readScopedValue(storageKeys.weightLog, WEIGHT_LOG_KEY),
+          readScopedValue(storageKeys.measurements, MEASUREMENTS_KEY),
         ]);
-        if (storedProfile) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) });
-        if (storedWeightLog) setWeightLog(JSON.parse(storedWeightLog));
-        if (storedMeasurements) setBodyMeasurements(JSON.parse(storedMeasurements));
+
+        if (cancelled) {
+          return;
+        }
+
+        setProfile(storedProfile ? { ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) } : DEFAULT_PROFILE);
+        setWeightLog(storedWeightLog ? JSON.parse(storedWeightLog) : []);
+        setBodyMeasurements(storedMeasurements ? JSON.parse(storedMeasurements) : []);
       } catch (e) {
         console.error("Failed to load profile", e);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
-    load();
-  }, []);
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoaded, isSignedIn, storageKeys.measurements, storageKeys.profile, storageKeys.weightLog, userId]);
+
+  const persistProfile = useCallback(
+    async (nextProfile: UserProfile) => {
+      setProfile(nextProfile);
+      await AsyncStorage.setItem(storageKeys.profile, JSON.stringify(nextProfile));
+    },
+    [storageKeys.profile],
+  );
 
   const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
     const newProfile = { ...profile, ...updates };
-    setProfile(newProfile);
-    await AsyncStorage.setItem("@gymapp_profile", JSON.stringify(newProfile));
-  }, [profile]);
+    await persistProfile(newProfile);
+  }, [persistProfile, profile]);
 
   const completeOnboarding = useCallback(async (data: Partial<UserProfile>) => {
     const targets = calculateTargets({ ...profile, ...data });
-    const newProfile: UserProfile = { ...profile, ...data, ...targets, onboardingComplete: true };
-    setProfile(newProfile);
-    await AsyncStorage.setItem("@gymapp_profile", JSON.stringify(newProfile));
-  }, [profile]);
+    const newProfile: UserProfile = {
+      ...profile,
+      ...data,
+      ...targets,
+      role: "member",
+      onboardingComplete: true,
+    };
+    await persistProfile(newProfile);
+  }, [persistProfile, profile]);
+
+  const refreshProfile = useCallback(async () => {
+    if (!isSignedIn || !userId) {
+      return;
+    }
+
+    try {
+      const currentProfile = profileRef.current;
+      const apiBase = getApiBase();
+      if (!apiBase) {
+        return;
+      }
+
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+
+      const fallbackName =
+        currentProfile.name.trim() ||
+        clerkFallbackName ||
+        "User";
+
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const accessCheckResponse = await fetch(
+        `${apiBase}/api/profiles/access-check`,
+        { headers: authHeaders },
+      );
+      if (accessCheckResponse.ok) {
+        const accessPayload = (await accessCheckResponse.json()) as {
+          status?: "ready" | "missing_profile";
+          name?: string;
+          role?: UserRole;
+        };
+
+        if (accessPayload.status === "ready") {
+          const nextProfile: UserProfile = {
+            ...currentProfile,
+            name: hasNonEmptyValue(accessPayload.name)
+              ? accessPayload.name.trim()
+              : fallbackName,
+            role: accessPayload.role ?? currentProfile.role,
+          };
+
+          if (
+            nextProfile.name !== currentProfile.name ||
+            nextProfile.role !== currentProfile.role
+          ) {
+            await persistProfile(nextProfile);
+          }
+          return;
+        }
+      }
+
+      const response = await fetch(`${apiBase}/api/profiles/sync`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ name: fallbackName }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to sync profile (${response.status})`);
+      }
+
+      const serverProfile = (await response.json()) as {
+        name: string;
+        role: UserRole;
+      };
+
+      const nextProfile: UserProfile = {
+        ...currentProfile,
+        name: serverProfile.name || fallbackName,
+        role: serverProfile.role,
+      };
+
+      if (
+        nextProfile.name !== currentProfile.name ||
+        nextProfile.role !== currentProfile.role
+      ) {
+        await persistProfile(nextProfile);
+      }
+    } catch (error) {
+      console.error("Failed to refresh profile", error);
+    }
+  }, [clerkFallbackName, getToken, isSignedIn, persistProfile, userId]);
+
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn || !userId || isLoading) {
+      return;
+    }
+
+    if (lastSyncedUserIdRef.current === userId) {
+      return;
+    }
+
+    lastSyncedUserIdRef.current = userId;
+    void refreshProfile();
+  }, [authLoaded, isLoading, isSignedIn, refreshProfile, userId]);
 
   const logWeight = useCallback(async (weight: number) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -155,12 +356,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updated.sort((a, b) => a.date.localeCompare(b.date));
     setWeightLog(updated);
     const newProfile = { ...profile, weight };
-    setProfile(newProfile);
     await Promise.all([
-      AsyncStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(updated)),
-      AsyncStorage.setItem("@gymapp_profile", JSON.stringify(newProfile)),
+      AsyncStorage.setItem(storageKeys.weightLog, JSON.stringify(updated)),
+      persistProfile(newProfile),
     ]);
-  }, [weightLog, profile]);
+  }, [persistProfile, profile, storageKeys.weightLog, weightLog]);
 
   const logMeasurement = useCallback(async (measurement: Omit<BodyMeasurement, "date">) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -168,11 +368,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updated.push({ date: today, ...measurement });
     updated.sort((a, b) => a.date.localeCompare(b.date));
     setBodyMeasurements(updated);
-    await AsyncStorage.setItem(MEASUREMENTS_KEY, JSON.stringify(updated));
-  }, [bodyMeasurements]);
+    await AsyncStorage.setItem(storageKeys.measurements, JSON.stringify(updated));
+  }, [bodyMeasurements, storageKeys.measurements]);
 
   return (
-    <AppContext.Provider value={{ profile, updateProfile, completeOnboarding, isLoading, weightLog, logWeight, bodyMeasurements, logMeasurement }}>
+    <AppContext.Provider value={{ profile, updateProfile, completeOnboarding, refreshProfile, isLoading, weightLog, logWeight, bodyMeasurements, logMeasurement }}>
       {children}
     </AppContext.Provider>
   );

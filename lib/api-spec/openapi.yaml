@@ -14,6 +14,12 @@ tags:
     description: Gym class operations
   - name: admin
     description: Admin operations (owner-only)
+  - name: profiles
+    description: Member profile synchronization operations
+  - name: ai
+    description: AI coaching and analysis operations
+  - name: workouts
+    description: Workout templates, assignments, and saved plan operations
 paths:
   /healthz:
     get:
@@ -44,6 +50,104 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GymClass"
+
+  /classes/enrolled:
+    get:
+      operationId: listEnrolledClassIds
+      tags: [classes]
+      summary: List the caller's enrolled class ids
+      description: Returns upcoming class ids that the authenticated member is enrolled in
+      responses:
+        "200":
+          description: Enrolled class ids
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrolledClassIdsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /classes/{id}/enroll:
+    post:
+      operationId: enrollInClass
+      tags: [classes]
+      summary: Enroll the caller in a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class enrollment state after enrolling
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Invalid class id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Class is full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: leaveClass
+      tags: [classes]
+      summary: Remove the caller from a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class enrollment state after leaving
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Invalid class id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/classes:
     get:
@@ -136,6 +240,52 @@ paths:
                 $ref: "#/components/schemas/GymClass"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/classes/{id}/enrollments:
+    get:
+      operationId: adminListClassEnrollments
+      tags: [admin]
+      summary: List enrolled members for a class
+      description: Returns enrolled member identity data for a class (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Enrolled members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "400":
+          description: Invalid class id
           content:
             application/json:
               schema:
@@ -258,7 +408,7 @@ paths:
       operationId: adminListMembers
       tags: [admin]
       summary: List all members
-      description: Returns all registered members from Clerk (owner-only)
+      description: Returns all registered members merged with synced profile roles (owner-only)
       responses:
         "200":
           description: List of members
@@ -276,6 +426,56 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/members/{id}:
+    patch:
+      operationId: adminUpdateMember
+      tags: [admin]
+      summary: Update a member role
+      description: Promotes or demotes a synced member between member and trainer access (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberBody"
+      responses:
+        "200":
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
           content:
             application/json:
               schema:
@@ -307,6 +507,764 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /profiles/access-check:
+    get:
+      operationId: profilesAccessCheck
+      tags: [profiles]
+      summary: Check the caller profile access state
+      description: Returns whether the signed-in user already has a synced server profile.
+      responses:
+        "200":
+          description: Current profile access state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessCheckResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to check access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /profiles/sync:
+    post:
+      operationId: profilesSync
+      tags: [profiles]
+      summary: Sync the caller profile
+      description: Creates or updates the server-side profile using the signed-in Clerk user.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncProfileBody"
+      responses:
+        "200":
+          description: Synced profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to sync profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /profiles/me:
+    get:
+      operationId: profilesGetMe
+      tags: [profiles]
+      summary: Fetch the caller profile
+      description: Returns the persisted server-side profile for the signed-in user.
+      responses:
+        "200":
+          description: Current profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/history:
+    get:
+      operationId: aiGetHistory
+      tags: [ai]
+      summary: Fetch AI conversation history
+      description: Returns recent coaching messages and stored memory metadata for the signed-in member.
+      responses:
+        "200":
+          description: Stored AI history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiHistoryResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to load AI history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: aiClearHistory
+      tags: [ai]
+      summary: Clear AI conversation history
+      description: Resets recent messages and memory metadata for the signed-in member.
+      responses:
+        "200":
+          description: History cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to clear AI history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/analyze-food:
+    post:
+      operationId: aiAnalyzeFood
+      tags: [ai]
+      summary: Analyze a food image
+      description: Uses the AI integration to estimate the nutrition of a submitted food image.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiAnalyzeFoodRequest"
+      responses:
+        "200":
+          description: Nutrition analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiFoodAnalysis"
+        "400":
+          description: Missing or invalid image payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to analyze food
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: Stream an AI coaching response
+      description: Accepts recent messages and contextual member data, then streams a coaching response over server-sent events.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatRequest"
+      responses:
+        "200":
+          description: Server-sent event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          description: Missing or invalid chat payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to generate AI chat response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/workout-suggestion:
+    post:
+      operationId: aiWorkoutSuggestion
+      tags: [ai]
+      summary: Generate an AI workout suggestion
+      description: Produces a personalized workout suggestion using recent activity, goals, and saved-plan context.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiWorkoutSuggestionRequest"
+      responses:
+        "200":
+          description: Generated workout suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiWorkoutSuggestion"
+        "400":
+          description: Missing or invalid workout request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to generate workout suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/members:
+    get:
+      operationId: workoutsListMembers
+      tags: [workouts]
+      summary: List assignable members
+      description: Returns member accounts that a trainer or owner can assign workouts to.
+      responses:
+        "200":
+          description: Member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutMember"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/templates:
+    get:
+      operationId: workoutsListTemplates
+      tags: [workouts]
+      summary: List trainer workout templates
+      description: Returns workout templates owned by the signed-in trainer or owner.
+      responses:
+        "200":
+          description: Workout templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutTemplate"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: workoutsCreateTemplate
+      tags: [workouts]
+      summary: Create a workout template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkoutTemplateBody"
+      responses:
+        "201":
+          description: Created workout template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutTemplate"
+        "400":
+          description: Missing or invalid template payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to create template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/templates/{id}:
+    delete:
+      operationId: workoutsDeleteTemplate
+      tags: [workouts]
+      summary: Delete a workout template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Template deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid template id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to delete template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/assign:
+    post:
+      operationId: workoutsAssignTemplate
+      tags: [workouts]
+      summary: Assign a workout template to a member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutAssignBody"
+      responses:
+        "201":
+          description: Created assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutAssignment"
+        "400":
+          description: Missing or invalid assignment payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Template or member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to assign workout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/member-plans:
+    get:
+      operationId: workoutsListMemberPlans
+      tags: [workouts]
+      summary: List member-created workout plans
+      description: Returns the saved workout plans for the signed-in member.
+      responses:
+        "200":
+          description: Saved workout plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberWorkoutPlan"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch saved workout plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: workoutsCreateMemberPlan
+      tags: [workouts]
+      summary: Create a member workout plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertMemberWorkoutPlanBody"
+      responses:
+        "201":
+          description: Created member workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberWorkoutPlan"
+        "400":
+          description: Missing or invalid plan payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to save workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/member-plans/{id}:
+    patch:
+      operationId: workoutsUpdateMemberPlan
+      tags: [workouts]
+      summary: Update a member workout plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertMemberWorkoutPlanBody"
+      responses:
+        "200":
+          description: Updated member workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberWorkoutPlan"
+        "400":
+          description: Missing or invalid plan payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workout plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: workoutsDeleteMemberPlan
+      tags: [workouts]
+      summary: Delete a member workout plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workout plan deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid workout plan id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workout plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to delete workout plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/assigned/bind:
+    post:
+      operationId: workoutsBindAssignedWorkouts
+      tags: [workouts]
+      summary: Bind legacy assignments to the signed-in member
+      description: Associates trainer-created assignments with the signed-in member profile name.
+      responses:
+        "200":
+          description: Binding result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutAssignmentsBindResponse"
+        "400":
+          description: Profile is missing and assignments cannot be bound yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to bind assignments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/assigned:
+    get:
+      operationId: workoutsListAssigned
+      tags: [workouts]
+      summary: List assigned workouts for the signed-in member
+      parameters:
+        - name: memberId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assigned workouts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssignedWorkout"
+        "400":
+          description: Missing member id query param
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch assigned workouts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/assigned/{id}/complete:
+    patch:
+      operationId: workoutsCompleteAssigned
+      tags: [workouts]
+      summary: Mark an assigned workout complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutAssignment"
+        "400":
+          description: Invalid assignment id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Assignment not found or not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to complete assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -322,8 +1280,73 @@ components:
       properties:
         error:
           type: string
+        details:
+          type: ["string", "null"]
       required:
         - error
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    AccessCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [missing_profile, ready]
+        name:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+      required:
+        - status
+
+    SyncProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+
+    Profile:
+      type: object
+      properties:
+        clerkId:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [member, trainer, owner]
+        updatedAt:
+          type: string
+      required:
+        - clerkId
+        - name
+        - role
+        - updatedAt
+
+    EnrolledClassIdsResponse:
+      type: object
+      properties:
+        classIds:
+          type: array
+          items:
+            type: string
+      required:
+        - classIds
 
     GymClass:
       type: object
@@ -483,6 +1506,8 @@ components:
       properties:
         id:
           type: string
+        name:
+          type: ["string", "null"]
         firstName:
           type: ["string", "null"]
         lastName:
@@ -493,11 +1518,27 @@ components:
           type: string
         createdAt:
           type: string
+        aiMemorySummary:
+          type: ["string", "null"]
+        aiLastUpdatedAt:
+          type: ["string", "null"]
+        aiRecentMessageCount:
+          type: integer
       required:
         - id
         - email
         - role
         - createdAt
+        - aiRecentMessageCount
+
+    UpdateMemberBody:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [member, trainer]
+      required:
+        - role
 
     WeeklyClassCount:
       type: object
@@ -531,3 +1572,412 @@ components:
         - mostPopularCategory
         - totalActiveMembers
         - weeklyClassCounts
+
+    AiMemoryMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        timestamp:
+          type: string
+      required:
+        - role
+        - content
+        - timestamp
+
+    AiHistoryResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiMemoryMessage"
+        memorySummary:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+        lastConversationAt:
+          type: ["string", "null"]
+      required:
+        - messages
+        - memorySummary
+        - updatedAt
+        - lastConversationAt
+
+    AiAnalyzeFoodRequest:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        mimeType:
+          type: string
+      required:
+        - imageBase64
+
+    AiFoodAnalysis:
+      type: object
+      properties:
+        dishName:
+          type: string
+        cuisine:
+          type: string
+        servingSize:
+          type: string
+        calories:
+          type: number
+        protein:
+          type: number
+        carbs:
+          type: number
+        fat:
+          type: number
+        fiber:
+          type: number
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        ingredients:
+          type: array
+          items:
+            type: string
+        healthTip:
+          type: string
+      required:
+        - dishName
+        - cuisine
+        - servingSize
+        - calories
+        - protein
+        - carbs
+        - fat
+        - fiber
+        - confidence
+        - ingredients
+        - healthTip
+
+    JsonObject:
+      type: object
+      additionalProperties: true
+
+    AiChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+      required:
+        - role
+        - content
+
+    AiChatRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiChatMessage"
+        userProfile:
+          $ref: "#/components/schemas/JsonObject"
+        todayStats:
+          $ref: "#/components/schemas/JsonObject"
+        behaviorProfile:
+          $ref: "#/components/schemas/JsonObject"
+        savedPlans:
+          type: array
+          items:
+            $ref: "#/components/schemas/JsonObject"
+      required:
+        - messages
+
+    AiWorkoutSuggestionRequest:
+      type: object
+      properties:
+        recentWorkouts:
+          type: array
+          items:
+            $ref: "#/components/schemas/JsonObject"
+        goals:
+          type: string
+        fitnessLevel:
+          type: string
+        availableTime:
+          type: integer
+        behaviorProfile:
+          $ref: "#/components/schemas/JsonObject"
+        savedPlans:
+          type: array
+          items:
+            $ref: "#/components/schemas/JsonObject"
+
+    AiWorkoutSuggestionExercise:
+      type: object
+      properties:
+        name:
+          type: string
+        sets:
+          type: integer
+        reps:
+          type: string
+        restSeconds:
+          type: integer
+        notes:
+          type: ["string", "null"]
+      required:
+        - name
+        - sets
+        - reps
+        - restSeconds
+
+    AiWorkoutSuggestion:
+      type: object
+      properties:
+        workoutName:
+          type: string
+        focus:
+          type: string
+        duration:
+          type: integer
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiWorkoutSuggestionExercise"
+        warmup:
+          type: string
+        cooldown:
+          type: string
+        motivationalTip:
+          type: string
+      required:
+        - workoutName
+        - focus
+        - duration
+        - exercises
+        - warmup
+        - cooldown
+        - motivationalTip
+
+    WorkoutMember:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+      required:
+        - id
+        - name
+        - email
+
+    WorkoutTemplateExercise:
+      type: object
+      properties:
+        exerciseId:
+          type: string
+        name:
+          type: string
+        sets:
+          type: integer
+        reps:
+          type: integer
+        notes:
+          type: ["string", "null"]
+      required:
+        - exerciseId
+        - name
+        - sets
+        - reps
+
+    WorkoutTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        trainerId:
+          type: string
+        trainerName:
+          type: string
+        name:
+          type: string
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutTemplateExercise"
+        createdAt:
+          type: string
+      required:
+        - id
+        - trainerId
+        - trainerName
+        - name
+        - exercises
+        - createdAt
+
+    CreateWorkoutTemplateBody:
+      type: object
+      properties:
+        name:
+          type: string
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutTemplateExercise"
+        trainerName:
+          type: string
+      required:
+        - name
+        - exercises
+
+    WorkoutAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        trainerId:
+          type: string
+        memberName:
+          type: string
+        memberClerkId:
+          type: ["string", "null"]
+        assignedAt:
+          type: string
+        completedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - templateId
+        - trainerId
+        - memberName
+        - memberClerkId
+        - assignedAt
+        - completedAt
+
+    WorkoutAssignBody:
+      type: object
+      properties:
+        templateId:
+          type: integer
+        memberId:
+          type: string
+      required:
+        - templateId
+        - memberId
+
+    MemberWorkoutPlanExercise:
+      type: object
+      properties:
+        exerciseId:
+          type: string
+        name:
+          type: string
+        sets:
+          type: integer
+        reps:
+          type: integer
+        notes:
+          type: ["string", "null"]
+      required:
+        - exerciseId
+        - name
+        - sets
+        - reps
+
+    MemberWorkoutPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        memberClerkId:
+          type: string
+        name:
+          type: string
+        focus:
+          type: ["string", "null"]
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberWorkoutPlanExercise"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        source:
+          type: string
+          enum: [member]
+      required:
+        - id
+        - memberClerkId
+        - name
+        - focus
+        - exercises
+        - createdAt
+        - updatedAt
+        - source
+
+    UpsertMemberWorkoutPlanBody:
+      type: object
+      properties:
+        name:
+          type: string
+        focus:
+          type: ["string", "null"]
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberWorkoutPlanExercise"
+      required:
+        - name
+        - exercises
+
+    WorkoutAssignmentsBindResponse:
+      type: object
+      properties:
+        bound:
+          type: integer
+      required:
+        - bound
+
+    AssignedWorkout:
+      type: object
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        trainerId:
+          type: string
+        memberName:
+          type: string
+        memberClerkId:
+          type: ["string", "null"]
+        assignedAt:
+          type: string
+        completedAt:
+          type: ["string", "null"]
+        templateName:
+          type: string
+        trainerName:
+          type: string
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutTemplateExercise"
+      required:
+        - id
+        - templateId
+        - trainerId
+        - memberName
+        - memberClerkId
+        - assignedAt
+        - completedAt
+        - templateName
+        - trainerName
+        - exercises

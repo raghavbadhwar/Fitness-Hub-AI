@@ -35,7 +35,9 @@ minimumReleaseAgeExclude:
   - stripe-replit-sync
 
 packages:
-  - artifacts/*
+  - artifacts/admin
+  - artifacts/api-server
+  - artifacts/gymapp
   - lib/*
   - lib/integrations/*
   - scripts

@@ -1,17 +1,28 @@
-import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, useClerk, useUser } from '@clerk/react';
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
+import { ClerkProvider, SignIn, useAuth, useClerk, useUser } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
+import { buildApiUrl, getApiBaseUrl } from "./lib/api-base";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 import { Layout } from "./components/layout";
 import { ThemeProvider } from "./components/theme-provider";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import Dashboard from "./pages/dashboard";
-import Classes from "./pages/classes";
-import Members from "./pages/members";
-import Settings from "./pages/settings";
+const Dashboard = lazy(() => import("./pages/dashboard"));
+const Classes = lazy(() => import("./pages/classes"));
+const Members = lazy(() => import("./pages/members"));
+const Settings = lazy(() => import("./pages/settings"));
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -49,29 +60,192 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoaded } = useUser();
-  
-  if (!isLoaded) return <div className="flex min-h-[100dvh] items-center justify-center">Loading...</div>;
-  
-  if (!user) return <Redirect to="/sign-in" />;
-  
-  if (user.publicMetadata?.role !== "owner") {
-    return (
-      <div className="flex min-h-[100dvh] items-center justify-center flex-col gap-4 bg-background">
-        <div className="bg-destructive/10 p-4 rounded-full">
-          <div className="bg-destructive w-12 h-12 flex items-center justify-center rounded-full text-destructive-foreground font-bold text-xl">!</div>
+function ApiClientConfigurator() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setBaseUrl(getApiBaseUrl());
+    setAuthTokenGetter(() => getToken());
+
+    return () => {
+      setAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
+}
+
+function AccessDeniedState({
+  canRetryWithDifferentAccount,
+  message,
+  onGoToSignIn,
+  onSwitchAccount,
+}: {
+  canRetryWithDifferentAccount: boolean;
+  message: string;
+  onGoToSignIn: () => void;
+  onSwitchAccount: () => void;
+}) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+      <div className="flex max-w-md flex-col items-center gap-4 rounded-2xl border border-border bg-card px-8 py-10 text-center shadow-sm">
+        <div className="rounded-full bg-destructive/10 p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive text-xl font-bold text-destructive-foreground">
+            !
+          </div>
         </div>
         <h1 className="text-3xl font-bold text-foreground">Access Denied</h1>
-        <p className="text-muted-foreground max-w-md text-center">
-          You do not have owner privileges to access the GymOS Admin Panel.
-          Please contact support if you believe this is an error.
+        <p className="max-w-md text-center text-muted-foreground">{message}</p>
+        <p className="text-sm text-muted-foreground">
+          {canRetryWithDifferentAccount
+            ? "Sign in with an owner-approved account to continue."
+            : "Please retry in a moment or switch accounts if you may have signed in with the wrong profile."}
         </p>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button onClick={onGoToSignIn} data-testid="admin-access-denied-sign-in">
+            Go to sign in
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onSwitchAccount}
+            data-testid="admin-access-denied-switch-account"
+          >
+            Sign out and switch account
+          </Button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function E2EAccessDeniedPreview() {
+  const [, setLocation] = useLocation();
+
+  return (
+    <AccessDeniedState
+      canRetryWithDifferentAccount
+      message="Only owner-approved accounts can open the GymOS Admin Panel."
+      onGoToSignIn={() => setLocation("/sign-in", { replace: true })}
+      onSwitchAccount={() => setLocation("/sign-in", { replace: true })}
+    />
+  );
+}
+
+function FullScreenLoadingState() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center">
+      Loading...
+    </div>
+  );
+}
+
+type RouteComponent =
+  | ComponentType
+  | LazyExoticComponent<ComponentType>;
+
+function ProtectedRoute({ component }: { component: RouteComponent }) {
+  const Component = component as ComponentType;
+  const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
+  const [accessState, setAccessState] = useState<{
+    status: "idle" | "loading" | "allowed" | "denied";
+    message: string;
+  }>({
+    status: "idle",
+    message: "",
+  });
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    if (!user) {
+      setAccessState({ status: "idle", message: "" });
+      return;
+    }
+
+    let cancelled = false;
+
+    const verifyAccess = async () => {
+      setAccessState({ status: "loading", message: "" });
+
+      try {
+        const token = await getToken();
+        const response = await fetch(buildApiUrl("/api/admin/access"), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (response.ok) {
+          setAccessState({ status: "allowed", message: "" });
+          return;
+        }
+
+        setAccessState({
+          status: "denied",
+          message:
+            payload?.error ||
+            "You do not have permission to access the GymOS Admin Panel.",
+        });
+      } catch {
+        if (!cancelled) {
+          setAccessState({
+            status: "denied",
+            message: "Unable to verify admin access right now. Please try again.",
+          });
+        }
+      }
+    };
+
+    void verifyAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, user?.id]);
+
+  if (!isLoaded) {
+    return <FullScreenLoadingState />;
+  }
+
+  if (!user) return <Redirect to="/sign-in" />;
+
+  if (accessState.status === "idle" || accessState.status === "loading") {
+    return <FullScreenLoadingState />;
+  }
+
+  if (accessState.status === "denied") {
+    const canRetryWithDifferentAccount = !accessState.message.includes("Unable to verify");
+
+    const handleSwitchAccount = async () => {
+      await signOut();
+      setLocation("/sign-in", { replace: true });
+    };
+
+    return (
+      <AccessDeniedState
+        canRetryWithDifferentAccount={canRetryWithDifferentAccount}
+        message={accessState.message}
+        onGoToSignIn={() => setLocation("/sign-in", { replace: true })}
+        onSwitchAccount={() => void handleSwitchAccount()}
+      />
     );
   }
-  
-  return <Layout><Component /></Layout>;
+
+  return (
+    <Suspense fallback={<FullScreenLoadingState />}>
+      <Layout>
+        <Component />
+      </Layout>
+    </Suspense>
+  );
 }
 
 function SignInPage() {
@@ -95,14 +269,17 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
+      afterSignOutUrl={`${basePath}/sign-in`}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ApiClientConfigurator />
         <ClerkQueryClientCacheInvalidator />
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
             <Switch>
+              <Route path="/__e2e/access-denied" component={E2EAccessDeniedPreview} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
               <Route path="/classes" component={() => <ProtectedRoute component={Classes} />} />

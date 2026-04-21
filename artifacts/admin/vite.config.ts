@@ -26,12 +26,46 @@ if (!basePath) {
   );
 }
 
+const basePathWithoutTrailingSlash = basePath.replace(/\/$/, "") || "/";
+
+function redirectBasePathWithoutTrailingSlashPlugin() {
+  const attachRedirect = (middlewares: {
+    use: (handler: (req: { url?: string }, res: {
+      statusCode?: number;
+      setHeader: (name: string, value: string) => void;
+      end: () => void;
+    }, next: () => void) => void) => void;
+  }) => {
+    middlewares.use((req, res, next) => {
+      if (req.url === basePathWithoutTrailingSlash && req.url !== basePath) {
+        res.statusCode = 302;
+        res.setHeader("Location", basePath);
+        res.end();
+        return;
+      }
+
+      next();
+    });
+  };
+
+  return {
+    name: "redirect-base-path-without-trailing-slash",
+    configureServer(server: { middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never } }) {
+      attachRedirect(server.middlewares);
+    },
+    configurePreviewServer(server: { middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never } }) {
+      attachRedirect(server.middlewares);
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    redirectBasePathWithoutTrailingSlashPlugin(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

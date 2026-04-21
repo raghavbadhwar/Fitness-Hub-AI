@@ -1,4 +1,4 @@
-import { useUser } from "@clerk/expo";
+import { useAuth, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -14,17 +14,19 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
+import { getApiBase } from "@/lib/api-base";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
 const MAX_PERSISTED_MESSAGES = 50;
 const SAFFRON = "#FF6B00";
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 type MessageRole = "user" | "assistant";
 
@@ -55,6 +57,10 @@ function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
+function getScopedStorageKey(baseKey: string, userId?: string | null) {
+  return userId ? `${baseKey}:${userId}` : baseKey;
+}
+
 function formatTimestamp(ts: number): string {
   if (!ts) return "";
   const d = new Date(ts);
@@ -75,8 +81,8 @@ function TypingDots({ color }: { color: string }) {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: USE_NATIVE_DRIVER }),
+          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: USE_NATIVE_DRIVER }),
           Animated.delay(600),
         ]),
       );
@@ -108,8 +114,8 @@ function PulsingStatusDot({ color }: { color: string }) {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scale, { toValue: 1.5, duration: 600, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.5, duration: 600, useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(scale, { toValue: 1, duration: 600, useNativeDriver: USE_NATIVE_DRIVER }),
       ]),
     );
     loop.start();
@@ -124,10 +130,11 @@ function PulsingStatusDot({ color }: { color: string }) {
 }
 
 export default function AssistantScreen() {
+  const { getToken, userId, isLoaded: authLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { profile } = useApp();
   const { todayLog } = useNutrition();
-  const { sessions } = useWorkout();
+  const { sessions, behaviorProfile, savedPlans } = useWorkout();
   const colors = useColors();
   const typography = useTypography();
   const flatListRef = useRef<FlatList>(null);
@@ -136,11 +143,58 @@ export default function AssistantScreen() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const storageKey = getScopedStorageKey(CHAT_STORAGE_KEY, userId);
 
   useEffect(() => {
+    if (!authLoaded) {
+      return;
+    }
+
     const loadHistory = async () => {
       try {
-        const stored = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
+        if (isSignedIn && userId) {
+          const token = await getToken();
+          if (token) {
+            const response = await fetch(`${getApiBase()}/api/ai/history`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (response.ok) {
+              const payload = (await response.json()) as {
+                messages?: Array<{ role?: MessageRole; content?: string; timestamp?: string }>;
+              };
+              const serverMessages = Array.isArray(payload.messages)
+                ? payload.messages
+                    .map((message) => {
+                      if (
+                        (message.role !== "user" && message.role !== "assistant") ||
+                        typeof message.content !== "string"
+                      ) {
+                        return null;
+                      }
+
+                      return {
+                        id: generateId(),
+                        role: message.role,
+                        content: message.content,
+                        timestamp: message.timestamp ? new Date(message.timestamp).getTime() : Date.now(),
+                      } satisfies Message;
+                    })
+                    .filter((message): message is Message => Boolean(message))
+                : [];
+
+              if (serverMessages.length > 0) {
+                setMessages([WELCOME_MESSAGE, ...serverMessages]);
+                await AsyncStorage.setItem(storageKey, JSON.stringify(serverMessages));
+                return;
+              }
+            }
+          }
+        }
+
+        const stored = await AsyncStorage.getItem(storageKey);
         if (stored) {
           const parsed: Message[] = JSON.parse(stored);
           if (parsed.length > 0) {
@@ -153,21 +207,27 @@ export default function AssistantScreen() {
         setHistoryLoaded(true);
       }
     };
-    loadHistory();
-  }, []);
+    void loadHistory();
+  }, [authLoaded, getToken, isSignedIn, storageKey, userId]);
 
   const persistMessages = useCallback(async (msgs: Message[]) => {
     try {
       const userAndAssistant = msgs.filter((m) => m.id !== "welcome");
       const trimmed = userAndAssistant.slice(-MAX_PERSISTED_MESSAGES);
-      await AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(trimmed));
+      await AsyncStorage.setItem(storageKey, JSON.stringify(trimmed));
     } catch {
       // non-critical: storage write failure doesn't break chat
     }
-  }, []);
+  }, [storageKey]);
 
   const todayCalories = todayLog.entries.reduce((sum, e) => sum + e.calories, 0);
   const recentWorkouts = sessions.slice(0, 3).map((s) => ({ name: s.name, date: s.date }));
+  const savedPlanSummaries = savedPlans.slice(0, 4).map((plan) => ({
+    name: plan.name,
+    focus: plan.focus,
+    exerciseCount: plan.exercises.length,
+    exercises: plan.exercises.slice(0, 5).map((exercise) => exercise.name),
+  }));
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -183,8 +243,10 @@ export default function AssistantScreen() {
       setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", timestamp: Date.now() }]);
 
       try {
-        const domain = process.env.EXPO_PUBLIC_DOMAIN;
-        const apiBase = domain ? `https://${domain}` : "";
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Authentication required");
+        }
 
         const chatHistory = updatedMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
         const userProfile = {
@@ -201,12 +263,27 @@ export default function AssistantScreen() {
           gymName: profile.gymName,
           role: profile.role,
         };
-        const todayStats = { calories: todayCalories, target: profile.dailyCalorieTarget, recentWorkouts };
+        const todayStats = {
+          calories: todayCalories,
+          target: profile.dailyCalorieTarget,
+          recentWorkouts,
+          behaviorProfile,
+          savedPlans: savedPlanSummaries,
+        };
 
-        const response = await fetch(`${apiBase}/api/ai/chat`, {
+        const response = await fetch(`${getApiBase()}/api/ai/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: chatHistory, userProfile, todayStats }),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            messages: chatHistory,
+            userProfile,
+            todayStats,
+            behaviorProfile,
+            savedPlans: savedPlanSummaries,
+          }),
         });
 
         if (!response.ok) throw new Error("Failed to get response");
@@ -262,13 +339,27 @@ export default function AssistantScreen() {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
       }
     },
-    [messages, isLoading, profile, todayCalories, recentWorkouts, persistMessages],
+    [messages, isLoading, profile, todayCalories, recentWorkouts, persistMessages, getToken, behaviorProfile, savedPlans],
   );
 
   const handleClearHistory = useCallback(async () => {
     setMessages([WELCOME_MESSAGE]);
-    await AsyncStorage.removeItem(CHAT_STORAGE_KEY);
-  }, []);
+    try {
+      if (isSignedIn && userId) {
+        const token = await getToken();
+        if (token) {
+          await fetch(`${getApiBase()}/api/ai/history`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        }
+      }
+    } finally {
+      await AsyncStorage.removeItem(storageKey);
+    }
+  }, [getToken, isSignedIn, storageKey, userId]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === "user";

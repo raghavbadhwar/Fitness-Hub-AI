@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="LinkedIn Operator icon">
+  <rect width="128" height="128" rx="28" fill="#1565D8"/>
+  <rect x="22" y="22" width="84" height="84" rx="20" fill="#0F172A"/>
+  <circle cx="45" cy="44" r="9" fill="#E2E8F0"/>
+  <rect x="37" y="58" width="16" height="28" rx="8" fill="#E2E8F0"/>
+  <path d="M67 47c0-4.418 3.582-8 8-8h8c8.284 0 15 6.716 15 15v32H82V57c0-2.761-2.239-5-5-5h-2c-2.761 0-5 2.239-5 5v29H54V47h13z" fill="#E2E8F0"/>
+  <circle cx="95" cy="33" r="8" fill="#60A5FA"/>
+</svg>

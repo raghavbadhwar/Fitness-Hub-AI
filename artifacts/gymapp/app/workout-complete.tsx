@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -11,15 +12,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { SessionSummary, WorkoutExercise, ExerciseSet, PersonalRecord } from "@/contexts/WorkoutContext";
 import { useAuth } from "@clerk/expo";
+import { getApiBase } from "@/lib/api-base";
 
-function getApiBase() {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}` : "";
-}
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 export default function WorkoutCompleteScreen() {
   const params = useLocalSearchParams<{
@@ -64,14 +63,14 @@ export default function WorkoutCompleteScreen() {
     }
 
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 400, useNativeDriver: USE_NATIVE_DRIVER }),
     ]).start(() => {
       if (newPRs.length > 0) {
         setTimeout(() => {
           setPrVisible(true);
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          Animated.spring(prScaleAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: true }).start();
+          Animated.spring(prScaleAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: USE_NATIVE_DRIVER }).start();
         }, 300);
       }
     });

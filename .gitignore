@@ -47,3 +47,14 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local duplicate repo snapshots
+/Fitness-Hub-AI
+/Fitness-Hub-AI.zip
+
+# Local developer secrets
+.env.local
+
+# Local Codex and automation runtime state
+.codex/
+.playwright-cli/

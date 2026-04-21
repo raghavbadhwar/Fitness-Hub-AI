@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "dev": "PORT=${PORT:-4000} NODE_ENV=development pnpm run build && PORT=${PORT:-4000} NODE_ENV=development pnpm run start",
     "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
+    "start": "PORT=${PORT:-4000} node --enable-source-maps ./dist/index.mjs",
+    "test": "node --experimental-test-module-mocks --experimental-transform-types --test --test-isolation=process",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",
+    "supertest": "^7.2.2",
     "thread-stream": "3.1.0"
   }
 }

@@ -1,19 +1,42 @@
 import { useSignIn } from "@clerk/expo";
-import { Link, useRouter, type Href } from "expo-router";
-import React, { useState } from "react";
+import { useRouter, type Href } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useColors } from "@/hooks/useColors";
+
+function fieldErrorMessage(source: unknown, field: string): string | undefined {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  const fields = "fields" in source ? source.fields : undefined;
+  if (!fields || typeof fields !== "object") {
+    return undefined;
+  }
+
+  const candidate = (fields as Record<string, unknown>)[field];
+  if (!candidate || typeof candidate !== "object") {
+    return undefined;
+  }
+
+  const candidateRecord = candidate as { message?: unknown };
+  return typeof candidateRecord.message === "string"
+    ? candidateRecord.message
+    : undefined;
+}
 
 export default function SignIn() {
   const { signIn, errors, fetchStatus } = useSignIn();
@@ -23,13 +46,47 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [hasRequestedVerificationCode, setHasRequestedVerificationCode] = useState(false);
 
   const isLoading = fetchStatus === "fetching";
+  const needsEmailCodeVerification =
+    signIn.status === "needs_client_trust" || signIn.status === "needs_second_factor";
 
   function fieldError(field: string): string | undefined {
-    const fields = errors?.fields as Record<string, { message: string }> | undefined;
-    return fields?.[field]?.message;
+    return fieldErrorMessage(errors, field);
   }
+
+  useEffect(() => {
+    if (!needsEmailCodeVerification) {
+      setHasRequestedVerificationCode(false);
+      return;
+    }
+
+    if (hasRequestedVerificationCode) {
+      return;
+    }
+
+    let isActive = true;
+
+    void signIn.mfa.sendEmailCode().then(() => {
+      if (isActive) {
+        setHasRequestedVerificationCode(true);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [hasRequestedVerificationCode, needsEmailCodeVerification, signIn]);
+
+  const finalizeSignIn = async () => {
+    await signIn.finalize({
+      navigate: ({ session, decorateUrl }) => {
+        if (session?.currentTask) return;
+        router.replace(decorateUrl("/") as Href);
+      },
+    });
+  };
 
   const handleSignIn = async () => {
     if (!email || !password) return;
@@ -37,30 +94,18 @@ export default function SignIn() {
     if (error) return;
 
     if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          router.replace(decorateUrl("/") as Href);
-        },
-      });
-    } else if (signIn.status === "needs_client_trust") {
-      await signIn.mfa.sendEmailCode();
+      await finalizeSignIn();
     }
   };
 
   const handleVerify = async () => {
     await signIn.mfa.verifyEmailCode({ code });
     if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          router.replace(decorateUrl("/") as Href);
-        },
-      });
+      await finalizeSignIn();
     }
   };
 
-  if (signIn.status === "needs_client_trust") {
+  if (needsEmailCodeVerification) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -105,6 +150,12 @@ export default function SignIn() {
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Sign in to continue your fitness journey</Text>
           </View>
           <View style={styles.form}>
+            <GoogleAuthButton />
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
               <TextInput
@@ -138,13 +189,16 @@ export default function SignIn() {
             >
               {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
             </Pressable>
+            <View style={styles.secondaryActions}>
+              <Pressable onPress={() => router.push("/forgot-password")}>
+                <Text style={[styles.secondaryLink, { color: colors.primary }]}>Forgot password?</Text>
+              </Pressable>
+            </View>
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Don't have an account? </Text>
-              <Link href="/(auth)/sign-up" asChild>
-                <Pressable>
-                  <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
-                </Pressable>
-              </Link>
+              <Pressable onPress={() => router.push("/sign-up")}>
+                <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
+              </Pressable>
             </View>
           </View>
         </ScrollView>
@@ -167,9 +221,14 @@ const styles = StyleSheet.create({
   button: { borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  divider: { alignItems: "center", flexDirection: "row", gap: 12 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 13, fontWeight: "600", textTransform: "uppercase" },
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 16 },
   footerText: { fontSize: 14 },
   link: { fontSize: 14, fontWeight: "600" },
+  secondaryActions: { alignItems: "flex-end" },
+  secondaryLink: { fontSize: 14, fontWeight: "600" },
   errorText: { fontSize: 13, marginTop: 2 },
   resend: { alignItems: "center", paddingVertical: 8 },
   resendText: { fontSize: 14, fontWeight: "500" },

@@ -11,8 +11,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
@@ -24,6 +24,7 @@ import { StatCard } from "@/components/StatCard";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const STAGGER_MS = 150;
+const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -181,8 +182,8 @@ function AnimatedCard({ children, delay, style }: { children: React.ReactNode; d
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 350, delay, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 350, delay, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 350, delay, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(translateY, { toValue: 0, duration: 350, delay, useNativeDriver: USE_NATIVE_DRIVER }),
     ]).start();
   }, []);
 

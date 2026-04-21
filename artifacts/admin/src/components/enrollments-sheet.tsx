@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { buildApiUrl } from "@/lib/api-base";
 import { useAuth } from "@clerk/react";
 
 interface EnrolledMember {
@@ -40,7 +41,7 @@ export function EnrollmentsSheet({ open, onOpenChange, gymClass }: EnrollmentsSh
     (async () => {
       try {
         const token = await getToken();
-        const res = await fetch(`/api/admin/classes/${gymClass.id}/enrollments`, {
+        const res = await fetch(buildApiUrl(`/api/admin/classes/${gymClass.id}/enrollments`), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {

@@ -44,33 +44,36 @@ function setupSignalHandlers() {
   process.on("SIGHUP", cleanup);
 }
 
-function stripProtocol(domain) {
-  let urlString = domain.trim();
+function normalizeOrigin(value) {
+  let urlString = value.trim();
 
   if (!/^https?:\/\//i.test(urlString)) {
-    urlString = `https://${urlString}`;
+    const isLocalHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(urlString);
+    urlString = `${isLocalHost ? "http" : "https"}://${urlString}`;
   }
 
-  return new URL(urlString).host;
+  return new URL(urlString).origin;
 }
 
-function getDeploymentDomain() {
+function getDeploymentOrigin() {
   if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_INTERNAL_APP_DOMAIN);
+    return normalizeOrigin(process.env.REPLIT_INTERNAL_APP_DOMAIN);
   }
 
   if (process.env.REPLIT_DEV_DOMAIN) {
-    return stripProtocol(process.env.REPLIT_DEV_DOMAIN);
+    return normalizeOrigin(process.env.REPLIT_DEV_DOMAIN);
   }
 
   if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
+    return normalizeOrigin(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
-  console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
+  const fallbackPort = process.env.STATIC_PORT || process.env.PORT || "3000";
+  const fallbackOrigin = normalizeOrigin(`http://localhost:${fallbackPort}`);
+  console.log(
+    `No deployment domain found. Falling back to ${fallbackOrigin} for local verification builds.`,
   );
-  process.exit(1);
+  return fallbackOrigin;
 }
 
 function prepareDirectories(timestamp) {
@@ -139,11 +142,14 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   const clerkProxyUrl = process.env.CLERK_PROXY_URL
     ? `https://${expoPublicDomain}${process.env.CLERK_PROXY_URL}`
     : "";
+  const expoPublicApiBaseUrl =
+    process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "";
 
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
+    EXPO_PUBLIC_API_BASE_URL: expoPublicApiBaseUrl,
     EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || "",
     EXPO_PUBLIC_CLERK_PROXY_URL: clerkProxyUrl,
   };
@@ -516,9 +522,10 @@ async function main() {
 
   setupSignalHandlers();
 
-  const domain = getDeploymentDomain();
+  const deploymentOrigin = getDeploymentOrigin();
+  const domain = new URL(deploymentOrigin).host;
   const expoPublicReplId = getExpoPublicReplId();
-  const baseUrl = `https://${domain}`;
+  const baseUrl = deploymentOrigin;
   const timestamp = `${Date.now()}-${process.pid}`;
 
   prepareDirectories(timestamp);

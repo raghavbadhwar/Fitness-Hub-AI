@@ -6,7 +6,27 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## GymOS — AI-Powered Gym Management App
 
-### artifacts/gymapp (Expo / React Native)
+### Canonical App Roots
+
+- `artifacts/admin` — canonical admin web app
+- `artifacts/gymapp` — canonical member/mobile app
+- `artifacts/api-server` — canonical shared API backend
+
+### Canonical Local Start Commands
+
+- `pnpm run dev:api` — start the API on `http://localhost:4000`
+- `pnpm run dev:admin` — start the admin app on `http://localhost:4173/admin/` unless Vite auto-shifts to the next free port
+- `pnpm run dev:member` — start the Expo member/mobile app on Metro port `8081`
+
+### Retired Variants
+
+- top-level nested `Fitness-Hub-AI/` repo snapshot
+- top-level `Fitness-Hub-AI.zip` snapshot archive
+- `artifacts/mockup-sandbox` prototype Vite app
+
+Retired copies are not part of the active app surface and should not be used for local startup or edits.
+
+### artifacts/gymapp (Expo / React Native, canonical member/mobile app)
 
 Mobile app for gym owners, trainers, and members. All data stored in AsyncStorage.
 
@@ -38,7 +58,7 @@ await signIn.password({ emailAddress, password });    // NOT signIn.create()
 await signIn.finalize({ navigate: ... });
 ```
 
-### artifacts/admin (React + Vite)
+### artifacts/admin (React + Vite, canonical admin app)
 
 Gym owner web admin panel at `/admin/` preview path. Secured with Clerk Auth (owner role only).
 
@@ -120,6 +140,11 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 ## Root Scripts
 
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
+- `pnpm run dev:api` — load `.env.local` and start the API server on port `4000`
+- `pnpm run dev:admin` — load `.env.local` and start the canonical admin app on port `4173` with base path `/admin/`
+- `pnpm run dev:member` — load `.env.local` and start the canonical Expo member/mobile app on port `8081`
+- `pnpm run dev:mobile` — alias for `pnpm run dev:member`
+- `pnpm run dev:gymapp` — backwards-compatible alias for `pnpm run dev:member`
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
 ## Packages

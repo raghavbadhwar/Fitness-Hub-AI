@@ -9,10 +9,17 @@
 export interface Member {
   id: string;
   /** @nullable */
+  name?: string | null;
+  /** @nullable */
   firstName?: string | null;
   /** @nullable */
   lastName?: string | null;
   email: string;
   role: string;
   createdAt: string;
+  /** @nullable */
+  aiMemorySummary?: string | null;
+  /** @nullable */
+  aiLastUpdatedAt?: string | null;
+  aiRecentMessageCount: number;
 }

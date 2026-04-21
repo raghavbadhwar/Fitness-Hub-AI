@@ -12,7 +12,7 @@ import {
   View,
   Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/native-compat";
 import Svg, { Rect, Line, Text as SvgText, Path, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";

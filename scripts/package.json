@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "beta-secrets-preflight": "tsx ./src/internal-beta-secret-preflight.ts",
+    "beta-secrets-preflight:init": "tsx ./src/internal-beta-secret-preflight.ts --init",
+    "beta-secrets-preflight:accept-risk": "tsx ./src/internal-beta-secret-preflight.ts --accept-risk",
     "hello": "tsx ./src/hello.ts",
+    "test": "node --import tsx --test src/internal-beta-secret-preflight.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

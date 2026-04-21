@@ -1,10 +1,11 @@
-import { Link, Stack } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Stack, useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
 export default function NotFoundScreen() {
   const colors = useColors();
+  const router = useRouter();
 
   return (
     <>
@@ -14,11 +15,11 @@ export default function NotFoundScreen() {
           This screen doesn&apos;t exist.
         </Text>
 
-        <Link href="/" style={styles.link}>
+        <Pressable style={styles.link} onPress={() => router.replace("/")}>
           <Text style={[styles.linkText, { color: colors.primary }]}>
             Go to home screen!
           </Text>
-        </Link>
+        </Pressable>
       </View>
     </>
   );

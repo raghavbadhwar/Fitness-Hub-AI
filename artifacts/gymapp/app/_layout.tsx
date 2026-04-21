@@ -1,16 +1,15 @@
 import { ClerkLoaded, ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { type Href, Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import React, { useEffect, useRef } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/expo";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppProvider } from "@/contexts/AppContext";
+import { GestureHandlerRootView, SafeAreaProvider } from "@/components/native-compat";
+import { AppProvider, useApp } from "@/contexts/AppContext";
 import { NutritionProvider } from "@/contexts/NutritionContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
 import { ScheduleProvider } from "@/contexts/ScheduleContext";
@@ -19,23 +18,68 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+function normalizeRoutePath(path: string) {
+  const normalized = path
+    .replace(/\/\((auth|tabs)\)/g, "")
+    .replace(/\/+/g, "/");
+
+  return normalized === "" ? "/" : normalized;
+}
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
-  const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
+  const { profile, isLoading: isProfileLoading } = useApp();
+  const redirectTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    SplashScreen.hideAsync();
+    if (!isLoaded || isProfileLoading) return;
+    void SplashScreen.hideAsync();
+  }, [isLoaded, isProfileLoading]);
 
-    const inAuthGroup = segments[0] === "(auth)";
+  useEffect(() => {
+    if (!isLoaded || isProfileLoading) return;
+    const currentPath = normalizeRoutePath(pathname || "/");
+    const activeRedirect = redirectTargetRef.current;
+
+    if (activeRedirect && activeRedirect === currentPath) {
+      redirectTargetRef.current = null;
+    }
+
+    const inAuthGroup =
+      currentPath === "/sign-in" ||
+      currentPath === "/sign-up" ||
+      currentPath === "/forgot-password" ||
+      currentPath === "/onboarding";
+    const isE2EPreviewRoute = currentPath.startsWith("/__e2e");
+    const onOnboardingScreen = currentPath === "/onboarding";
+    let nextPath: Href | null = null;
+
+    if (isE2EPreviewRoute) {
+      return;
+    }
 
     if (!isSignedIn && !inAuthGroup) {
-      router.replace("/(auth)/sign-in");
-    } else if (isSignedIn && inAuthGroup) {
-      router.replace("/(tabs)");
+      nextPath = "/sign-in";
+    } else if (isSignedIn && !profile.onboardingComplete && !onOnboardingScreen) {
+      nextPath = "/onboarding";
+    } else if (isSignedIn && inAuthGroup && profile.onboardingComplete) {
+      nextPath = "/";
     }
-  }, [isSignedIn, isLoaded, segments]);
+
+    const normalizedNextPath = nextPath ? normalizeRoutePath(nextPath) : null;
+
+    if (
+      nextPath &&
+      normalizedNextPath &&
+      normalizedNextPath !== currentPath &&
+      redirectTargetRef.current !== normalizedNextPath
+    ) {
+      redirectTargetRef.current = normalizedNextPath;
+      router.replace(nextPath);
+    }
+  }, [isLoaded, isProfileLoading, isSignedIn, pathname, profile.onboardingComplete, router]);
 
   return <>{children}</>;
 }
@@ -74,6 +118,12 @@ function RootLayoutNav() {
 }
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+
+if (!publishableKey) {
+  throw new Error(
+    "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required. Add it to .env.local.",
+  );
+}
 
 export default function RootLayout() {
   return (
