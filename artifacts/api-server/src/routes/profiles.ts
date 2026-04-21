@@ -74,10 +74,7 @@ router.post("/sync", async (req: Request, res: Response) => {
       [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
       clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0]?.trim() ||
       "User";
-    const safeName =
-      requestedName ||
-      existingProfile?.name?.trim() ||
-      fallbackName;
+    const safeName = requestedName || existingProfile?.name?.trim() || fallbackName;
 
     const clerkRole = clerkUser.publicMetadata?.role;
     const safeRole =

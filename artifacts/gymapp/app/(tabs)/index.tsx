@@ -2,15 +2,7 @@ import { useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
@@ -176,14 +168,32 @@ async function getNextTip(goal: string): Promise<string> {
   }
 }
 
-function AnimatedCard({ children, delay, style }: { children: React.ReactNode; delay: number; style?: object }) {
+function AnimatedCard({
+  children,
+  delay,
+  style,
+}: {
+  children: React.ReactNode;
+  delay: number;
+  style?: object;
+}) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 350, delay, useNativeDriver: USE_NATIVE_DRIVER }),
-      Animated.timing(translateY, { toValue: 0, duration: 350, delay, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 350,
+        delay,
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 350,
+        delay,
+        useNativeDriver: USE_NATIVE_DRIVER,
+      }),
     ]).start();
   }, []);
 
@@ -267,9 +277,14 @@ export default function HomeScreen() {
             </View>
             <Pressable
               onPress={() => router.push("/profile")}
-              style={[styles.avatar, { backgroundColor: colors.primary + "20", borderColor: colors.primary }]}
+              style={[
+                styles.avatar,
+                { backgroundColor: colors.primary + "20", borderColor: colors.primary },
+              ]}
             >
-              <Text style={[styles.avatarText, { color: colors.primary }]}>{firstName[0]?.toUpperCase()}</Text>
+              <Text style={[styles.avatarText, { color: colors.primary }]}>
+                {firstName[0]?.toUpperCase()}
+              </Text>
             </Pressable>
           </View>
         </AnimatedCard>
@@ -288,18 +303,28 @@ export default function HomeScreen() {
               />
               <View style={styles.calorieMeta}>
                 <View style={styles.calorieStat}>
-                  <Text style={[styles.calorieStatVal, { color: colors.primary }]}>{profile.dailyCalorieTarget}</Text>
-                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>Goal</Text>
+                  <Text style={[styles.calorieStatVal, { color: colors.primary }]}>
+                    {profile.dailyCalorieTarget}
+                  </Text>
+                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>
+                    Goal
+                  </Text>
                 </View>
                 <View style={styles.calorieStat}>
-                  <Text style={[styles.calorieStatVal, { color: colors.text }]}>{todayNutrition.calories}</Text>
-                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>Eaten</Text>
+                  <Text style={[styles.calorieStatVal, { color: colors.text }]}>
+                    {todayNutrition.calories}
+                  </Text>
+                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>
+                    Eaten
+                  </Text>
                 </View>
                 <View style={styles.calorieStat}>
                   <Text style={[styles.calorieStatVal, { color: colors.success }]}>
                     {Math.max(0, profile.dailyCalorieTarget - todayNutrition.calories)}
                   </Text>
-                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>Left</Text>
+                  <Text style={[styles.calorieStatLabel, { color: colors.mutedForeground }]}>
+                    Left
+                  </Text>
                 </View>
               </View>
             </View>
@@ -341,7 +366,12 @@ export default function HomeScreen() {
         </AnimatedCard>
 
         <AnimatedCard delay={STAGGER_MS * 3}>
-          <View style={[styles.waterWidget, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.waterWidget,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
             <View style={styles.waterWidgetHeader}>
               <Feather name="droplet" size={16} color={colors.info} />
               <Text style={[styles.waterWidgetTitle, { color: colors.text }]}>Quick Add Water</Text>
@@ -353,7 +383,10 @@ export default function HomeScreen() {
               {[1, 2, 3, 4].map((n) => (
                 <Pressable
                   key={n}
-                  style={[styles.waterBtn, { backgroundColor: colors.info + "20", borderColor: colors.info + "40" }]}
+                  style={[
+                    styles.waterBtn,
+                    { backgroundColor: colors.info + "20", borderColor: colors.info + "40" },
+                  ]}
                   onPress={() => handleAddWater(n)}
                 >
                   <Text style={[styles.waterBtnText, { color: colors.info }]}>+{n}</Text>
@@ -406,14 +439,21 @@ export default function HomeScreen() {
                         { color: isEnrolled(cls.id) ? colors.success : colors.mutedForeground },
                       ]}
                     >
-                      {isEnrolled(cls.id) ? "Enrolled" : `${cls.enrolledCount}/${cls.maxParticipants}`}
+                      {isEnrolled(cls.id)
+                        ? "Enrolled"
+                        : `${cls.enrolledCount}/${cls.maxParticipants}`}
                     </Text>
                   </View>
                 </View>
               ))}
             </View>
           ) : (
-            <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.emptyState,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <View style={[styles.emptyIconBg, { backgroundColor: colors.primary + "20" }]}>
                 <Feather name="calendar" size={28} color={colors.primary} />
               </View>
@@ -443,7 +483,10 @@ export default function HomeScreen() {
               {recentSessions.map((s) => (
                 <View
                   key={s.id}
-                  style={[styles.workoutCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  style={[
+                    styles.workoutCard,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
                 >
                   <View style={[styles.workoutIcon, { backgroundColor: colors.primary + "20" }]}>
                     <Feather name="activity" size={20} color={colors.primary} />
@@ -451,15 +494,23 @@ export default function HomeScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.workoutName, { color: colors.text }]}>{s.name}</Text>
                     <Text style={[styles.workoutMeta, { color: colors.mutedForeground }]}>
-                      {s.duration}min · {s.exercises.length} exercises · {s.totalVolume.toLocaleString()}kg vol
+                      {s.duration}min · {s.exercises.length} exercises ·{" "}
+                      {s.totalVolume.toLocaleString()}kg vol
                     </Text>
                   </View>
-                  <Text style={[styles.workoutDate, { color: colors.mutedForeground }]}>{s.date.slice(5)}</Text>
+                  <Text style={[styles.workoutDate, { color: colors.mutedForeground }]}>
+                    {s.date.slice(5)}
+                  </Text>
                 </View>
               ))}
             </View>
           ) : (
-            <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.emptyState,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <View style={[styles.emptyIconBg, { backgroundColor: colors.primary + "20" }]}>
                 <Feather name="activity" size={28} color={colors.primary} />
               </View>
@@ -478,15 +529,24 @@ export default function HomeScreen() {
         </AnimatedCard>
 
         <AnimatedCard delay={STAGGER_MS * 6}>
-          <View style={[styles.aiTipCard, { backgroundColor: colors.primaryMuted, borderColor: colors.primary + "40" }]}>
+          <View
+            style={[
+              styles.aiTipCard,
+              { backgroundColor: colors.primaryMuted, borderColor: colors.primary + "40" },
+            ]}
+          >
             <View style={styles.aiTipHeader}>
               <Feather name="cpu" size={16} color={colors.primary} />
               <Text style={[styles.aiTipTitle, { color: colors.primary }]}>AI Coach Tip</Text>
-              <Text style={[styles.aiTipTime, { color: colors.mutedForeground }]}>{getTimeOfDay()}</Text>
+              <Text style={[styles.aiTipTime, { color: colors.mutedForeground }]}>
+                {getTimeOfDay()}
+              </Text>
             </View>
             <Text style={[styles.aiTipText, { color: colors.text }]}>{aiTip}</Text>
             <Pressable onPress={() => router.push("/(tabs)/assistant")}>
-              <Text style={[styles.aiTipBtnText, { color: colors.primary }]}>Ask your AI Coach →</Text>
+              <Text style={[styles.aiTipBtnText, { color: colors.primary }]}>
+                Ask your AI Coach →
+              </Text>
             </Pressable>
           </View>
         </AnimatedCard>
@@ -567,7 +627,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  workoutIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  workoutIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   workoutName: { fontSize: 15, fontWeight: "600" },
   workoutMeta: { fontSize: 12, marginTop: 2 },
   workoutDate: { fontSize: 12 },
@@ -592,7 +658,13 @@ const styles = StyleSheet.create({
   emptyBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   aiTipCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 8 },
   aiTipHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-  aiTipTitle: { fontSize: 13, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
+  aiTipTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    flex: 1,
+  },
   aiTipTime: { fontSize: 11, textTransform: "capitalize" },
   aiTipText: { fontSize: 14, lineHeight: 20 },
   aiTipBtnText: { fontSize: 14, fontWeight: "600" },

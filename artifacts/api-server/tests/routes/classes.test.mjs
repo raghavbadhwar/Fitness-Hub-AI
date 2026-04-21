@@ -81,7 +81,10 @@ function projectClass(cls, selection) {
   }
 
   return Object.fromEntries(
-    Object.entries(selection).map(([key, field]) => [key, cloneClass(cls)[classFieldMap.get(field)]]),
+    Object.entries(selection).map(([key, field]) => [
+      key,
+      cloneClass(cls)[classFieldMap.get(field)],
+    ]),
   );
 }
 
@@ -114,7 +117,10 @@ class SelectQuery {
   }
 
   then(resolve, reject) {
-    return Promise.resolve(this.rows.map((cls) => projectClass(cls, this.selection))).then(resolve, reject);
+    return Promise.resolve(this.rows.map((cls) => projectClass(cls, this.selection))).then(
+      resolve,
+      reject,
+    );
   }
 }
 

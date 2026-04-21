@@ -10,13 +10,7 @@
   "homepage": "https://openai.com",
   "repository": "https://openai.com",
   "license": "MIT",
-  "keywords": [
-    "linkedin",
-    "browser-automation",
-    "playwright",
-    "outreach",
-    "research"
-  ],
+  "keywords": ["linkedin", "browser-automation", "playwright", "outreach", "research"],
   "skills": "./skills/",
   "interface": {
     "displayName": "LinkedIn Operator",
@@ -24,11 +18,7 @@
     "longDescription": "A local Codex plugin for operating a real LinkedIn session. It supports login checks, people and company research, inbox review, draft-first outreach, and confirmation-gated actions such as sending messages, connection requests, comments, or posts.",
     "developerName": "OpenAI Codex",
     "category": "Productivity",
-    "capabilities": [
-      "Interactive",
-      "Read",
-      "Write"
-    ],
+    "capabilities": ["Interactive", "Read", "Write"],
     "websiteURL": "https://openai.com",
     "privacyPolicyURL": "https://openai.com/policies/privacy-policy/",
     "termsOfServiceURL": "https://openai.com/policies/terms-of-use/",

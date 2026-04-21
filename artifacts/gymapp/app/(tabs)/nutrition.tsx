@@ -56,8 +56,21 @@ function MacroPill({
   const cy = size / 2;
 
   return (
-    <View style={[macroPillStyles.container, { backgroundColor: color + "15", borderColor: color + "30" }]}>
-      <View style={{ position: "relative", width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={[
+        macroPillStyles.container,
+        { backgroundColor: color + "15", borderColor: color + "30" },
+      ]}
+    >
+      <View
+        style={{
+          position: "relative",
+          width: size,
+          height: size,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <Svg width={size} height={size}>
           <Circle cx={cx} cy={cy} r={radius} stroke={color + "30"} strokeWidth={5} fill="none" />
           <Circle
@@ -116,7 +129,13 @@ export default function NutritionScreen() {
 
   const totals = useMemo(() => {
     return todayLog.entries.reduce(
-      (acc, e) => ({ calories: acc.calories + e.calories, protein: acc.protein + e.protein, carbs: acc.carbs + e.carbs, fat: acc.fat + e.fat, fiber: acc.fiber + e.fiber }),
+      (acc, e) => ({
+        calories: acc.calories + e.calories,
+        protein: acc.protein + e.protein,
+        carbs: acc.carbs + e.carbs,
+        fat: acc.fat + e.fat,
+        fiber: acc.fiber + e.fiber,
+      }),
       { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
     );
   }, [todayLog.entries]);
@@ -155,7 +174,9 @@ export default function NutritionScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>Nutrition</Text>
+        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>
+          Nutrition
+        </Text>
         <Pressable
           style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.push("/add-meal")}
@@ -165,12 +186,31 @@ export default function NutritionScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]} showsVerticalScrollIndicator={false}>
-        <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <View style={styles.ringRow}>
-            <MacroRing calories={totals.calories} target={profile.dailyCalorieTarget} protein={totals.protein} carbs={totals.carbs} fat={totals.fat} size={140} />
+            <MacroRing
+              calories={totals.calories}
+              target={profile.dailyCalorieTarget}
+              protein={totals.protein}
+              carbs={totals.carbs}
+              fat={totals.fat}
+              size={140}
+            />
             <View style={styles.macroSummary}>
-              <MacroBar protein={totals.protein} carbs={totals.carbs} fat={totals.fat} proteinTarget={profile.dailyProteinTarget} carbTarget={profile.dailyCarbTarget} fatTarget={profile.dailyFatTarget} />
+              <MacroBar
+                protein={totals.protein}
+                carbs={totals.carbs}
+                fat={totals.fat}
+                proteinTarget={profile.dailyProteinTarget}
+                carbTarget={profile.dailyCarbTarget}
+                fatTarget={profile.dailyFatTarget}
+              />
             </View>
           </View>
 
@@ -196,16 +236,31 @@ export default function NutritionScreen() {
           </View>
         </View>
 
-        <View style={[styles.waterCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[styles.waterCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <View style={styles.waterHeader}>
             <Feather name="droplet" size={16} color={colors.info} />
             <Text style={[styles.waterTitle, { color: colors.text }]}>Water Intake</Text>
-            <Text style={[styles.waterCount, { color: colors.info }]}>{todayLog.waterIntake}/8 glasses</Text>
+            <Text style={[styles.waterCount, { color: colors.info }]}>
+              {todayLog.waterIntake}/8 glasses
+            </Text>
           </View>
           <View style={styles.waterGlasses}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <Pressable key={i} onPress={() => handleWaterToggle(i + 1)} style={[styles.waterGlass, { backgroundColor: i < todayLog.waterIntake ? colors.info : colors.border }]}>
-                <Feather name="droplet" size={14} color={i < todayLog.waterIntake ? "#fff" : colors.mutedForeground} />
+              <Pressable
+                key={i}
+                onPress={() => handleWaterToggle(i + 1)}
+                style={[
+                  styles.waterGlass,
+                  { backgroundColor: i < todayLog.waterIntake ? colors.info : colors.border },
+                ]}
+              >
+                <Feather
+                  name="droplet"
+                  size={14}
+                  color={i < todayLog.waterIntake ? "#fff" : colors.mutedForeground}
+                />
               </Pressable>
             ))}
           </View>
@@ -215,7 +270,18 @@ export default function NutritionScreen() {
           const entries = getEntriesForMeal(meal.type);
           const mealCals = entries.reduce((sum, e) => sum + e.calories, 0);
           return (
-            <View key={meal.type} style={[styles.mealSection, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: meal.color, borderLeftWidth: 4 }]}>
+            <View
+              key={meal.type}
+              style={[
+                styles.mealSection,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderLeftColor: meal.color,
+                  borderLeftWidth: 4,
+                },
+              ]}
+            >
               <Pressable
                 style={styles.mealHeader}
                 onPress={() => {
@@ -227,7 +293,9 @@ export default function NutritionScreen() {
                   <View style={[styles.mealIconBg, { backgroundColor: meal.color + "20" }]}>
                     <Feather name={meal.icon} size={14} color={meal.color} />
                   </View>
-                  <Text style={[styles.mealTitle, typography.sectionTitle, { color: colors.text }]}>{meal.label}</Text>
+                  <Text style={[styles.mealTitle, typography.sectionTitle, { color: colors.text }]}>
+                    {meal.label}
+                  </Text>
                   {mealCals > 0 && (
                     <View style={[styles.mealCalsBadge, { backgroundColor: meal.color + "20" }]}>
                       <Text style={[styles.mealCals, { color: meal.color }]}>{mealCals} kcal</Text>
@@ -247,7 +315,9 @@ export default function NutritionScreen() {
                     </Text>
                   </View>
                   <View style={[styles.calorieChip, { backgroundColor: meal.color + "18" }]}>
-                    <Text style={[styles.calorieChipText, { color: meal.color }]}>{entry.calories}</Text>
+                    <Text style={[styles.calorieChipText, { color: meal.color }]}>
+                      {entry.calories}
+                    </Text>
                     <Text style={[styles.calorieChipUnit, { color: meal.color + "90" }]}>kcal</Text>
                   </View>
                   <Pressable onPress={() => removeFoodEntry(entry.id)} style={styles.deleteBtn}>
@@ -266,11 +336,18 @@ export default function NutritionScreen() {
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               Add to {MEAL_SECTIONS.find((m) => m.type === activeMeal)?.label}
             </Text>
-            <Pressable onPress={() => { setShowFoodSearch(false); setSelectedFood(null); }}>
+            <Pressable
+              onPress={() => {
+                setShowFoodSearch(false);
+                setSelectedFood(null);
+              }}
+            >
               <Feather name="x" size={24} color={colors.text} />
             </Pressable>
           </View>
-          <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View
+            style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
             <Feather name="search" size={16} color={colors.mutedForeground} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
@@ -282,15 +359,32 @@ export default function NutritionScreen() {
             />
           </View>
           {selectedFood ? (
-            <View style={[styles.selectedFoodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.selectedFoodName, { color: colors.text }]}>{selectedFood.name}</Text>
+            <View
+              style={[
+                styles.selectedFoodCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.selectedFoodName, { color: colors.text }]}>
+                {selectedFood.name}
+              </Text>
               <Text style={[styles.selectedFoodMeta, { color: colors.mutedForeground }]}>
-                {selectedFood.servingSize} · {selectedFood.calories} kcal · P:{selectedFood.protein}g C:{selectedFood.carbs}g F:{selectedFood.fat}g
+                {selectedFood.servingSize} · {selectedFood.calories} kcal · P:{selectedFood.protein}
+                g C:{selectedFood.carbs}g F:{selectedFood.fat}g
               </Text>
               <View style={styles.servingRow}>
-                <Text style={[styles.servingLabel, { color: colors.mutedForeground }]}>Servings:</Text>
+                <Text style={[styles.servingLabel, { color: colors.mutedForeground }]}>
+                  Servings:
+                </Text>
                 <TextInput
-                  style={[styles.servingInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[
+                    styles.servingInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
                   value={servings}
                   onChangeText={setServings}
                   keyboardType="decimal-pad"
@@ -300,10 +394,19 @@ export default function NutritionScreen() {
                 </Text>
               </View>
               <View style={styles.modalActions}>
-                <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={() => setSelectedFood(null)}>
+                <Pressable
+                  style={[styles.modalBtn, { borderColor: colors.border }]}
+                  onPress={() => setSelectedFood(null)}
+                >
                   <Text style={[styles.modalBtnText, { color: colors.text }]}>Back</Text>
                 </Pressable>
-                <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={handleAddFood}>
+                <Pressable
+                  style={[
+                    styles.modalBtn,
+                    { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                  onPress={handleAddFood}
+                >
                   <Text style={[styles.modalBtnText, { color: "#fff" }]}>Add Food</Text>
                 </Pressable>
               </View>
@@ -324,8 +427,12 @@ export default function NutritionScreen() {
                     </Text>
                   </View>
                   <View style={[styles.searchCalChip, { backgroundColor: colors.primary + "18" }]}>
-                    <Text style={[styles.searchCalVal, { color: colors.primary }]}>{item.calories}</Text>
-                    <Text style={[styles.searchCalUnit, { color: colors.primary + "90" }]}>kcal</Text>
+                    <Text style={[styles.searchCalVal, { color: colors.primary }]}>
+                      {item.calories}
+                    </Text>
+                    <Text style={[styles.searchCalUnit, { color: colors.primary + "90" }]}>
+                      kcal
+                    </Text>
                   </View>
                 </Pressable>
               )}
@@ -340,9 +447,22 @@ export default function NutritionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, paddingBottom: 8 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    paddingBottom: 8,
+  },
   screenTitle: { fontSize: 28, fontWeight: "800" },
-  cameraBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  cameraBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
   cameraBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   scroll: { padding: 16, gap: 12 },
   summaryCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 14 },
@@ -354,16 +474,41 @@ const styles = StyleSheet.create({
   waterTitle: { fontSize: 15, fontWeight: "600", flex: 1 },
   waterCount: { fontSize: 14, fontWeight: "600" },
   waterGlasses: { flexDirection: "row", gap: 8 },
-  waterGlass: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  waterGlass: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mealSection: { borderRadius: 16, padding: 12, borderWidth: 1 },
   mealHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   mealTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  mealIconBg: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  mealIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   mealTitle: {},
   mealCalsBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   mealCals: { fontSize: 12, fontWeight: "600" },
-  addBtn: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  foodEntry: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 10, marginTop: 10, borderTopWidth: 1 },
+  addBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  foodEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+  },
   foodName: { fontSize: 14, fontWeight: "500" },
   foodMeta: { fontSize: 12, marginTop: 2 },
   calorieChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, alignItems: "center" },
@@ -371,14 +516,39 @@ const styles = StyleSheet.create({
   calorieChipUnit: { fontSize: 9, fontWeight: "600" },
   deleteBtn: { padding: 4 },
   modalContainer: { flex: 1, padding: 20 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
   modalTitle: { fontSize: 20, fontWeight: "700" },
-  searchBar: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
   searchInput: { flex: 1, fontSize: 16 },
-  foodResult: { flexDirection: "row", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, gap: 12 },
+  foodResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
   foodResultName: { fontSize: 15, fontWeight: "500" },
   foodResultMeta: { fontSize: 12, marginTop: 2 },
-  searchCalChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, alignItems: "center", minWidth: 55 },
+  searchCalChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignItems: "center",
+    minWidth: 55,
+  },
   searchCalVal: { fontSize: 15, fontWeight: "700" },
   searchCalUnit: { fontSize: 9, fontWeight: "600" },
   selectedFoodCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
@@ -386,9 +556,23 @@ const styles = StyleSheet.create({
   selectedFoodMeta: { fontSize: 13 },
   servingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   servingLabel: { fontSize: 14 },
-  servingInput: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, width: 70, textAlign: "center" },
+  servingInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    width: 70,
+    textAlign: "center",
+  },
   servingTotal: { fontSize: 14, fontWeight: "600" },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 4 },
-  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, borderWidth: 1, alignItems: "center" },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    alignItems: "center",
+  },
   modalBtnText: { fontSize: 15, fontWeight: "600" },
 });

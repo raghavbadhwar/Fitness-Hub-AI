@@ -122,5 +122,8 @@ test("evaluatePreflight passes with sanitized example and complete attestation",
   const result = evaluatePreflight(createPassingSnapshot());
 
   assert.equal(result.ok, true);
-  assert.equal(result.checks.every((check) => check.ok), true);
+  assert.equal(
+    result.checks.every((check) => check.ok),
+    true,
+  );
 });

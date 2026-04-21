@@ -10,10 +10,7 @@
   "homepage": "[TODO: https://docs.example.com/plugin]",
   "repository": "[TODO: https://github.com/author/plugin]",
   "license": "[TODO: MIT]",
-  "keywords": [
-    "[TODO: keyword1]",
-    "[TODO: keyword2]"
-  ],
+  "keywords": ["[TODO: keyword1]", "[TODO: keyword2]"],
   "skills": "[TODO: ./skills/]",
   "hooks": "[TODO: ./hooks.json]",
   "mcpServers": "[TODO: ./.mcp.json]",
@@ -24,10 +21,7 @@
     "longDescription": "[TODO: Long description for details page]",
     "developerName": "[TODO: OpenAI]",
     "category": "[TODO: Productivity]",
-    "capabilities": [
-      "[TODO: Interactive]",
-      "[TODO: Write]"
-    ],
+    "capabilities": ["[TODO: Interactive]", "[TODO: Write]"],
     "websiteURL": "[TODO: https://openai.com/]",
     "privacyPolicyURL": "[TODO: https://openai.com/policies/row-privacy-policy/]",
     "termsOfServiceURL": "[TODO: https://openai.com/policies/row-terms-of-use/]",

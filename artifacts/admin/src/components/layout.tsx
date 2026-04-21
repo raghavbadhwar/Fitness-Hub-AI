@@ -41,12 +41,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="bg-primary p-1.5 rounded-md flex items-center justify-center">
                 <Dumbbell className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="inline-block font-bold text-xl text-primary tracking-tight">GymOS</span>
+              <span className="inline-block font-bold text-xl text-primary tracking-tight">
+                GymOS
+              </span>
             </Link>
             <nav className="hidden md:flex gap-6">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+                const isActive =
+                  location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
@@ -69,9 +72,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="flex-1 container mx-auto px-4 py-8">
-        {children}
-      </main>
+      <main className="flex-1 container mx-auto px-4 py-8">{children}</main>
     </div>
   );
 }

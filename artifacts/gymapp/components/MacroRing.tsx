@@ -31,14 +31,7 @@ export function MacroRing({ calories, target, protein, carbs, fat, size = 160 }:
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <Svg width={size} height={size}>
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={radius}
-          stroke={colors.border}
-          strokeWidth={12}
-          fill="none"
-        />
+        <Circle cx={cx} cy={cy} r={radius} stroke={colors.border} strokeWidth={12} fill="none" />
         <Circle
           cx={cx}
           cy={cy}
@@ -53,12 +46,17 @@ export function MacroRing({ calories, target, protein, carbs, fat, size = 160 }:
         />
       </Svg>
       <View style={styles.center}>
-        <Text style={[styles.calText, { color: colors.text }]}>
-          {calories.toLocaleString()}
-        </Text>
+        <Text style={[styles.calText, { color: colors.text }]}>{calories.toLocaleString()}</Text>
         <Text style={[styles.calLabel, { color: colors.mutedForeground }]}>kcal</Text>
-        <Text style={[styles.remaining, { color: calories > target ? colors.error : colors.mutedForeground }]}>
-          {calories > target ? `${(calories - target).toFixed(0)} over` : `${remaining.toFixed(0)} left`}
+        <Text
+          style={[
+            styles.remaining,
+            { color: calories > target ? colors.error : colors.mutedForeground },
+          ]}
+        >
+          {calories > target
+            ? `${(calories - target).toFixed(0)} over`
+            : `${remaining.toFixed(0)} left`}
         </Text>
       </View>
     </View>

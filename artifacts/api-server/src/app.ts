@@ -7,9 +7,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 if (!process.env.CLERK_SECRET_KEY) {
-  throw new Error(
-    "CLERK_SECRET_KEY is required. Add it to .env.local before starting the API.",
-  );
+  throw new Error("CLERK_SECRET_KEY is required. Add it to .env.local before starting the API.");
 }
 
 const app: Express = express();

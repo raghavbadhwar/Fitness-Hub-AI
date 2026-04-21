@@ -1,20 +1,29 @@
 import React, { useState } from "react";
-import { 
-  useAdminListClasses, 
+import {
+  useAdminListClasses,
   getAdminListClassesQueryKey,
-  useAdminDeleteClass
+  useAdminDeleteClass,
 } from "@workspace/api-client-react";
 import type { GymClass } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Search, ChevronUp, ChevronDown, ChevronsUpDown, Users } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  Users,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -36,11 +45,21 @@ import {
 type SortField = "name" | "trainer" | "date" | "category" | "status";
 type SortDir = "asc" | "desc";
 
-function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: SortDir;
+}) {
   if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3 w-3 inline opacity-50" />;
-  return sortDir === "asc"
-    ? <ChevronUp className="ml-1 h-3 w-3 inline" />
-    : <ChevronDown className="ml-1 h-3 w-3 inline" />;
+  return sortDir === "asc" ? (
+    <ChevronUp className="ml-1 h-3 w-3 inline" />
+  ) : (
+    <ChevronDown className="ml-1 h-3 w-3 inline" />
+  );
 }
 
 export default function Classes() {
@@ -54,8 +73,8 @@ export default function Classes() {
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const { data: classes, isLoading } = useAdminListClasses({ 
-    query: { queryKey: getAdminListClassesQueryKey() } 
+  const { data: classes, isLoading } = useAdminListClasses({
+    query: { queryKey: getAdminListClassesQueryKey() },
   });
 
   const deleteClass = useAdminDeleteClass({
@@ -68,13 +87,13 @@ export default function Classes() {
       onError: () => {
         toast({ title: "Failed to delete class", variant: "destructive" });
         setDeleteTarget(null);
-      }
-    }
+      },
+    },
   });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortField(field);
       setSortDir("asc");
@@ -82,19 +101,31 @@ export default function Classes() {
   };
 
   const filteredClasses = classes
-    ?.filter(c => 
-      c.name.toLowerCase().includes(search.toLowerCase()) || 
-      c.trainer.toLowerCase().includes(search.toLowerCase()) ||
-      c.category.toLowerCase().includes(search.toLowerCase())
+    ?.filter(
+      (c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.trainer.toLowerCase().includes(search.toLowerCase()) ||
+        c.category.toLowerCase().includes(search.toLowerCase()),
     )
     .sort((a, b) => {
       let aVal: string = "";
       let bVal: string = "";
-      if (sortField === "name") { aVal = a.name; bVal = b.name; }
-      else if (sortField === "trainer") { aVal = a.trainer; bVal = b.trainer; }
-      else if (sortField === "date") { aVal = a.date + " " + a.startTime; bVal = b.date + " " + b.startTime; }
-      else if (sortField === "category") { aVal = a.category; bVal = b.category; }
-      else if (sortField === "status") { aVal = a.status || ""; bVal = b.status || ""; }
+      if (sortField === "name") {
+        aVal = a.name;
+        bVal = b.name;
+      } else if (sortField === "trainer") {
+        aVal = a.trainer;
+        bVal = b.trainer;
+      } else if (sortField === "date") {
+        aVal = a.date + " " + a.startTime;
+        bVal = b.date + " " + b.startTime;
+      } else if (sortField === "category") {
+        aVal = a.category;
+        bVal = b.category;
+      } else if (sortField === "status") {
+        aVal = a.status || "";
+        bVal = b.status || "";
+      }
       const cmp = aVal.localeCompare(bVal);
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -117,24 +148,28 @@ export default function Classes() {
 
   return (
     <div className="space-y-6">
-      <ClassDialog 
-        open={dialogOpen} 
-        onOpenChange={setDialogOpen} 
-        editingClass={editingClass} 
-      />
+      <ClassDialog open={dialogOpen} onOpenChange={setDialogOpen} editingClass={editingClass} />
 
       <EnrollmentsSheet
         open={!!enrollmentsTarget}
-        onOpenChange={(open) => { if (!open) setEnrollmentsTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setEnrollmentsTarget(null);
+        }}
         gymClass={enrollmentsTarget}
       />
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Class</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -163,10 +198,10 @@ export default function Classes() {
       <div className="flex items-center gap-2 max-w-sm">
         <div className="relative w-full">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            type="search" 
-            placeholder="Search classes..." 
-            className="pl-8" 
+          <Input
+            type="search"
+            placeholder="Search classes..."
+            className="pl-8"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             data-testid="input-search-classes"
@@ -178,22 +213,22 @@ export default function Classes() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead 
-                className="cursor-pointer select-none hover:bg-muted/50" 
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50"
                 onClick={() => handleSort("name")}
                 data-testid="sort-name"
               >
                 Name & Category <SortIcon field="name" sortField={sortField} sortDir={sortDir} />
               </TableHead>
-              <TableHead 
-                className="cursor-pointer select-none hover:bg-muted/50" 
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50"
                 onClick={() => handleSort("trainer")}
                 data-testid="sort-trainer"
               >
                 Trainer <SortIcon field="trainer" sortField={sortField} sortDir={sortDir} />
               </TableHead>
-              <TableHead 
-                className="cursor-pointer select-none hover:bg-muted/50" 
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50"
                 onClick={() => handleSort("date")}
                 data-testid="sort-date"
               >
@@ -201,8 +236,8 @@ export default function Classes() {
               </TableHead>
               <TableHead>Room</TableHead>
               <TableHead>Capacity</TableHead>
-              <TableHead 
-                className="cursor-pointer select-none hover:bg-muted/50" 
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50"
                 onClick={() => handleSort("status")}
                 data-testid="sort-status"
               >
@@ -214,7 +249,9 @@ export default function Classes() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">Loading classes...</TableCell>
+                <TableCell colSpan={7} className="h-24 text-center">
+                  Loading classes...
+                </TableCell>
               </TableRow>
             ) : filteredClasses?.length === 0 ? (
               <TableRow>
@@ -227,28 +264,44 @@ export default function Classes() {
                 <TableRow key={cls.id} data-testid={`row-class-${cls.id}`}>
                   <TableCell>
                     <div className="font-medium">{cls.name}</div>
-                    <Badge variant="outline" className="mt-1" style={{ borderColor: cls.color, color: cls.color }}>
+                    <Badge
+                      variant="outline"
+                      className="mt-1"
+                      style={{ borderColor: cls.color, color: cls.color }}
+                    >
                       {cls.category}
                     </Badge>
                   </TableCell>
                   <TableCell>{cls.trainer}</TableCell>
                   <TableCell>
                     <div className="text-sm">{format(new Date(cls.date), "MMM d, yyyy")}</div>
-                    <div className="text-xs text-muted-foreground">{cls.startTime} ({cls.duration} min)</div>
+                    <div className="text-xs text-muted-foreground">
+                      {cls.startTime} ({cls.duration} min)
+                    </div>
                   </TableCell>
                   <TableCell>{cls.room}</TableCell>
                   <TableCell>
-                    <span className={cls.enrolledCount >= cls.maxParticipants ? "text-destructive font-medium" : ""}>
+                    <span
+                      className={
+                        cls.enrolledCount >= cls.maxParticipants
+                          ? "text-destructive font-medium"
+                          : ""
+                      }
+                    >
                       {cls.enrolledCount}
                     </span>
                     <span className="text-muted-foreground"> / {cls.maxParticipants}</span>
                   </TableCell>
                   <TableCell>
-                    <Badge 
+                    <Badge
                       variant={
-                        cls.status === 'scheduled' ? 'default' : 
-                        cls.status === 'completed' ? 'secondary' : 
-                        cls.status === 'cancelled' ? 'destructive' : 'outline'
+                        cls.status === "scheduled"
+                          ? "default"
+                          : cls.status === "completed"
+                            ? "secondary"
+                            : cls.status === "cancelled"
+                              ? "destructive"
+                              : "outline"
                       }
                     >
                       {cls.status}
@@ -256,16 +309,28 @@ export default function Classes() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" aria-label="View Enrollments" onClick={() => setEnrollmentsTarget(cls)} data-testid={`enrollments-class-${cls.id}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="View Enrollments"
+                        onClick={() => setEnrollmentsTarget(cls)}
+                        data-testid={`enrollments-class-${cls.id}`}
+                      >
                         <Users className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => handleEdit(cls)} data-testid={`edit-class-${cls.id}`}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Edit"
+                        onClick={() => handleEdit(cls)}
+                        data-testid={`edit-class-${cls.id}`}
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         aria-label="Delete"
                         data-testid={`delete-class-${cls.id}`}
                         onClick={() => setDeleteTarget(cls)}

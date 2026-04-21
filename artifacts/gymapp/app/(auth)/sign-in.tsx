@@ -33,9 +33,7 @@ function fieldErrorMessage(source: unknown, field: string): string | undefined {
   }
 
   const candidateRecord = candidate as { message?: unknown };
-  return typeof candidateRecord.message === "string"
-    ? candidateRecord.message
-    : undefined;
+  return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
 }
 
 export default function SignIn() {
@@ -112,11 +110,16 @@ export default function SignIn() {
           <View style={styles.header}>
             <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
             <Text style={[styles.title, { color: colors.text }]}>Verify your account</Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Enter the code sent to your email</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              Enter the code sent to your email
+            </Text>
           </View>
           <View style={styles.form}>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              style={[
+                styles.input,
+                { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+              ]}
               placeholder="Verification code"
               placeholderTextColor={colors.mutedForeground}
               value={code}
@@ -124,9 +127,19 @@ export default function SignIn() {
               keyboardType="number-pad"
               autoFocus
             />
-            {fieldError("code") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>}
-            <Pressable style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleVerify} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify</Text>}
+            {fieldError("code") && (
+              <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>
+            )}
+            <Pressable
+              style={[styles.button, { backgroundColor: colors.primary }]}
+              onPress={handleVerify}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Verify</Text>
+              )}
             </Pressable>
             <Pressable onPress={() => signIn.mfa.sendEmailCode()} style={styles.resend}>
               <Text style={[styles.resendText, { color: colors.primary }]}>Resend code</Text>
@@ -142,12 +155,17 @@ export default function SignIn() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
             <Text style={[styles.title, { color: colors.text }]}>Welcome back</Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Sign in to continue your fitness journey</Text>
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              Sign in to continue your fitness journey
+            </Text>
           </View>
           <View style={styles.form}>
             <GoogleAuthButton />
@@ -159,7 +177,10 @@ export default function SignIn() {
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+                ]}
                 placeholder="your@email.com"
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
@@ -168,34 +189,57 @@ export default function SignIn() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {fieldError("identifier") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("identifier")}</Text>}
+              {fieldError("identifier") && (
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  {fieldError("identifier")}
+                </Text>
+              )}
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+                ]}
                 placeholder="Your password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
-              {fieldError("password") && <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("password")}</Text>}
+              {fieldError("password") && (
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  {fieldError("password")}
+                </Text>
+              )}
             </View>
             <Pressable
-              style={[styles.button, { backgroundColor: colors.primary }, (!email || !password || isLoading) && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                { backgroundColor: colors.primary },
+                (!email || !password || isLoading) && styles.buttonDisabled,
+              ]}
               onPress={handleSignIn}
               disabled={!email || !password || isLoading}
             >
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign In</Text>}
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
             </Pressable>
             <View style={styles.secondaryActions}>
               <Pressable onPress={() => router.push("/forgot-password")}>
-                <Text style={[styles.secondaryLink, { color: colors.primary }]}>Forgot password?</Text>
+                <Text style={[styles.secondaryLink, { color: colors.primary }]}>
+                  Forgot password?
+                </Text>
               </Pressable>
             </View>
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Don't have an account? </Text>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
+                Don't have an account?{" "}
+              </Text>
               <Pressable onPress={() => router.push("/sign-up")}>
                 <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
               </Pressable>
@@ -217,7 +261,13 @@ const styles = StyleSheet.create({
   form: { gap: 16 },
   field: { gap: 6 },
   label: { fontSize: 14, fontWeight: "500" },
-  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+  },
   button: { borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },

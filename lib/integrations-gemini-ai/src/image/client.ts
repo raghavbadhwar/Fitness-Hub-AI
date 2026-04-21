@@ -21,7 +21,7 @@ export const ai = new GoogleGenAI({
 });
 
 export async function generateImage(
-  prompt: string
+  prompt: string,
 ): Promise<{ b64_json: string; mimeType: string }> {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
@@ -33,7 +33,7 @@ export async function generateImage(
 
   const candidate = response.candidates?.[0];
   const imagePart = candidate?.content?.parts?.find(
-    (part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData
+    (part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData,
   );
 
   if (!imagePart?.inlineData?.data) {

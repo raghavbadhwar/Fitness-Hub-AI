@@ -102,7 +102,12 @@ interface WorkoutContextType {
   endSession: (sessionId: string, caloriesBurned?: number) => Promise<SessionSummary | null>;
   addExerciseToSession: (sessionId: string, exercise: Omit<WorkoutExercise, "id">) => void;
   addSetToExercise: (sessionId: string, exerciseId: string, set: Omit<ExerciseSet, "id">) => void;
-  updateSet: (sessionId: string, exerciseId: string, setId: string, updates: Partial<ExerciseSet>) => void;
+  updateSet: (
+    sessionId: string,
+    exerciseId: string,
+    setId: string,
+    updates: Partial<ExerciseSet>,
+  ) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   savePlan: (input: SaveWorkoutPlanInput) => Promise<SavedWorkoutPlan>;
   deletePlan: (planId: string) => Promise<void>;
@@ -169,10 +174,7 @@ function normalizeSavedPlan(value: unknown): SavedWorkoutPlan | null {
   for (const exercise of record.exercises) {
     if (!exercise || typeof exercise !== "object") continue;
     const exerciseRecord = exercise as Record<string, unknown>;
-    const exerciseName =
-      typeof exerciseRecord.name === "string"
-        ? exerciseRecord.name.trim()
-        : "";
+    const exerciseName = typeof exerciseRecord.name === "string" ? exerciseRecord.name.trim() : "";
     if (!exerciseName) continue;
 
     exercises.push({
@@ -191,8 +193,7 @@ function normalizeSavedPlan(value: unknown): SavedWorkoutPlan | null {
           ? exerciseRecord.reps
           : parseInt(String(exerciseRecord.reps ?? 1), 10) || 1,
       ),
-      ...(typeof exerciseRecord.notes === "string" &&
-      exerciseRecord.notes.trim()
+      ...(typeof exerciseRecord.notes === "string" && exerciseRecord.notes.trim()
         ? { notes: exerciseRecord.notes.trim() }
         : {}),
     });
@@ -205,17 +206,13 @@ function normalizeSavedPlan(value: unknown): SavedWorkoutPlan | null {
       ? record.createdAt
       : new Date().toISOString();
   const updatedAt =
-    typeof record.updatedAt === "string" && record.updatedAt
-      ? record.updatedAt
-      : createdAt;
+    typeof record.updatedAt === "string" && record.updatedAt ? record.updatedAt : createdAt;
 
   return {
     id,
     name,
     focus:
-      typeof record.focus === "string" && record.focus.trim()
-        ? record.focus.trim()
-        : undefined,
+      typeof record.focus === "string" && record.focus.trim() ? record.focus.trim() : undefined,
     createdAt,
     updatedAt,
     source: "member",
@@ -247,11 +244,14 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     getTokenRef.current = getToken;
   }, [getToken]);
 
-  const replaceSavedPlans = useCallback(async (nextPlans: SavedWorkoutPlan[]) => {
-    savedPlansRef.current = nextPlans;
-    setSavedPlans(nextPlans);
-    await AsyncStorage.setItem(storageKeys.savedPlans, JSON.stringify(nextPlans));
-  }, [storageKeys.savedPlans]);
+  const replaceSavedPlans = useCallback(
+    async (nextPlans: SavedWorkoutPlan[]) => {
+      savedPlansRef.current = nextPlans;
+      setSavedPlans(nextPlans);
+      await AsyncStorage.setItem(storageKeys.savedPlans, JSON.stringify(nextPlans));
+    },
+    [storageKeys.savedPlans],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -313,10 +313,13 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     void fetchSavedPlans();
   }, [fetchSavedPlans, isLoaded]);
 
-  const saveSessions = useCallback(async (newSessions: WorkoutSession[]) => {
-    setSessions(newSessions);
-    await AsyncStorage.setItem(storageKeys.sessions, JSON.stringify(newSessions));
-  }, [storageKeys.sessions]);
+  const saveSessions = useCallback(
+    async (newSessions: WorkoutSession[]) => {
+      setSessions(newSessions);
+      await AsyncStorage.setItem(storageKeys.sessions, JSON.stringify(newSessions));
+    },
+    [storageKeys.sessions],
+  );
 
   const startSession = useCallback(
     (name: string, exercises: Omit<WorkoutExercise, "id">[] = []): WorkoutSession => {
@@ -366,7 +369,9 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     const latestSession = completedSessions[0];
     const latestCompletedAt = latestSession?.endTime ?? latestSession?.startTime ?? null;
     const daysSinceLastWorkout =
-      latestCompletedAt === null ? null : Math.max(0, Math.floor((now - latestCompletedAt) / 86400000));
+      latestCompletedAt === null
+        ? null
+        : Math.max(0, Math.floor((now - latestCompletedAt) / 86400000));
 
     const averageDurationMinutes = Math.round(
       completedSessions.reduce((sum, session) => sum + (session.duration ?? 0), 0) /
@@ -379,10 +384,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
     const exerciseCounts = new Map<string, number>();
     const workoutCounts = new Map<string, number>();
-    const windowCounts = new Map<
-      WorkoutBehaviorProfile["preferredTrainingWindow"],
-      number
-    >([
+    const windowCounts = new Map<WorkoutBehaviorProfile["preferredTrainingWindow"], number>([
       ["morning", 0],
       ["afternoon", 0],
       ["evening", 0],
@@ -472,10 +474,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         completed: true,
       };
 
-      const newSessions = [
-        completedSession,
-        ...sessions.filter((entry) => entry.id !== sessionId),
-      ];
+      const newSessions = [completedSession, ...sessions.filter((entry) => entry.id !== sessionId)];
       await saveSessions(newSessions);
 
       const newPRs = { ...personalRecords };
@@ -503,10 +502,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       }
 
       setPersonalRecords(newPRs);
-      await AsyncStorage.setItem(
-        storageKeys.personalRecords,
-        JSON.stringify(newPRs),
-      );
+      await AsyncStorage.setItem(storageKeys.personalRecords, JSON.stringify(newPRs));
       setActiveSession(null);
       return { session: completedSession, newPRs: sessionNewPRs };
     },
@@ -532,9 +528,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       const updated = {
         ...activeSession,
         exercises: activeSession.exercises.map((exercise) =>
-          exercise.id === exerciseId
-            ? { ...exercise, sets: [...exercise.sets, newSet] }
-            : exercise,
+          exercise.id === exerciseId ? { ...exercise, sets: [...exercise.sets, newSet] } : exercise,
         ),
       };
       setActiveSession(updated);
@@ -551,9 +545,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           exercise.id === exerciseId
             ? {
                 ...exercise,
-                sets: exercise.sets.map((set) =>
-                  set.id === setId ? { ...set, ...updates } : set,
-                ),
+                sets: exercise.sets.map((set) => (set.id === setId ? { ...set, ...updates } : set)),
               }
             : exercise,
         ),
@@ -611,25 +603,18 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(
-            await response.text(),
-            null,
-          );
+          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
           throw new Error(payload?.error || "Failed to save workout plan");
         }
 
-        const normalizedPlan = normalizeSavedPlan(
-          safeParse<unknown>(await response.text(), null),
-        );
+        const normalizedPlan = normalizeSavedPlan(safeParse<unknown>(await response.text(), null));
         if (!normalizedPlan) {
           throw new Error("Saved workout plan response was invalid");
         }
 
         const currentPlans = savedPlansRef.current;
         const nextPlans = currentPlans.some((plan) => plan.id === normalizedPlan.id)
-          ? currentPlans.map((plan) =>
-              plan.id === normalizedPlan.id ? normalizedPlan : plan,
-            )
+          ? currentPlans.map((plan) => (plan.id === normalizedPlan.id ? normalizedPlan : plan))
           : [normalizedPlan, ...currentPlans];
         await replaceSavedPlans(nextPlans);
         return normalizedPlan;
@@ -637,9 +622,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
       const timestamp = new Date().toISOString();
       const currentPlans = savedPlansRef.current;
-      const existingPlan = input.id
-        ? currentPlans.find((plan) => plan.id === input.id)
-        : undefined;
+      const existingPlan = input.id ? currentPlans.find((plan) => plan.id === input.id) : undefined;
       const nextPlan: SavedWorkoutPlan = {
         id: input.id ?? generateId(),
         name,
@@ -678,10 +661,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         );
 
         if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(
-            await response.text(),
-            null,
-          );
+          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
           throw new Error(payload?.error || "Failed to delete workout plan");
         }
       }
@@ -714,10 +694,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     [startSession],
   );
 
-  const getRecentSessions = useCallback(
-    (count = 10) => sessions.slice(0, count),
-    [sessions],
-  );
+  const getRecentSessions = useCallback((count = 10) => sessions.slice(0, count), [sessions]);
 
   const getWeeklyVolume = useCallback(() => {
     const result = [];

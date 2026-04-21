@@ -7,8 +7,8 @@ import {
   type ComponentType,
   type LazyExoticComponent,
 } from "react";
-import { ClerkProvider, SignIn, useAuth, useClerk, useUser } from '@clerk/react';
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { ClerkProvider, SignIn, useAuth, useClerk, useUser } from "@clerk/react";
+import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { buildApiUrl, getApiBaseUrl } from "./lib/api-base";
@@ -29,13 +29,11 @@ const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
 }
 
 if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -46,10 +44,7 @@ function ClerkQueryClientCacheInvalidator() {
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
         queryClient.clear();
       }
       prevUserIdRef.current = userId;
@@ -132,16 +127,10 @@ function E2EAccessDeniedPreview() {
 }
 
 function FullScreenLoadingState() {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center">
-      Loading...
-    </div>
-  );
+  return <div className="flex min-h-[100dvh] items-center justify-center">Loading...</div>;
 }
 
-type RouteComponent =
-  | ComponentType
-  | LazyExoticComponent<ComponentType>;
+type RouteComponent = ComponentType | LazyExoticComponent<ComponentType>;
 
 function ProtectedRoute({ component }: { component: RouteComponent }) {
   const Component = component as ComponentType;
@@ -190,9 +179,7 @@ function ProtectedRoute({ component }: { component: RouteComponent }) {
 
         setAccessState({
           status: "denied",
-          message:
-            payload?.error ||
-            "You do not have permission to access the GymOS Admin Panel.",
+          message: payload?.error || "You do not have permission to access the GymOS Admin Panel.",
         });
       } catch {
         if (!cancelled) {

@@ -33,9 +33,7 @@ function fieldErrorMessage(source: unknown, field: string): string | undefined {
   }
 
   const candidateRecord = candidate as { message?: unknown };
-  return typeof candidateRecord.message === "string"
-    ? candidateRecord.message
-    : undefined;
+  return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
 }
 
 export default function SignUp() {
@@ -93,7 +91,10 @@ export default function SignUp() {
           </View>
           <View style={styles.form}>
             <TextInput
-              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              style={[
+                styles.input,
+                { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+              ]}
               placeholder="Enter 6-digit code"
               placeholderTextColor={colors.mutedForeground}
               value={code}
@@ -107,11 +108,19 @@ export default function SignUp() {
               <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>
             )}
             <Pressable
-              style={[styles.button, { backgroundColor: colors.primary }, isLoading && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                { backgroundColor: colors.primary },
+                isLoading && styles.buttonDisabled,
+              ]}
               onPress={handleVerify}
               disabled={isLoading}
             >
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify Email</Text>}
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Verify Email</Text>
+              )}
             </Pressable>
             <Pressable onPress={() => signUp.verifications.sendEmailCode()} style={styles.resend}>
               <Text style={[styles.resendText, { color: colors.primary }]}>Resend code</Text>
@@ -124,7 +133,10 @@ export default function SignUp() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
@@ -143,7 +155,10 @@ export default function SignUp() {
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Full Name</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+                ]}
                 placeholder="Your full name"
                 placeholderTextColor={colors.mutedForeground}
                 value={name}
@@ -154,7 +169,10 @@ export default function SignUp() {
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+                ]}
                 placeholder="your@email.com"
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
@@ -164,13 +182,18 @@ export default function SignUp() {
                 autoCorrect={false}
               />
               {fieldError("emailAddress") && (
-                <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("emailAddress")}</Text>
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  {fieldError("emailAddress")}
+                </Text>
               )}
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
+                ]}
                 placeholder="Min. 8 characters"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
@@ -178,19 +201,31 @@ export default function SignUp() {
                 secureTextEntry
               />
               {fieldError("password") && (
-                <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("password")}</Text>
+                <Text style={[styles.errorText, { color: colors.error }]}>
+                  {fieldError("password")}
+                </Text>
               )}
             </View>
             <Pressable
-              style={[styles.button, { backgroundColor: colors.primary }, (!email || !password || isLoading) && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                { backgroundColor: colors.primary },
+                (!email || !password || isLoading) && styles.buttonDisabled,
+              ]}
               onPress={handleSignUp}
               disabled={!email || !password || isLoading}
             >
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Account</Text>}
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Create Account</Text>
+              )}
             </Pressable>
             {errors && <Text style={styles.debugText}>{JSON.stringify(errors, null, 2)}</Text>}
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Already have an account? </Text>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
+                Already have an account?{" "}
+              </Text>
               <Pressable onPress={() => router.push("/sign-in")}>
                 <Text style={[styles.link, { color: colors.primary }]}>Sign In</Text>
               </Pressable>
@@ -213,7 +248,13 @@ const styles = StyleSheet.create({
   form: { gap: 16 },
   field: { gap: 6 },
   label: { fontSize: 14, fontWeight: "500" },
-  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+  },
   button: { borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },

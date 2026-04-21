@@ -4,7 +4,17 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { getApiBase } from "@/lib/api-base";
 
 export type ClassStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
-export type ClassCategory = "Yoga" | "Zumba" | "CrossFit" | "HIIT" | "Spinning" | "Boxing" | "Pilates" | "Strength" | "Cardio" | "Other";
+export type ClassCategory =
+  | "Yoga"
+  | "Zumba"
+  | "CrossFit"
+  | "HIIT"
+  | "Spinning"
+  | "Boxing"
+  | "Pilates"
+  | "Strength"
+  | "Cardio"
+  | "Other";
 
 export interface GymClass {
   id: string;
@@ -49,7 +59,8 @@ const SAMPLE_CLASSES: GymClass[] = [
     id: "cls1",
     name: "Morning Yoga Flow",
     category: "Yoga",
-    description: "Start your day with a refreshing yoga session focusing on flexibility and mindfulness",
+    description:
+      "Start your day with a refreshing yoga session focusing on flexibility and mindfulness",
     trainer: "Priya Sharma",
     date: getNextDateForDay(1, "06:30"),
     startTime: "06:30",
@@ -148,7 +159,9 @@ interface ScheduleContextType {
   enrolledClassIds: string[];
   enrollInClass: (classId: string, userId: string) => Promise<void>;
   unenrollFromClass: (classId: string, userId: string) => Promise<void>;
-  addClass: (gymClass: Omit<GymClass, "id" | "enrolledCount" | "enrolledMembers" | "color">) => Promise<void>;
+  addClass: (
+    gymClass: Omit<GymClass, "id" | "enrolledCount" | "enrolledMembers" | "color">,
+  ) => Promise<void>;
   updateClass: (classId: string, updates: Partial<GymClass>) => Promise<void>;
   deleteClass: (classId: string) => Promise<void>;
   getTodayClasses: () => GymClass[];
@@ -212,25 +225,28 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     getTokenRef.current = getToken;
   }, [getToken]);
 
-  const saveLocalEnrolledIds = useCallback(async (nextEnrolledClassIds: string[]) => {
-    setEnrolledClassIds(nextEnrolledClassIds);
-    await AsyncStorage.setItem(
-      enrolledStorageKey,
-      JSON.stringify(nextEnrolledClassIds),
-    );
-  }, [enrolledStorageKey]);
+  const saveLocalEnrolledIds = useCallback(
+    async (nextEnrolledClassIds: string[]) => {
+      setEnrolledClassIds(nextEnrolledClassIds);
+      await AsyncStorage.setItem(enrolledStorageKey, JSON.stringify(nextEnrolledClassIds));
+    },
+    [enrolledStorageKey],
+  );
 
   const saveClasses = useCallback(async (newClasses: GymClass[]) => {
     setClasses(newClasses);
     await AsyncStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(newClasses));
   }, []);
 
-  const replaceClass = useCallback(async (updatedClass: GymClass) => {
-    const nextClasses = classes.map((existingClass) =>
-      existingClass.id === updatedClass.id ? updatedClass : existingClass,
-    );
-    await saveClasses(nextClasses);
-  }, [classes, saveClasses]);
+  const replaceClass = useCallback(
+    async (updatedClass: GymClass) => {
+      const nextClasses = classes.map((existingClass) =>
+        existingClass.id === updatedClass.id ? updatedClass : existingClass,
+      );
+      await saveClasses(nextClasses);
+    },
+    [classes, saveClasses],
+  );
 
   const fetchEnrolledClassIds = useCallback(async () => {
     if (!isSignedIn) {
@@ -268,9 +284,10 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         fetchClassesFromAPI(),
       ]);
 
-      const fallbackEnrolled = !userId && enrolledStorageKey !== LEGACY_ENROLLED_STORAGE_KEY
-        ? await AsyncStorage.getItem(LEGACY_ENROLLED_STORAGE_KEY)
-        : null;
+      const fallbackEnrolled =
+        !userId && enrolledStorageKey !== LEGACY_ENROLLED_STORAGE_KEY
+          ? await AsyncStorage.getItem(LEGACY_ENROLLED_STORAGE_KEY)
+          : null;
       const scopedOrLegacyEnrolled = storedEnrolled ?? fallbackEnrolled;
 
       const localClasses: GymClass[] = storedClasses ? JSON.parse(storedClasses) : [];
@@ -312,10 +329,13 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       const token = await getTokenRef.current();
       const apiBase = getApiBase();
       if (token && apiBase) {
-        const response = await fetch(`${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (!response.ok) {
           const payload = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(payload?.error || "Failed to enroll in class");
@@ -331,7 +351,11 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
       const newClasses = classes.map((gymClass) =>
         gymClass.id === classId
-          ? { ...gymClass, enrolledCount: gymClass.enrolledCount + 1, enrolledMembers: [...gymClass.enrolledMembers, userId] }
+          ? {
+              ...gymClass,
+              enrolledCount: gymClass.enrolledCount + 1,
+              enrolledMembers: [...gymClass.enrolledMembers, userId],
+            }
           : gymClass,
       );
       await saveClasses(newClasses);
@@ -349,10 +373,13 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       const token = await getTokenRef.current();
       const apiBase = getApiBase();
       if (token && apiBase) {
-        const response = await fetch(`${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (!response.ok) {
           const payload = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(payload?.error || "Failed to leave class");
@@ -366,7 +393,11 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
       const newClasses = classes.map((gymClass) =>
         gymClass.id === classId
-          ? { ...gymClass, enrolledCount: Math.max(0, gymClass.enrolledCount - 1), enrolledMembers: gymClass.enrolledMembers.filter((id) => id !== userId) }
+          ? {
+              ...gymClass,
+              enrolledCount: Math.max(0, gymClass.enrolledCount - 1),
+              enrolledMembers: gymClass.enrolledMembers.filter((id) => id !== userId),
+            }
           : gymClass,
       );
       await saveClasses(newClasses);
@@ -381,15 +412,21 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   const getTodayClasses = useCallback(() => {
     const today = new Date().toISOString().split("T")[0];
-    return classes.filter((c) => c.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return classes
+      .filter((c) => c.date === today)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [classes]);
 
   const getClassesForDate = useCallback(
-    (date: string) => classes.filter((c) => c.date === date).sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    (date: string) =>
+      classes.filter((c) => c.date === date).sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [classes],
   );
 
-  const isEnrolled = useCallback((classId: string) => enrolledClassIds.includes(classId), [enrolledClassIds]);
+  const isEnrolled = useCallback(
+    (classId: string) => enrolledClassIds.includes(classId),
+    [enrolledClassIds],
+  );
 
   return (
     <ScheduleContext.Provider

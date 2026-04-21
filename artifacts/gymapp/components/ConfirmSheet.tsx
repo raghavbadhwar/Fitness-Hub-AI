@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 interface ConfirmSheetProps {
@@ -32,12 +26,7 @@ export function ConfirmSheet({
   const colors = useColors();
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onCancel}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <Pressable style={styles.overlay} onPress={onCancel}>
         <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />

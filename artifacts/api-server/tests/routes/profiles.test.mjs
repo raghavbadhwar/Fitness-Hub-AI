@@ -195,25 +195,20 @@ describe("profiles routes", () => {
       }),
     );
 
-    const response = await request(app)
-      .post("/profiles/sync")
-      .send({ name: "  Priya S.  " });
+    const response = await request(app).post("/profiles/sync").send({ name: "  Priya S.  " });
 
     assert.equal(response.status, 200);
     assert.equal(response.body.clerkId, "member_1");
     assert.equal(response.body.name, "Priya S.");
     assert.equal(response.body.role, "admin");
 
-    assert.deepEqual(
-      profilesByClerkId.get("member_1"),
-      {
-        id: 1,
-        clerkId: "member_1",
-        name: "Priya S.",
-        role: "admin",
-        updatedAt: profilesByClerkId.get("member_1").updatedAt,
-      },
-    );
+    assert.deepEqual(profilesByClerkId.get("member_1"), {
+      id: 1,
+      clerkId: "member_1",
+      name: "Priya S.",
+      role: "admin",
+      updatedAt: profilesByClerkId.get("member_1").updatedAt,
+    });
   });
 
   it("preserves the existing role when clerk metadata is invalid", async () => {

@@ -62,8 +62,16 @@ function PulsingDot({ color }: { color: string }) {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.4, duration: 700, useNativeDriver: USE_NATIVE_DRIVER }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(scaleAnim, {
+          toValue: 1.4,
+          duration: 700,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: USE_NATIVE_DRIVER,
+        }),
       ]),
     );
     loop.start();
@@ -72,12 +80,26 @@ function PulsingDot({ color }: { color: string }) {
 
   return (
     <Animated.View
-      style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, transform: [{ scale: scaleAnim }] }}
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: color,
+        transform: [{ scale: scaleAnim }],
+      }}
     />
   );
 }
 
-function ProgressRing({ progress, color, bgColor }: { progress: number; color: string; bgColor: string }) {
+function ProgressRing({
+  progress,
+  color,
+  bgColor,
+}: {
+  progress: number;
+  color: string;
+  bgColor: string;
+}) {
   const rotateAnim = useRef(new Animated.Value(progress)).current;
 
   useEffect(() => {
@@ -212,7 +234,10 @@ function RestTimerOverlay({
         </View>
 
         <Pressable
-          style={[styles.skipRestBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.skipRestBtn,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
           onPress={() => {
             if (intervalRef.current) clearInterval(intervalRef.current);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -256,14 +281,21 @@ function StepperInput({
   return (
     <View style={styles.stepper}>
       <Pressable
-        style={[styles.stepperBtn, { backgroundColor: colors.surface, borderColor: colors.border }, !editable && styles.stepperDisabled]}
+        style={[
+          styles.stepperBtn,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+          !editable && styles.stepperDisabled,
+        ]}
         onPress={editable ? handleDecrement : undefined}
         disabled={!editable}
       >
         <Feather name="minus" size={14} color={editable ? colors.text : colors.mutedForeground} />
       </Pressable>
       <TextInput
-        style={[styles.stepperInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        style={[
+          styles.stepperInput,
+          { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+        ]}
         value={value > 0 ? value.toString() : ""}
         onChangeText={(v) => {
           const parsed = decimals > 0 ? parseFloat(v) : parseInt(v);
@@ -275,7 +307,11 @@ function StepperInput({
         editable={editable}
       />
       <Pressable
-        style={[styles.stepperBtn, { backgroundColor: colors.surface, borderColor: colors.border }, !editable && styles.stepperDisabled]}
+        style={[
+          styles.stepperBtn,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+          !editable && styles.stepperDisabled,
+        ]}
         onPress={editable ? handleIncrement : undefined}
         disabled={!editable}
       >
@@ -286,8 +322,12 @@ function StepperInput({
 }
 
 export default function WorkoutSessionScreen() {
-  const { sessionId, assignedWorkoutId } = useLocalSearchParams<{ sessionId: string; assignedWorkoutId?: string }>();
-  const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } = useWorkout();
+  const { sessionId, assignedWorkoutId } = useLocalSearchParams<{
+    sessionId: string;
+    assignedWorkoutId?: string;
+  }>();
+  const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } =
+    useWorkout();
   const router = useRouter();
   const colors = useColors();
   const typography = useTypography();
@@ -304,7 +344,9 @@ export default function WorkoutSessionScreen() {
 
   useEffect(() => {
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -320,7 +362,10 @@ export default function WorkoutSessionScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.centered}>
           <Text style={[styles.errorText, { color: colors.text }]}>Session not found</Text>
-          <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary }]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={[styles.backBtn, { backgroundColor: colors.primary }]}
+          >
             <Text style={styles.backBtnText}>Go Back</Text>
           </Pressable>
         </View>
@@ -329,9 +374,13 @@ export default function WorkoutSessionScreen() {
   }
 
   const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
-  const completedSets = session.exercises.reduce((sum, ex) => sum + ex.sets.filter((s) => s.completed).length, 0);
+  const completedSets = session.exercises.reduce(
+    (sum, ex) => sum + ex.sets.filter((s) => s.completed).length,
+    0,
+  );
   const totalVolume = session.exercises.reduce(
-    (total, ex) => total + ex.sets.filter((s) => s.completed).reduce((sum, s) => sum + s.weight * s.reps, 0),
+    (total, ex) =>
+      total + ex.sets.filter((s) => s.completed).reduce((sum, s) => sum + s.weight * s.reps, 0),
     0,
   );
 
@@ -345,7 +394,12 @@ export default function WorkoutSessionScreen() {
   const animateCheck = (setId: string) => {
     const anim = getCheckAnim(setId);
     anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, tension: 200, friction: 6, useNativeDriver: USE_NATIVE_DRIVER }).start();
+    Animated.spring(anim, {
+      toValue: 1,
+      tension: 200,
+      friction: 6,
+      useNativeDriver: USE_NATIVE_DRIVER,
+    }).start();
   };
 
   const handleToggleSet = (exerciseId: string, setId: string, currentCompleted: boolean) => {
@@ -402,7 +456,11 @@ export default function WorkoutSessionScreen() {
       <SafeAreaView style={styles.container}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={styles.headerLeft}>
-            <Text style={[styles.sessionName, typography.cardTitle, { color: colors.mutedForeground }]}>{session.name}</Text>
+            <Text
+              style={[styles.sessionName, typography.cardTitle, { color: colors.mutedForeground }]}
+            >
+              {session.name}
+            </Text>
             <View style={styles.timerRow}>
               <Text style={[styles.timer, { color: ACCENT_COLOR }]}>{formatTime(elapsed)}</Text>
               <View style={styles.activeBadge}>
@@ -413,67 +471,139 @@ export default function WorkoutSessionScreen() {
           </View>
           <View style={styles.headerStats}>
             <View style={styles.headerStat}>
-              <Text style={[styles.headerStatVal, { color: colors.text }]}>{completedSets}/{totalSets}</Text>
+              <Text style={[styles.headerStatVal, { color: colors.text }]}>
+                {completedSets}/{totalSets}
+              </Text>
               <Text style={[styles.headerStatLabel, { color: colors.mutedForeground }]}>Sets</Text>
             </View>
-            <View style={[styles.volumeStat, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.volumeVal, { color: ACCENT_COLOR }]}>{Math.round(totalVolume)}</Text>
+            <View
+              style={[
+                styles.volumeStat,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.volumeVal, { color: ACCENT_COLOR }]}>
+                {Math.round(totalVolume)}
+              </Text>
               <Text style={[styles.volumeLabel, { color: colors.mutedForeground }]}>Vol kg</Text>
             </View>
           </View>
         </View>
 
         <View style={[styles.progress, { backgroundColor: colors.border }]}>
-          <View style={[styles.progressFill, { width: `${totalSets > 0 ? (completedSets / totalSets) * 100 : 0}%`, backgroundColor: ACCENT_COLOR }]} />
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${totalSets > 0 ? (completedSets / totalSets) * 100 : 0}%`,
+                backgroundColor: ACCENT_COLOR,
+              },
+            ]}
+          />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {session.exercises.length === 0 ? (
             <View style={styles.emptyExercises}>
               <Feather name="plus-circle" size={48} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Tap "Add Exercise" to begin</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Tap "Add Exercise" to begin
+              </Text>
             </View>
           ) : (
             session.exercises.map((ex) => {
               const exerciseData = EXERCISES.find((e) => e.id === ex.exerciseId);
               const muscleColor = getMuscleColor(exerciseData?.muscleGroup || "Other");
               return (
-                <Pressable key={ex.id} onPress={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}>
-                  <View style={[styles.exerciseCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Pressable
+                  key={ex.id}
+                  onPress={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}
+                >
+                  <View
+                    style={[
+                      styles.exerciseCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
                     <View style={[styles.exerciseAccentBar, { backgroundColor: muscleColor }]} />
                     <View style={styles.exerciseCardInner}>
                       <View style={styles.exHeader}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
                           {exerciseData?.muscleGroup ? (
-                            <Text style={[styles.exMuscle, { color: muscleColor }]}>{exerciseData.muscleGroup}</Text>
+                            <Text style={[styles.exMuscle, { color: muscleColor }]}>
+                              {exerciseData.muscleGroup}
+                            </Text>
                           ) : null}
                         </View>
                         <View style={styles.exHeaderRight}>
                           <Text style={[styles.exSetsCount, { color: colors.mutedForeground }]}>
                             {ex.sets.filter((s) => s.completed).length}/{ex.sets.length} sets
                           </Text>
-                          <Feather name={expandedExercise === ex.id ? "chevron-up" : "chevron-down"} size={18} color={colors.mutedForeground} />
+                          <Feather
+                            name={expandedExercise === ex.id ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={colors.mutedForeground}
+                          />
                         </View>
                       </View>
 
                       {(expandedExercise === ex.id || expandedExercise === null) && (
                         <View style={styles.setsContainer}>
                           <View style={styles.setHeaderRow}>
-                            <Text style={[styles.setHeaderLabel, styles.setNumHeader, { color: colors.mutedForeground }]}>#</Text>
-                            <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Weight (kg)</Text>
-                            <Text style={[styles.setHeaderLabel, styles.setStepperHeader, { color: colors.mutedForeground }]}>Reps</Text>
-                            <Text style={[styles.setHeaderLabel, styles.setDoneHeader, { color: colors.mutedForeground }]}>Done</Text>
+                            <Text
+                              style={[
+                                styles.setHeaderLabel,
+                                styles.setNumHeader,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              #
+                            </Text>
+                            <Text
+                              style={[
+                                styles.setHeaderLabel,
+                                styles.setStepperHeader,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              Weight (kg)
+                            </Text>
+                            <Text
+                              style={[
+                                styles.setHeaderLabel,
+                                styles.setStepperHeader,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              Reps
+                            </Text>
+                            <Text
+                              style={[
+                                styles.setHeaderLabel,
+                                styles.setDoneHeader,
+                                { color: colors.mutedForeground },
+                              ]}
+                            >
+                              Done
+                            </Text>
                           </View>
                           {ex.sets.map((set, idx) => {
                             const checkAnim = getCheckAnim(set.id);
                             return (
-                              <View key={set.id} style={[styles.setRow, set.completed && { opacity: 0.6 }]}>
-                                <Text style={[styles.setNum, { color: colors.mutedForeground }]}>{idx + 1}</Text>
+                              <View
+                                key={set.id}
+                                style={[styles.setRow, set.completed && { opacity: 0.6 }]}
+                              >
+                                <Text style={[styles.setNum, { color: colors.mutedForeground }]}>
+                                  {idx + 1}
+                                </Text>
                                 <View style={styles.setStepperCell}>
                                   <StepperInput
                                     value={set.weight}
-                                    onChange={(val) => updateSet(session.id, ex.id, set.id, { weight: val })}
+                                    onChange={(val) =>
+                                      updateSet(session.id, ex.id, set.id, { weight: val })
+                                    }
                                     step={2.5}
                                     decimals={1}
                                     editable={!set.completed}
@@ -483,7 +613,9 @@ export default function WorkoutSessionScreen() {
                                 <View style={styles.setStepperCell}>
                                   <StepperInput
                                     value={set.reps}
-                                    onChange={(val) => updateSet(session.id, ex.id, set.id, { reps: val })}
+                                    onChange={(val) =>
+                                      updateSet(session.id, ex.id, set.id, { reps: val })
+                                    }
                                     step={1}
                                     decimals={0}
                                     editable={!set.completed}
@@ -500,22 +632,31 @@ export default function WorkoutSessionScreen() {
                                     ]}
                                     onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
                                   >
-                                    <Feather name="check" size={18} color={set.completed ? "#fff" : colors.mutedForeground} />
+                                    <Feather
+                                      name="check"
+                                      size={18}
+                                      color={set.completed ? "#fff" : colors.mutedForeground}
+                                    />
                                   </Pressable>
                                 </Animated.View>
                               </View>
                             );
                           })}
-                          <Pressable style={[styles.addSetBtn, { borderColor: colors.border }]} onPress={() => {
-                            const lastSet = ex.sets[ex.sets.length - 1];
-                            addSetToExercise(session.id, ex.id, {
-                              weight: lastSet?.weight || 0,
-                              reps: lastSet?.reps || 10,
-                              completed: false,
-                            });
-                          }}>
+                          <Pressable
+                            style={[styles.addSetBtn, { borderColor: colors.border }]}
+                            onPress={() => {
+                              const lastSet = ex.sets[ex.sets.length - 1];
+                              addSetToExercise(session.id, ex.id, {
+                                weight: lastSet?.weight || 0,
+                                reps: lastSet?.reps || 10,
+                                completed: false,
+                              });
+                            }}
+                          >
                             <Feather name="plus" size={14} color={colors.mutedForeground} />
-                            <Text style={[styles.addSetText, { color: colors.mutedForeground }]}>Add Set</Text>
+                            <Text style={[styles.addSetText, { color: colors.mutedForeground }]}>
+                              Add Set
+                            </Text>
                           </Pressable>
                         </View>
                       )}
@@ -527,26 +668,45 @@ export default function WorkoutSessionScreen() {
           )}
 
           <View style={styles.bottomButtons}>
-            <Pressable style={[styles.addExerciseBtn, { borderColor: colors.border }]} onPress={() => setShowExercisePicker(!showExercisePicker)}>
+            <Pressable
+              style={[styles.addExerciseBtn, { borderColor: colors.border }]}
+              onPress={() => setShowExercisePicker(!showExercisePicker)}
+            >
               <Feather name="plus" size={18} color={colors.text} />
               <Text style={[styles.addExerciseBtnText, { color: colors.text }]}>Add Exercise</Text>
             </Pressable>
-            <Pressable style={[styles.finishBtn, { backgroundColor: colors.success }]} onPress={() => setShowFinishSheet(true)}>
+            <Pressable
+              style={[styles.finishBtn, { backgroundColor: colors.success }]}
+              onPress={() => setShowFinishSheet(true)}
+            >
               <Feather name="check-circle" size={18} color="#fff" />
               <Text style={styles.finishBtnText}>Finish</Text>
             </Pressable>
           </View>
 
           {showExercisePicker && (
-            <View style={[styles.exercisePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.exercisePicker,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <Text style={[styles.exercisePickerTitle, { color: colors.text }]}>Add Exercise</Text>
               {EXERCISES.slice(0, 20).map((ex) => {
                 const muscleColor = getMuscleColor(ex.muscleGroup);
                 return (
-                  <Pressable key={ex.id} style={[styles.exercisePickerItem, { borderBottomColor: colors.border }]} onPress={() => addExercise(ex.id)}>
+                  <Pressable
+                    key={ex.id}
+                    style={[styles.exercisePickerItem, { borderBottomColor: colors.border }]}
+                    onPress={() => addExercise(ex.id)}
+                  >
                     <View style={[styles.exercisePickerAccent, { backgroundColor: muscleColor }]} />
-                    <Text style={[styles.exercisePickerName, { color: colors.text }]}>{ex.name}</Text>
-                    <Text style={[styles.exercisePickerMeta, { color: muscleColor }]}>{ex.muscleGroup}</Text>
+                    <Text style={[styles.exercisePickerName, { color: colors.text }]}>
+                      {ex.name}
+                    </Text>
+                    <Text style={[styles.exercisePickerMeta, { color: muscleColor }]}>
+                      {ex.muscleGroup}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -579,18 +739,38 @@ export default function WorkoutSessionScreen() {
 const styles = StyleSheet.create({
   outerContainer: { flex: 1 },
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+  },
   headerLeft: { flex: 1 },
   sessionName: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   timerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
   timer: { fontSize: 38, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  activeBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "#FF6B0018" },
+  activeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "#FF6B0018",
+  },
   activeBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   headerStats: { flexDirection: "row", gap: 12, alignItems: "center" },
   headerStat: { alignItems: "center" },
   headerStatVal: { fontSize: 20, fontWeight: "700" },
   headerStatLabel: { fontSize: 11 },
-  volumeStat: { alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
+  volumeStat: {
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   volumeVal: { fontSize: 20, fontWeight: "800" },
   volumeLabel: { fontSize: 10, fontWeight: "600" },
   progress: { height: 3 },
@@ -601,7 +781,12 @@ const styles = StyleSheet.create({
   exerciseCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden", flexDirection: "row" },
   exerciseAccentBar: { width: 5 },
   exerciseCardInner: { flex: 1, padding: 14 },
-  exHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 },
+  exHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
   exName: { fontSize: 16, fontWeight: "700" },
   exMuscle: { fontSize: 12, fontWeight: "600", marginTop: 2 },
   exHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -616,20 +801,74 @@ const styles = StyleSheet.create({
   setNum: { width: 20, fontSize: 13, textAlign: "center" },
   setStepperCell: { flex: 1 },
   stepper: { flexDirection: "row", alignItems: "center", gap: 2 },
-  stepperBtn: { width: 28, height: 34, borderRadius: 7, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  stepperBtn: {
+    width: 28,
+    height: 34,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
   stepperDisabled: { opacity: 0.4 },
-  stepperInput: { flex: 1, borderRadius: 7, borderWidth: 1, paddingVertical: 6, paddingHorizontal: 4, fontSize: 14, textAlign: "center", minWidth: 0 },
-  doneBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  addSetBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderStyle: "dashed", borderRadius: 8, paddingVertical: 10 },
+  stepperInput: {
+    flex: 1,
+    borderRadius: 7,
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    fontSize: 14,
+    textAlign: "center",
+    minWidth: 0,
+  },
+  doneBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addSetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
   addSetText: { fontSize: 14 },
   bottomButtons: { flexDirection: "row", gap: 12 },
-  addExerciseBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 12, paddingVertical: 14 },
+  addExerciseBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
   addExerciseBtnText: { fontSize: 15, fontWeight: "600" },
-  finishBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 14 },
+  finishBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
   finishBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   exercisePicker: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 0 },
   exercisePickerTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  exercisePickerItem: { paddingVertical: 12, borderBottomWidth: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  exercisePickerItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   exercisePickerAccent: { width: 4, height: 32, borderRadius: 2 },
   exercisePickerName: { flex: 1, fontSize: 15, fontWeight: "500" },
   exercisePickerMeta: { fontSize: 13, fontWeight: "600" },
@@ -637,13 +876,42 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16 },
   backBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   backBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  restOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", zIndex: 100 },
-  restCard: { borderRadius: 24, padding: 32, borderWidth: 1, alignItems: "center", gap: 24, width: 300 },
+  restOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  restCard: {
+    borderRadius: 24,
+    padding: 32,
+    borderWidth: 1,
+    alignItems: "center",
+    gap: 24,
+    width: 300,
+  },
   restTitle: { fontSize: 22, fontWeight: "800" },
-  ringWrapper: { width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" },
+  ringWrapper: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   ringCenter: { position: "absolute", alignItems: "center" },
   restTime: { fontSize: 36, fontWeight: "800", fontVariant: ["tabular-nums"] },
   restLabel: { fontSize: 13, marginTop: 2 },
-  skipRestBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  skipRestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   skipRestText: { fontSize: 14, fontWeight: "600" },
 });

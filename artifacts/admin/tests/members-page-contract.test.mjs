@@ -3,10 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-const membersPagePath = path.resolve(
-  process.cwd(),
-  "artifacts/admin/src/pages/members.tsx",
-);
+const membersPagePath = path.resolve(process.cwd(), "artifacts/admin/src/pages/members.tsx");
 
 describe("admin members page contract", () => {
   it("uses the generated auth-aware role update mutation", async () => {

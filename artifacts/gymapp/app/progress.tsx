@@ -13,7 +13,16 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "@/components/native-compat";
-import Svg, { Rect, Line, Text as SvgText, Path, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, {
+  Rect,
+  Line,
+  Text as SvgText,
+  Path,
+  Circle,
+  Defs,
+  LinearGradient,
+  Stop,
+} from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
 import { useApp, type BodyMeasurement } from "@/contexts/AppContext";
@@ -32,7 +41,13 @@ interface BarChartProps {
   width?: number;
 }
 
-function BarChart({ data, maxValue, color, height = CHART_HEIGHT, width = CHART_WIDTH }: BarChartProps) {
+function BarChart({
+  data,
+  maxValue,
+  color,
+  height = CHART_HEIGHT,
+  width = CHART_WIDTH,
+}: BarChartProps) {
   const barWidth = (width - data.length * 4) / data.length;
   const maxIdx = data.reduce((best, d, i, arr) => (d.value > arr[best].value ? i : best), 0);
   return (
@@ -44,7 +59,14 @@ function BarChart({ data, maxValue, color, height = CHART_HEIGHT, width = CHART_
         const isTallest = i === maxIdx && d.value > 0;
         return (
           <React.Fragment key={i}>
-            <Rect x={x} y={y} width={barWidth} height={barHeight} rx={4} fill={d.value > 0 ? color : "#2A2D42"} />
+            <Rect
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barHeight}
+              rx={4}
+              fill={d.value > 0 ? color : "#2A2D42"}
+            />
             {isTallest && (
               <SvgText
                 x={x + barWidth / 2}
@@ -57,7 +79,15 @@ function BarChart({ data, maxValue, color, height = CHART_HEIGHT, width = CHART_
                 {d.value.toLocaleString()}
               </SvgText>
             )}
-            <SvgText x={x + barWidth / 2} y={height + 16} fontSize={9} fill="#9096B3" textAnchor="middle">{d.label}</SvgText>
+            <SvgText
+              x={x + barWidth / 2}
+              y={height + 16}
+              fontSize={9}
+              fill="#9096B3"
+              textAnchor="middle"
+            >
+              {d.label}
+            </SvgText>
           </React.Fragment>
         );
       })}
@@ -73,7 +103,13 @@ interface LineChartProps {
   showDots?: boolean;
 }
 
-function LineChart({ data, color, height = CHART_HEIGHT, width = CHART_WIDTH, showDots = true }: LineChartProps) {
+function LineChart({
+  data,
+  color,
+  height = CHART_HEIGHT,
+  width = CHART_WIDTH,
+  showDots = true,
+}: LineChartProps) {
   if (data.length === 0) {
     return (
       <View style={{ width, height: height + 20, alignItems: "center", justifyContent: "center" }}>
@@ -87,7 +123,9 @@ function LineChart({ data, color, height = CHART_HEIGHT, width = CHART_WIDTH, sh
     return (
       <Svg width={width} height={height + 20}>
         <Circle cx={cx} cy={cy} r={5} fill={color} />
-        <SvgText x={cx} y={height + 14} fontSize={9} fill="#9096B3" textAnchor="middle">{data[0].label}</SvgText>
+        <SvgText x={cx} y={height + 14} fontSize={9} fill="#9096B3" textAnchor="middle">
+          {data[0].label}
+        </SvgText>
       </Svg>
     );
   }
@@ -121,13 +159,20 @@ function LineChart({ data, color, height = CHART_HEIGHT, width = CHART_WIDTH, sh
       </Defs>
       <Path d={fillD} fill="url(#lineGrad)" />
       <Path d={pathD} stroke={color} strokeWidth={2} fill="none" />
-      {showDots && points.map((p, i) => (
-        <Circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
-      ))}
+      {showDots && points.map((p, i) => <Circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />)}
       {data.map((d, i) => {
         if (i % showEvery !== 0 && i !== data.length - 1) return null;
         return (
-          <SvgText key={i} x={points[i].x} y={height + 14} fontSize={9} fill="#9096B3" textAnchor="middle">{d.label}</SvgText>
+          <SvgText
+            key={i}
+            x={points[i].x}
+            y={height + 14}
+            fontSize={9}
+            fill="#9096B3"
+            textAnchor="middle"
+          >
+            {d.label}
+          </SvgText>
         );
       })}
     </Svg>
@@ -163,7 +208,10 @@ function ConsistencyHeatmap({ workoutDates, colors }: ConsistencyHeatmapProps) {
                 key={d}
                 style={[
                   heatmapStyles.cell,
-                  { backgroundColor: hasWorkout ? "#22C55E" : colors.surface, borderColor: colors.border },
+                  {
+                    backgroundColor: hasWorkout ? "#22C55E" : colors.surface,
+                    borderColor: colors.border,
+                  },
                 ]}
               />
             );
@@ -180,7 +228,12 @@ const heatmapStyles = StyleSheet.create({
   cell: { width: 18, height: 18, borderRadius: 4, borderWidth: 1 },
 });
 
-function LogWeightModal({ visible, onClose, onSave, currentWeight }: {
+function LogWeightModal({
+  visible,
+  onClose,
+  onSave,
+  currentWeight,
+}: {
   visible: boolean;
   onClose: () => void;
   onSave: (w: number) => void;
@@ -208,9 +261,14 @@ function LogWeightModal({ visible, onClose, onSave, currentWeight }: {
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <Pressable style={[styles.modalBox, { backgroundColor: colors.card }]} onPress={() => {}}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Log Weight</Text>
-          <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>Enter your current weight in kg</Text>
+          <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+            Enter your current weight in kg
+          </Text>
           <TextInput
-            style={[styles.modalInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.modalInput,
+              { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            ]}
             value={val}
             onChangeText={setVal}
             keyboardType="decimal-pad"
@@ -221,7 +279,13 @@ function LogWeightModal({ visible, onClose, onSave, currentWeight }: {
             <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={onClose}>
               <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
             </Pressable>
-            <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={handleSave}>
+            <Pressable
+              style={[
+                styles.modalBtn,
+                { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={handleSave}
+            >
               <Text style={[styles.modalBtnText, { color: "#fff" }]}>Save</Text>
             </Pressable>
           </View>
@@ -231,10 +295,21 @@ function LogWeightModal({ visible, onClose, onSave, currentWeight }: {
   );
 }
 
-function LogMeasurementsModal({ visible, onClose, onSave, latest }: {
+function LogMeasurementsModal({
+  visible,
+  onClose,
+  onSave,
+  latest,
+}: {
   visible: boolean;
   onClose: () => void;
-  onSave: (m: { chest?: number; waist?: number; hips?: number; biceps?: number; thighs?: number }) => void;
+  onSave: (m: {
+    chest?: number;
+    waist?: number;
+    hips?: number;
+    biceps?: number;
+    thighs?: number;
+  }) => void;
   latest: { chest?: number; waist?: number; hips?: number; biceps?: number; thighs?: number };
 }) {
   const colors = useColors();
@@ -293,13 +368,24 @@ function LogMeasurementsModal({ visible, onClose, onSave, latest }: {
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <Pressable style={[styles.modalBox, { backgroundColor: colors.card }]} onPress={() => {}}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Body Measurements</Text>
-          <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>All values in centimetres</Text>
+          <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+            All values in centimetres
+          </Text>
           <View style={styles.measureGrid}>
             {fields.map(({ key, label }) => (
               <View key={key} style={styles.measureField}>
-                <Text style={[styles.measureLabel, { color: colors.mutedForeground }]}>{label}</Text>
+                <Text style={[styles.measureLabel, { color: colors.mutedForeground }]}>
+                  {label}
+                </Text>
                 <TextInput
-                  style={[styles.measureInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[
+                    styles.measureInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
                   value={form[key]}
                   onChangeText={(v) => setForm({ ...form, [key]: v })}
                   keyboardType="decimal-pad"
@@ -313,7 +399,13 @@ function LogMeasurementsModal({ visible, onClose, onSave, latest }: {
             <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={onClose}>
               <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
             </Pressable>
-            <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={handleSave}>
+            <Pressable
+              style={[
+                styles.modalBtn,
+                { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={handleSave}
+            >
               <Text style={[styles.modalBtnText, { color: "#fff" }]}>Save</Text>
             </Pressable>
           </View>
@@ -339,12 +431,16 @@ export default function ProgressScreen() {
   const weeklyVolume = getWeeklyVolume();
 
   const calorieData = weeklyCalories.map((d) => ({
-    label: new Date(d.date + "T00:00:00").toLocaleDateString("en", { weekday: "short" }).slice(0, 2),
+    label: new Date(d.date + "T00:00:00")
+      .toLocaleDateString("en", { weekday: "short" })
+      .slice(0, 2),
     value: d.calories,
   }));
 
   const volumeData = weeklyVolume.map((d) => ({
-    label: new Date(d.date + "T00:00:00").toLocaleDateString("en", { weekday: "short" }).slice(0, 2),
+    label: new Date(d.date + "T00:00:00")
+      .toLocaleDateString("en", { weekday: "short" })
+      .slice(0, 2),
     value: d.volume,
   }));
 
@@ -356,7 +452,14 @@ export default function ProgressScreen() {
   const avgCalories = weeklyCalories.reduce((sum, d, _, arr) => sum + d.calories / arr.length, 0);
   const prs = Object.values(personalRecords);
 
-  const progressToGoal = Math.min(100, Math.abs((profile.weight - profile.targetWeight) > 0 ? ((profile.weight - profile.targetWeight) / profile.weight) * 100 : 100));
+  const progressToGoal = Math.min(
+    100,
+    Math.abs(
+      profile.weight - profile.targetWeight > 0
+        ? ((profile.weight - profile.targetWeight) / profile.weight) * 100
+        : 100,
+    ),
+  );
 
   const last30DaysWeight = useMemo(() => {
     const cutoff = new Date();
@@ -365,12 +468,16 @@ export default function ProgressScreen() {
     return weightLog
       .filter((e) => e.date >= cutoffStr)
       .map((e) => ({
-        label: new Date(e.date + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }),
+        label: new Date(e.date + "T00:00:00").toLocaleDateString("en", {
+          month: "short",
+          day: "numeric",
+        }),
         value: e.weight,
       }));
   }, [weightLog]);
 
-  const latestMeasurement = bodyMeasurements.length > 0 ? bodyMeasurements[bodyMeasurements.length - 1] : null;
+  const latestMeasurement =
+    bodyMeasurements.length > 0 ? bodyMeasurements[bodyMeasurements.length - 1] : null;
   const latestMeasurementObj: Partial<BodyMeasurement> = latestMeasurement ?? {};
 
   const measureFields = [
@@ -385,18 +492,18 @@ export default function ProgressScreen() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 28);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
-    return new Set(
-      sessions
-        .filter((s) => s.completed && s.date >= cutoffStr)
-        .map((s) => s.date),
-    );
+    return new Set(sessions.filter((s) => s.completed && s.date >= cutoffStr).map((s) => s.date));
   }, [sessions]);
 
   const consistencyCount = workoutDates.size;
 
   const statItems = [
     { label: "Total Workouts", value: totalWorkouts, color: colors.primary },
-    { label: "Total Volume", value: `${Math.round(totalVolume / 1000)}k kg`, color: colors.success },
+    {
+      label: "Total Volume",
+      value: `${Math.round(totalVolume / 1000)}k kg`,
+      color: colors.success,
+    },
     { label: "Personal Records", value: prs.length, color: colors.warning },
     { label: "Avg Daily Kcal", value: Math.round(avgCalories), color: colors.info },
   ];
@@ -406,15 +513,30 @@ export default function ProgressScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.statsGrid}>
           {statItems.map((stat) => (
-            <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: stat.color, borderLeftWidth: 4 }]}>
+            <View
+              key={stat.label}
+              style={[
+                styles.statCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderLeftColor: stat.color,
+                  borderLeftWidth: 4,
+                },
+              ]}
+            >
               <Text style={[styles.statVal, { color: stat.color }]}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+                {stat.label}
+              </Text>
             </View>
           ))}
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Goal Progress</Text>
+          <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
+            Goal Progress
+          </Text>
           <View style={[typography.sectionTitleUnderline, { marginBottom: 8 }]} />
           <View style={styles.goalRow}>
             <View style={styles.goalInfo}>
@@ -423,12 +545,21 @@ export default function ProgressScreen() {
             </View>
             <View style={{ flex: 1, paddingHorizontal: 16 }}>
               <View style={[styles.goalBar, { backgroundColor: colors.border }]}>
-                <View style={[styles.goalFill, { width: `${progressToGoal}%`, backgroundColor: colors.primary }]} />
+                <View
+                  style={[
+                    styles.goalFill,
+                    { width: `${progressToGoal}%`, backgroundColor: colors.primary },
+                  ]}
+                />
               </View>
-              <Text style={[styles.goalPercent, { color: colors.mutedForeground }]}>{Math.round(progressToGoal)}% to goal</Text>
+              <Text style={[styles.goalPercent, { color: colors.mutedForeground }]}>
+                {Math.round(progressToGoal)}% to goal
+              </Text>
             </View>
             <View style={styles.goalInfo}>
-              <Text style={[styles.goalWeight, { color: colors.primary }]}>{profile.targetWeight}kg</Text>
+              <Text style={[styles.goalWeight, { color: colors.primary }]}>
+                {profile.targetWeight}kg
+              </Text>
               <Text style={[styles.goalLabel, { color: colors.mutedForeground }]}>Target</Text>
             </View>
           </View>
@@ -436,23 +567,41 @@ export default function ProgressScreen() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>28-Day Consistency</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
+              28-Day Consistency
+            </Text>
             <View style={[styles.consistencyBadge, { backgroundColor: colors.success + "22" }]}>
-              <Text style={[styles.consistencyCount, { color: colors.success }]}>{consistencyCount}/28</Text>
+              <Text style={[styles.consistencyCount, { color: colors.success }]}>
+                {consistencyCount}/28
+              </Text>
             </View>
           </View>
           <ConsistencyHeatmap workoutDates={workoutDates} colors={colors} />
           <View style={styles.heatmapLegend}>
-            <View style={[styles.heatmapCell, { backgroundColor: "#1A2035", borderColor: colors.border }]} />
+            <View
+              style={[
+                styles.heatmapCell,
+                { backgroundColor: "#1A2035", borderColor: colors.border },
+              ]}
+            />
             <Text style={[styles.heatmapLegendText, { color: colors.mutedForeground }]}>Rest</Text>
-            <View style={[styles.heatmapCell, { backgroundColor: "#22C55E", borderColor: colors.border }]} />
-            <Text style={[styles.heatmapLegendText, { color: colors.mutedForeground }]}>Workout</Text>
+            <View
+              style={[
+                styles.heatmapCell,
+                { backgroundColor: "#22C55E", borderColor: colors.border },
+              ]}
+            />
+            <Text style={[styles.heatmapLegendText, { color: colors.mutedForeground }]}>
+              Workout
+            </Text>
           </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Weight Trend (30 days)</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
+              Weight Trend (30 days)
+            </Text>
             <Pressable
               style={[styles.logBtn, { backgroundColor: colors.primary }]}
               onPress={() => setShowLogWeight(true)}
@@ -466,14 +615,18 @@ export default function ProgressScreen() {
           ) : (
             <View style={styles.emptyChart}>
               <Feather name="trending-up" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Tap Log to record your first weight</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Tap Log to record your first weight
+              </Text>
             </View>
           )}
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Body Measurements</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
+              Body Measurements
+            </Text>
             <Pressable
               style={[styles.logBtn, { backgroundColor: colors.success }]}
               onPress={() => setShowLogMeasure(true)}
@@ -485,23 +638,41 @@ export default function ProgressScreen() {
           {latestMeasurement ? (
             <>
               <Text style={[styles.measureDate, { color: colors.mutedForeground }]}>
-                Last logged: {new Date(latestMeasurement.date + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                Last logged:{" "}
+                {new Date(latestMeasurement.date + "T00:00:00").toLocaleDateString("en", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
               </Text>
               <View style={styles.measureRow}>
-                {measureFields.map(({ key, label }) => (
-                  latestMeasurementObj[key] != null && (
-                    <View key={key} style={[styles.measureChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      <Text style={[styles.measureChipVal, { color: colors.text }]}>{latestMeasurementObj[key]}</Text>
-                      <Text style={[styles.measureChipLabel, { color: colors.mutedForeground }]}>{label}</Text>
-                    </View>
-                  )
-                ))}
+                {measureFields.map(
+                  ({ key, label }) =>
+                    latestMeasurementObj[key] != null && (
+                      <View
+                        key={key}
+                        style={[
+                          styles.measureChip,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                      >
+                        <Text style={[styles.measureChipVal, { color: colors.text }]}>
+                          {latestMeasurementObj[key]}
+                        </Text>
+                        <Text style={[styles.measureChipLabel, { color: colors.mutedForeground }]}>
+                          {label}
+                        </Text>
+                      </View>
+                    ),
+                )}
               </View>
             </>
           ) : (
             <View style={styles.emptyChart}>
               <Feather name="activity" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Log your body measurements to track progress</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Log your body measurements to track progress
+              </Text>
             </View>
           )}
         </View>
@@ -515,19 +686,28 @@ export default function ProgressScreen() {
               style={[styles.toggleBtn, { borderColor: colors.border }]}
               onPress={() => setCalorieMode(calorieMode === "bar" ? "line" : "bar")}
             >
-              <Feather name={calorieMode === "bar" ? "trending-up" : "bar-chart-2"} size={14} color={colors.mutedForeground} />
+              <Feather
+                name={calorieMode === "bar" ? "trending-up" : "bar-chart-2"}
+                size={14}
+                color={colors.mutedForeground}
+              />
             </Pressable>
           </View>
           <View style={styles.targetLine}>
             <View style={[styles.targetDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.targetLineText, { color: colors.mutedForeground }]}>Target: {profile.dailyCalorieTarget} kcal/day</Text>
+            <Text style={[styles.targetLineText, { color: colors.mutedForeground }]}>
+              Target: {profile.dailyCalorieTarget} kcal/day
+            </Text>
           </View>
           {calorieMode === "bar" ? (
             <BarChart data={calorieData} maxValue={maxCals} color={colors.primary} />
           ) : (
             <LineChart
               data={get30DayCalories().map((d) => ({
-                label: new Date(d.date + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }),
+                label: new Date(d.date + "T00:00:00").toLocaleDateString("en", {
+                  month: "short",
+                  day: "numeric",
+                }),
                 value: d.calories,
               }))}
               color={colors.primary}
@@ -544,7 +724,11 @@ export default function ProgressScreen() {
               style={[styles.toggleBtn, { borderColor: colors.border }]}
               onPress={() => setVolumeMode(volumeMode === "bar" ? "line" : "bar")}
             >
-              <Feather name={volumeMode === "bar" ? "trending-up" : "bar-chart-2"} size={14} color={colors.mutedForeground} />
+              <Feather
+                name={volumeMode === "bar" ? "trending-up" : "bar-chart-2"}
+                size={14}
+                color={colors.mutedForeground}
+              />
             </Pressable>
           </View>
           {volumeMode === "bar" ? (
@@ -552,7 +736,10 @@ export default function ProgressScreen() {
           ) : (
             <LineChart
               data={get30DayVolume().map((d) => ({
-                label: new Date(d.date + "T00:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }),
+                label: new Date(d.date + "T00:00:00").toLocaleDateString("en", {
+                  month: "short",
+                  day: "numeric",
+                }),
                 value: d.volume,
               }))}
               color={colors.success}
@@ -562,13 +749,20 @@ export default function ProgressScreen() {
 
         {prs.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>Personal Records</Text>
+            <Text style={[styles.cardTitle, typography.sectionTitle, { color: colors.text }]}>
+              Personal Records
+            </Text>
             <View style={[typography.sectionTitleUnderline, { marginBottom: 8 }]} />
             {prs.map((pr) => (
-              <View key={pr.exerciseId} style={[styles.prRow, { borderBottomColor: colors.border }]}>
+              <View
+                key={pr.exerciseId}
+                style={[styles.prRow, { borderBottomColor: colors.border }]}
+              >
                 <Feather name="award" size={16} color={colors.warning} />
                 <Text style={[styles.prName, { color: colors.text }]}>{pr.name}</Text>
-                <Text style={[styles.prVal, { color: colors.primary }]}>{pr.weight}kg × {pr.reps}</Text>
+                <Text style={[styles.prVal, { color: colors.primary }]}>
+                  {pr.weight}kg × {pr.reps}
+                </Text>
               </View>
             ))}
           </View>
@@ -618,29 +812,80 @@ const styles = StyleSheet.create({
   targetLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   targetDot: { width: 8, height: 8, borderRadius: 4 },
   targetLineText: { fontSize: 12 },
-  prRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1 },
+  prRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
   prName: { flex: 1, fontSize: 14 },
   prVal: { fontSize: 14, fontWeight: "600" },
-  logBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  logBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
   logBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  toggleBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  toggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   emptyChart: { alignItems: "center", gap: 8, paddingVertical: 16 },
   emptyText: { fontSize: 13, textAlign: "center" },
   measureDate: { fontSize: 12 },
   measureRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  measureChip: { alignItems: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  measureChip: {
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   measureChipVal: { fontSize: 18, fontWeight: "700" },
   measureChipLabel: { fontSize: 10, marginTop: 2 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modalBox: { width: "85%", borderRadius: 20, padding: 24, gap: 12 },
   modalTitle: { fontSize: 18, fontWeight: "700" },
   modalSub: { fontSize: 13 },
-  modalInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 24, fontWeight: "700", textAlign: "center" },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   modalBtns: { flexDirection: "row", gap: 12, marginTop: 4 },
-  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, borderWidth: 1, alignItems: "center" },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
   modalBtnText: { fontSize: 15, fontWeight: "600" },
   measureGrid: { gap: 8 },
   measureField: { gap: 4 },
   measureLabel: { fontSize: 12, fontWeight: "500" },
-  measureInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15 },
+  measureInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
 });

@@ -13,26 +13,46 @@ interface StatCardProps {
   progress?: number;
 }
 
-export function StatCard({ title, value, unit, subtitle, icon, onPress, color, progress }: StatCardProps) {
+export function StatCard({
+  title,
+  value,
+  unit,
+  subtitle,
+  icon,
+  onPress,
+  color,
+  progress,
+}: StatCardProps) {
   const colors = useColors();
 
   const content = (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.mutedForeground }]}>{title}</Text>
-        {icon && <View style={[styles.iconContainer, { backgroundColor: (color || colors.primary) + "20" }]}>{icon}</View>}
+        {icon && (
+          <View
+            style={[styles.iconContainer, { backgroundColor: (color || colors.primary) + "20" }]}
+          >
+            {icon}
+          </View>
+        )}
       </View>
       <View style={styles.valueRow}>
         <Text style={[styles.value, { color: colors.text }]}>{value}</Text>
         {unit && <Text style={[styles.unit, { color: colors.mutedForeground }]}> {unit}</Text>}
       </View>
-      {subtitle && <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>}
+      {subtitle && (
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+      )}
       {progress !== undefined && (
         <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
           <View
             style={[
               styles.progressFill,
-              { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: color || colors.primary },
+              {
+                width: `${Math.min(progress * 100, 100)}%`,
+                backgroundColor: color || colors.primary,
+              },
             ]}
           />
         </View>

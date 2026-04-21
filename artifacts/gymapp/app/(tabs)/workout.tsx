@@ -53,58 +53,23 @@ const QUICK_STARTS = [
   },
   {
     name: "Pull Day",
-    exercises: [
-      "pullup",
-      "bent_row",
-      "lat_pulldown",
-      "seated_row",
-      "bicep_curl",
-      "hammer_curl",
-    ],
+    exercises: ["pullup", "bent_row", "lat_pulldown", "seated_row", "bicep_curl", "hammer_curl"],
   },
   {
     name: "Leg Day",
-    exercises: [
-      "squat",
-      "leg_press",
-      "lunges",
-      "leg_curl",
-      "calf_raise",
-      "rdl",
-    ],
+    exercises: ["squat", "leg_press", "lunges", "leg_curl", "calf_raise", "rdl"],
   },
   {
     name: "Full Body",
-    exercises: [
-      "deadlift",
-      "bench_press",
-      "pullup",
-      "squat",
-      "overhead_press",
-      "plank",
-    ],
+    exercises: ["deadlift", "bench_press", "pullup", "squat", "overhead_press", "plank"],
   },
   {
     name: "Cardio & Core",
-    exercises: [
-      "burpee",
-      "mountain_climber",
-      "plank",
-      "crunches",
-      "jumping_jacks",
-      "leg_raises",
-    ],
+    exercises: ["burpee", "mountain_climber", "plank", "crunches", "jumping_jacks", "leg_raises"],
   },
   {
     name: "Upper Body",
-    exercises: [
-      "bench_press",
-      "bent_row",
-      "overhead_press",
-      "lat_pulldown",
-      "bicep_curl",
-      "dips",
-    ],
+    exercises: ["bench_press", "bent_row", "overhead_press", "lat_pulldown", "bicep_curl", "dips"],
   },
 ];
 
@@ -160,8 +125,7 @@ export default function WorkoutScreen() {
   const colors = useColors();
   const { getToken, userId } = useAuth();
   const [loadingAI, setLoadingAI] = useState(false);
-  const isTrainerOrOwner =
-    profile.role === "trainer" || profile.role === "owner";
+  const isTrainerOrOwner = profile.role === "trainer" || profile.role === "owner";
   const isMemberView = !isTrainerOrOwner;
 
   const tabOptions = isTrainerOrOwner
@@ -177,22 +141,14 @@ export default function WorkoutScreen() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] =
-    useState<WorkoutTemplate | null>(null);
-  const [assignableMembers, setAssignableMembers] = useState<
-    AssignableMember[]
-  >([]);
-  const [loadingAssignableMembers, setLoadingAssignableMembers] =
-    useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<WorkoutTemplate | null>(null);
+  const [assignableMembers, setAssignableMembers] = useState<AssignableMember[]>([]);
+  const [loadingAssignableMembers, setLoadingAssignableMembers] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
-  const [selectedMember, setSelectedMember] = useState<AssignableMember | null>(
-    null,
-  );
+  const [selectedMember, setSelectedMember] = useState<AssignableMember | null>(null);
   const [assigningWorkout, setAssigningWorkout] = useState(false);
 
-  const [assignedWorkouts, setAssignedWorkouts] = useState<AssignedWorkout[]>(
-    [],
-  );
+  const [assignedWorkouts, setAssignedWorkouts] = useState<AssignedWorkout[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SavedWorkoutPlan | null>(null);
@@ -206,9 +162,7 @@ export default function WorkoutScreen() {
         name: plan.name,
         focus: plan.focus,
         exerciseCount: plan.exercises.length,
-        exercises: plan.exercises
-          .slice(0, 6)
-          .map((exercise) => exercise.name),
+        exercises: plan.exercises.slice(0, 6).map((exercise) => exercise.name),
       })),
     [savedPlans],
   );
@@ -262,10 +216,7 @@ export default function WorkoutScreen() {
   ]);
 
   const filteredExercises = useMemo(() => {
-    return searchExercises(
-      exerciseSearch,
-      selectedMuscle === "All" ? undefined : selectedMuscle,
-    );
+    return searchExercises(exerciseSearch, selectedMuscle === "All" ? undefined : selectedMuscle);
   }, [exerciseSearch, selectedMuscle]);
 
   const filteredAssignableMembers = useMemo(() => {
@@ -273,8 +224,7 @@ export default function WorkoutScreen() {
     if (!query) return assignableMembers;
     return assignableMembers.filter((member) => {
       return (
-        member.name.toLowerCase().includes(query) ||
-        member.email.toLowerCase().includes(query)
+        member.name.toLowerCase().includes(query) || member.email.toLowerCase().includes(query)
       );
     });
   }, [assignableMembers, memberSearch]);
@@ -310,9 +260,7 @@ export default function WorkoutScreen() {
         const data = (await resp.json()) as AssignableMember[];
         setAssignableMembers(data);
       } else {
-        const err = await resp
-          .json()
-          .catch(() => ({ error: "Failed to fetch members" }));
+        const err = await resp.json().catch(() => ({ error: "Failed to fetch members" }));
         Alert.alert("Error", err.error || "Failed to fetch members");
       }
     } catch (err) {
@@ -422,12 +370,10 @@ export default function WorkoutScreen() {
     try {
       const token = await getToken();
       const apiBase = getApiBase();
-      const recentData = recentSessions
-        .slice(0, 3)
-        .map((s) => ({
-          name: s.name,
-          exercises: s.exercises.map((e) => e.name),
-        }));
+      const recentData = recentSessions.slice(0, 3).map((s) => ({
+        name: s.name,
+        exercises: s.exercises.map((e) => e.name),
+      }));
       const response = await fetch(`${apiBase}/api/ai/workout-suggestion`, {
         method: "POST",
         headers: {
@@ -463,10 +409,7 @@ export default function WorkoutScreen() {
         };
       });
 
-      const session = startSession(
-        suggestion.workoutName || "AI Workout",
-        exercises,
-      );
+      const session = startSession(suggestion.workoutName || "AI Workout", exercises);
       router.push({
         pathname: "/workout-session",
         params: { sessionId: session.id },
@@ -486,9 +429,7 @@ export default function WorkoutScreen() {
         setEditingPlan(null);
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to save your custom workout plan.";
+          error instanceof Error ? error.message : "Failed to save your custom workout plan.";
         Alert.alert("Error", message);
       }
     },
@@ -549,32 +490,25 @@ export default function WorkoutScreen() {
   };
 
   const handleDeleteTemplate = async (templateId: number) => {
-    Alert.alert(
-      "Delete Template",
-      "Are you sure you want to delete this template?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              await fetch(
-                `${getApiBase()}/api/workouts/templates/${templateId}`,
-                {
-                  method: "DELETE",
-                  headers: { Authorization: `Bearer ${token}` },
-                },
-              );
-              setTemplates((prev) => prev.filter((t) => t.id !== templateId));
-            } catch {
-              Alert.alert("Error", "Failed to delete template");
-            }
-          },
+    Alert.alert("Delete Template", "Are you sure you want to delete this template?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const token = await getToken();
+            await fetch(`${getApiBase()}/api/workouts/templates/${templateId}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+          } catch {
+            Alert.alert("Error", "Failed to delete template");
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const prs = Object.values(personalRecords);
@@ -588,13 +522,9 @@ export default function WorkoutScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, { color: colors.text }]}>
-          Workout
-        </Text>
+        <Text style={[styles.screenTitle, { color: colors.text }]}>Workout</Text>
         <Pressable
           style={[styles.startBtn, { backgroundColor: colors.primary }]}
           onPress={() => {
@@ -627,11 +557,7 @@ export default function WorkoutScreen() {
               }).length
             }
           </Text>
-          <Text
-            style={[styles.weekStatLabel, { color: colors.mutedForeground }]}
-          >
-            This Week
-          </Text>
+          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>This Week</Text>
         </View>
         <View
           style={[
@@ -642,11 +568,7 @@ export default function WorkoutScreen() {
           <Text style={[styles.weekStatVal, { color: colors.text }]}>
             {Math.round(thisWeekVolume / 1000)}k
           </Text>
-          <Text
-            style={[styles.weekStatLabel, { color: colors.mutedForeground }]}
-          >
-            Volume (kg)
-          </Text>
+          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>Volume (kg)</Text>
         </View>
         <View
           style={[
@@ -654,14 +576,8 @@ export default function WorkoutScreen() {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <Text style={[styles.weekStatVal, { color: colors.success }]}>
-            {prs.length}
-          </Text>
-          <Text
-            style={[styles.weekStatLabel, { color: colors.mutedForeground }]}
-          >
-            Total PRs
-          </Text>
+          <Text style={[styles.weekStatVal, { color: colors.success }]}>{prs.length}</Text>
+          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>Total PRs</Text>
         </View>
       </View>
 
@@ -682,8 +598,7 @@ export default function WorkoutScreen() {
               style={[
                 styles.tabText,
                 {
-                  color:
-                    activeTab === tab ? colors.primary : colors.mutedForeground,
+                  color: activeTab === tab ? colors.primary : colors.mutedForeground,
                 },
               ]}
             >
@@ -694,10 +609,7 @@ export default function WorkoutScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: TAB_BAR_HEIGHT + 16 },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         {activeTab === "workouts" && (
@@ -713,12 +625,8 @@ export default function WorkoutScreen() {
                     style={[
                       styles.assignedCard,
                       {
-                        backgroundColor: assigned.completedAt
-                          ? colors.card
-                          : colors.primaryMuted,
-                        borderColor: assigned.completedAt
-                          ? colors.border
-                          : colors.primary + "60",
+                        backgroundColor: assigned.completedAt ? colors.card : colors.primaryMuted,
+                        borderColor: assigned.completedAt ? colors.border : colors.primary + "60",
                         opacity: assigned.completedAt ? 0.7 : 1,
                       },
                     ]}
@@ -728,61 +636,36 @@ export default function WorkoutScreen() {
                         style={[
                           styles.assignedIcon,
                           {
-                            backgroundColor: assigned.completedAt
-                              ? colors.border
-                              : colors.primary,
+                            backgroundColor: assigned.completedAt ? colors.border : colors.primary,
                           },
                         ]}
                       >
                         <Feather
-                          name={
-                            assigned.completedAt ? "check-circle" : "user-check"
-                          }
+                          name={assigned.completedAt ? "check-circle" : "user-check"}
                           size={18}
                           color="#fff"
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text
-                          style={[styles.assignedTitle, { color: colors.text }]}
-                        >
+                        <Text style={[styles.assignedTitle, { color: colors.text }]}>
                           {assigned.templateName}
                         </Text>
-                        <Text
-                          style={[
-                            styles.assignedMeta,
-                            { color: colors.mutedForeground },
-                          ]}
-                        >
-                          By {assigned.trainerName} ·{" "}
-                          {assigned.exercises.length} exercises
+                        <Text style={[styles.assignedMeta, { color: colors.mutedForeground }]}>
+                          By {assigned.trainerName} · {assigned.exercises.length} exercises
                         </Text>
                         {assigned.completedAt && (
-                          <Text
-                            style={[
-                              styles.assignedCompleted,
-                              { color: colors.success },
-                            ]}
-                          >
-                            Completed{" "}
-                            {new Date(
-                              assigned.completedAt,
-                            ).toLocaleDateString()}
+                          <Text style={[styles.assignedCompleted, { color: colors.success }]}>
+                            Completed {new Date(assigned.completedAt).toLocaleDateString()}
                           </Text>
                         )}
                       </View>
                     </View>
                     {!assigned.completedAt && (
                       <Pressable
-                        style={[
-                          styles.startAssignedBtn,
-                          { backgroundColor: colors.primary },
-                        ]}
+                        style={[styles.startAssignedBtn, { backgroundColor: colors.primary }]}
                         onPress={() => handleStartAssignedWorkout(assigned)}
                       >
-                        <Text style={styles.startAssignedBtnText}>
-                          Start Workout →
-                        </Text>
+                        <Text style={styles.startAssignedBtnText}>Start Workout →</Text>
                       </Pressable>
                     )}
                   </View>
@@ -793,12 +676,7 @@ export default function WorkoutScreen() {
             {!isTrainerOrOwner && loadingAssigned && (
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={colors.primary} size="small" />
-                <Text
-                  style={[
-                    styles.loadingText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
                   Loading assigned workouts...
                 </Text>
               </View>
@@ -807,36 +685,21 @@ export default function WorkoutScreen() {
             {isMemberView && (
               <>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                    My Plans
-                  </Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>My Plans</Text>
                   <Pressable
-                    style={[
-                      styles.planHeaderBtn,
-                      { borderColor: colors.primary },
-                    ]}
+                    style={[styles.planHeaderBtn, { borderColor: colors.primary }]}
                     onPress={() => {
                       setEditingPlan(null);
                       setShowPlanModal(true);
                     }}
                   >
                     <Feather name="plus" size={14} color={colors.primary} />
-                    <Text
-                      style={[
-                        styles.planHeaderBtnText,
-                        { color: colors.primary },
-                      ]}
-                    >
+                    <Text style={[styles.planHeaderBtnText, { color: colors.primary }]}>
                       New Plan
                     </Text>
                   </Pressable>
                 </View>
-                <Text
-                  style={[
-                    styles.sectionHelperText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+                <Text style={[styles.sectionHelperText, { color: colors.mutedForeground }]}>
                   {myPlansSummary}
                 </Text>
 
@@ -850,19 +713,11 @@ export default function WorkoutScreen() {
                       },
                     ]}
                   >
-                    <Text
-                      style={[styles.memberPlanEmptyTitle, { color: colors.text }]}
-                    >
+                    <Text style={[styles.memberPlanEmptyTitle, { color: colors.text }]}>
                       No saved plans yet
                     </Text>
-                    <Text
-                      style={[
-                        styles.memberPlanEmptyBody,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
-                      Build one routine you like, save it here, and reuse it on
-                      busy days.
+                    <Text style={[styles.memberPlanEmptyBody, { color: colors.mutedForeground }]}>
+                      Build one routine you like, save it here, and reuse it on busy days.
                     </Text>
                   </View>
                 ) : (
@@ -879,33 +734,18 @@ export default function WorkoutScreen() {
                     >
                       <View style={styles.memberPlanHeader}>
                         <View style={{ flex: 1 }}>
-                          <Text
-                            style={[styles.memberPlanName, { color: colors.text }]}
-                          >
+                          <Text style={[styles.memberPlanName, { color: colors.text }]}>
                             {plan.name}
                           </Text>
-                          <Text
-                            style={[
-                              styles.memberPlanMeta,
-                              { color: colors.mutedForeground },
-                            ]}
-                          >
+                          <Text style={[styles.memberPlanMeta, { color: colors.mutedForeground }]}>
                             {plan.focus ? `${plan.focus} · ` : ""}
                             {plan.exercises.length} exercises
                           </Text>
                         </View>
                         <View
-                          style={[
-                            styles.memberPlanPill,
-                            { backgroundColor: colors.primaryMuted },
-                          ]}
+                          style={[styles.memberPlanPill, { backgroundColor: colors.primaryMuted }]}
                         >
-                          <Text
-                            style={[
-                              styles.memberPlanPillText,
-                              { color: colors.primary },
-                            ]}
-                          >
+                          <Text style={[styles.memberPlanPillText, { color: colors.primary }]}>
                             Saved
                           </Text>
                         </View>
@@ -921,54 +761,32 @@ export default function WorkoutScreen() {
                           .slice(0, 3)
                           .map((exercise) => exercise.name)
                           .join(" · ")}
-                        {plan.exercises.length > 3
-                          ? ` · +${plan.exercises.length - 3} more`
-                          : ""}
+                        {plan.exercises.length > 3 ? ` · +${plan.exercises.length - 3} more` : ""}
                       </Text>
 
                       <View style={styles.memberPlanActions}>
                         <Pressable
-                          style={[
-                            styles.memberPlanPrimaryBtn,
-                            { backgroundColor: colors.primary },
-                          ]}
+                          style={[styles.memberPlanPrimaryBtn, { backgroundColor: colors.primary }]}
                           onPress={() => handleStartSavedPlan(plan.id)}
                         >
-                          <Text style={styles.memberPlanPrimaryBtnText}>
-                            Start
-                          </Text>
+                          <Text style={styles.memberPlanPrimaryBtnText}>Start</Text>
                         </Pressable>
                         <Pressable
-                          style={[
-                            styles.memberPlanSecondaryBtn,
-                            { borderColor: colors.border },
-                          ]}
+                          style={[styles.memberPlanSecondaryBtn, { borderColor: colors.border }]}
                           onPress={() => {
                             setEditingPlan(plan);
                             setShowPlanModal(true);
                           }}
                         >
-                          <Text
-                            style={[
-                              styles.memberPlanSecondaryBtnText,
-                              { color: colors.text },
-                            ]}
-                          >
+                          <Text style={[styles.memberPlanSecondaryBtnText, { color: colors.text }]}>
                             Edit
                           </Text>
                         </Pressable>
                         <Pressable
-                          style={[
-                            styles.memberPlanIconBtn,
-                            { borderColor: colors.border },
-                          ]}
+                          style={[styles.memberPlanIconBtn, { borderColor: colors.border }]}
                           onPress={() => handleDeleteSavedPlan(plan)}
                         >
-                          <Feather
-                            name="trash-2"
-                            size={14}
-                            color={colors.destructive}
-                          />
+                          <Feather name="trash-2" size={14} color={colors.destructive} />
                         </Pressable>
                       </View>
                     </View>
@@ -989,12 +807,7 @@ export default function WorkoutScreen() {
               disabled={loadingAI}
             >
               <View style={styles.aiWorkoutInner}>
-                <View
-                  style={[
-                    styles.aiWorkoutIcon,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
+                <View style={[styles.aiWorkoutIcon, { backgroundColor: colors.primary }]}>
                   {loadingAI ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
@@ -1005,26 +818,15 @@ export default function WorkoutScreen() {
                   <Text style={[styles.aiWorkoutTitle, { color: colors.text }]}>
                     AI Workout Generator
                   </Text>
-                  <Text
-                    style={[
-                      styles.aiWorkoutSubtitle,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[styles.aiWorkoutSubtitle, { color: colors.mutedForeground }]}>
                     {aiCoachSubtitle}
                   </Text>
                 </View>
-                <Feather
-                  name="chevron-right"
-                  size={20}
-                  color={colors.primary}
-                />
+                <Feather name="chevron-right" size={20} color={colors.primary} />
               </View>
             </Pressable>
 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Quick Start Templates
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Start Templates</Text>
             <View style={styles.templateGrid}>
               {QUICK_STARTS.map((t) => (
                 <Pressable
@@ -1038,15 +840,8 @@ export default function WorkoutScreen() {
                   ]}
                   onPress={() => handleQuickStart(t)}
                 >
-                  <Text style={[styles.templateName, { color: colors.text }]}>
-                    {t.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.templateCount,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[styles.templateName, { color: colors.text }]}>{t.name}</Text>
+                  <Text style={[styles.templateCount, { color: colors.mutedForeground }]}>
                     {t.exercises.length} exercises
                   </Text>
                 </Pressable>
@@ -1055,9 +850,7 @@ export default function WorkoutScreen() {
 
             {recentSessions.length > 0 && (
               <>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  History
-                </Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>History</Text>
                 {recentSessions.map((s) => (
                   <View
                     key={s.id}
@@ -1070,49 +863,23 @@ export default function WorkoutScreen() {
                     ]}
                   >
                     <View style={styles.sessionHeader}>
-                      <Text
-                        style={[styles.sessionName, { color: colors.text }]}
-                      >
-                        {s.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.sessionDate,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
+                      <Text style={[styles.sessionName, { color: colors.text }]}>{s.name}</Text>
+                      <Text style={[styles.sessionDate, { color: colors.mutedForeground }]}>
                         {s.date}
                       </Text>
                     </View>
                     <View style={styles.sessionStats}>
-                      <Text
-                        style={[
-                          styles.sessionStat,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "600" }}>
-                          {s.duration}
-                        </Text>{" "}
+                      <Text style={[styles.sessionStat, { color: colors.mutedForeground }]}>
+                        <Text style={{ color: colors.text, fontWeight: "600" }}>{s.duration}</Text>{" "}
                         min
                       </Text>
-                      <Text
-                        style={[
-                          styles.sessionStat,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
+                      <Text style={[styles.sessionStat, { color: colors.mutedForeground }]}>
                         <Text style={{ color: colors.text, fontWeight: "600" }}>
                           {s.exercises.length}
                         </Text>{" "}
                         exercises
                       </Text>
-                      <Text
-                        style={[
-                          styles.sessionStat,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
+                      <Text style={[styles.sessionStat, { color: colors.mutedForeground }]}>
                         <Text style={{ color: colors.text, fontWeight: "600" }}>
                           {s.totalVolume.toLocaleString()}
                         </Text>{" "}
@@ -1126,14 +893,8 @@ export default function WorkoutScreen() {
 
             {recentSessions.length === 0 && !loadingAssigned && (
               <View style={styles.empty}>
-                <Feather
-                  name="activity"
-                  size={48}
-                  color={colors.mutedForeground}
-                />
-                <Text
-                  style={[styles.emptyText, { color: colors.mutedForeground }]}
-                >
+                <Feather name="activity" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                   No workouts yet. Start your first session!
                 </Text>
               </View>
@@ -1177,12 +938,8 @@ export default function WorkoutScreen() {
                   style={[
                     styles.chip,
                     {
-                      backgroundColor:
-                        selectedMuscle === chip ? colors.primary : colors.card,
-                      borderColor:
-                        selectedMuscle === chip
-                          ? colors.primary
-                          : colors.border,
+                      backgroundColor: selectedMuscle === chip ? colors.primary : colors.card,
+                      borderColor: selectedMuscle === chip ? colors.primary : colors.border,
                     },
                   ]}
                   onPress={() => setSelectedMuscle(chip)}
@@ -1191,10 +948,7 @@ export default function WorkoutScreen() {
                     style={[
                       styles.chipText,
                       {
-                        color:
-                          selectedMuscle === chip
-                            ? "#fff"
-                            : colors.mutedForeground,
+                        color: selectedMuscle === chip ? "#fff" : colors.mutedForeground,
                       },
                     ]}
                   >
@@ -1205,14 +959,8 @@ export default function WorkoutScreen() {
             </ScrollView>
             {filteredExercises.length === 0 ? (
               <View style={styles.empty}>
-                <Feather
-                  name="search"
-                  size={40}
-                  color={colors.mutedForeground}
-                />
-                <Text
-                  style={[styles.emptyText, { color: colors.mutedForeground }]}
-                >
+                <Feather name="search" size={40} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                   No exercises found. Try a different search or filter.
                 </Text>
               </View>
@@ -1221,38 +969,17 @@ export default function WorkoutScreen() {
                 {filteredExercises.map((ex) => (
                   <View
                     key={ex.id}
-                    style={[
-                      styles.exerciseItem,
-                      { borderBottomColor: colors.border },
-                    ]}
+                    style={[styles.exerciseItem, { borderBottomColor: colors.border }]}
                   >
-                    <View
-                      style={[
-                        styles.exCategory,
-                        { backgroundColor: colors.primary + "20" },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.exCategoryText,
-                          { color: colors.primary },
-                        ]}
-                      >
+                    <View style={[styles.exCategory, { backgroundColor: colors.primary + "20" }]}>
+                      <Text style={[styles.exCategoryText, { color: colors.primary }]}>
                         {ex.muscleGroup[0]}
                       </Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.exName, { color: colors.text }]}>
-                        {ex.name}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.exMeta,
-                          { color: colors.mutedForeground },
-                        ]}
-                      >
-                        {ex.muscleGroup} · {ex.equipment} · {ex.defaultSets}×
-                        {ex.defaultReps}
+                      <Text style={[styles.exName, { color: colors.text }]}>{ex.name}</Text>
+                      <Text style={[styles.exMeta, { color: colors.mutedForeground }]}>
+                        {ex.muscleGroup} · {ex.equipment} · {ex.defaultSets}×{ex.defaultReps}
                       </Text>
                     </View>
                   </View>
@@ -1266,14 +993,8 @@ export default function WorkoutScreen() {
           <View>
             {prs.length === 0 ? (
               <View style={styles.empty}>
-                <Feather
-                  name="award"
-                  size={48}
-                  color={colors.mutedForeground}
-                />
-                <Text
-                  style={[styles.emptyText, { color: colors.mutedForeground }]}
-                >
+                <Feather name="award" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                   No personal records yet. Complete workouts to set PRs!
                 </Text>
               </View>
@@ -1291,12 +1012,8 @@ export default function WorkoutScreen() {
                 >
                   <Feather name="award" size={20} color={colors.warning} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.prName, { color: colors.text }]}>
-                      {pr.name}
-                    </Text>
-                    <Text
-                      style={[styles.prDate, { color: colors.mutedForeground }]}
-                    >
+                    <Text style={[styles.prName, { color: colors.text }]}>{pr.name}</Text>
+                    <Text style={[styles.prDate, { color: colors.mutedForeground }]}>
                       {pr.date}
                     </Text>
                   </View>
@@ -1312,10 +1029,7 @@ export default function WorkoutScreen() {
         {activeTab === "templates" && isTrainerOrOwner && (
           <View>
             <Pressable
-              style={[
-                styles.createTemplateBtn,
-                { backgroundColor: colors.primary },
-              ]}
+              style={[styles.createTemplateBtn, { backgroundColor: colors.primary }]}
               onPress={() => setShowCreateTemplate(true)}
             >
               <Feather name="plus" size={16} color="#fff" />
@@ -1325,12 +1039,7 @@ export default function WorkoutScreen() {
             {loadingTemplates && (
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={colors.primary} />
-                <Text
-                  style={[
-                    styles.loadingText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
                   Loading templates...
                 </Text>
               </View>
@@ -1338,14 +1047,8 @@ export default function WorkoutScreen() {
 
             {!loadingTemplates && templates.length === 0 && (
               <View style={styles.empty}>
-                <Feather
-                  name="clipboard"
-                  size={48}
-                  color={colors.mutedForeground}
-                />
-                <Text
-                  style={[styles.emptyText, { color: colors.mutedForeground }]}
-                >
+                <Feather name="clipboard" size={48} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                   No templates yet. Create one to assign workouts to members.
                 </Text>
               </View>
@@ -1361,20 +1064,10 @@ export default function WorkoutScreen() {
               >
                 <View style={styles.trainerTemplateHeader}>
                   <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.trainerTemplateName,
-                        { color: colors.text },
-                      ]}
-                    >
+                    <Text style={[styles.trainerTemplateName, { color: colors.text }]}>
                       {template.name}
                     </Text>
-                    <Text
-                      style={[
-                        styles.trainerTemplateMeta,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
+                    <Text style={[styles.trainerTemplateMeta, { color: colors.mutedForeground }]}>
                       {template.exercises.length} exercises · Created{" "}
                       {new Date(template.createdAt).toLocaleDateString()}
                     </Text>
@@ -1384,20 +1077,14 @@ export default function WorkoutScreen() {
                   {template.exercises.slice(0, 3).map((ex, idx) => (
                     <Text
                       key={idx}
-                      style={[
-                        styles.trainerTemplateExercise,
-                        { color: colors.mutedForeground },
-                      ]}
+                      style={[styles.trainerTemplateExercise, { color: colors.mutedForeground }]}
                     >
                       {ex.name} — {ex.sets}×{ex.reps}
                     </Text>
                   ))}
                   {template.exercises.length > 3 && (
                     <Text
-                      style={[
-                        styles.trainerTemplateExercise,
-                        { color: colors.mutedForeground },
-                      ]}
+                      style={[styles.trainerTemplateExercise, { color: colors.mutedForeground }]}
                     >
                       +{template.exercises.length - 3} more
                     </Text>
@@ -1405,10 +1092,7 @@ export default function WorkoutScreen() {
                 </View>
                 <View style={styles.trainerTemplateActions}>
                   <Pressable
-                    style={[
-                      styles.assignBtn,
-                      { backgroundColor: colors.primary },
-                    ]}
+                    style={[styles.assignBtn, { backgroundColor: colors.primary }]}
                     onPress={() => {
                       setSelectedTemplate(template);
                       setSelectedMember(null);
@@ -1421,17 +1105,10 @@ export default function WorkoutScreen() {
                     <Text style={styles.assignBtnText}>Assign to Member</Text>
                   </Pressable>
                   <Pressable
-                    style={[
-                      styles.deleteTemplateBtn,
-                      { borderColor: colors.border },
-                    ]}
+                    style={[styles.deleteTemplateBtn, { borderColor: colors.border }]}
                     onPress={() => handleDeleteTemplate(template.id)}
                   >
-                    <Feather
-                      name="trash-2"
-                      size={14}
-                      color={colors.destructive}
-                    />
+                    <Feather name="trash-2" size={14} color={colors.destructive} />
                   </Pressable>
                 </View>
               </View>
@@ -1480,16 +1157,9 @@ export default function WorkoutScreen() {
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
-            <Text style={[styles.assignModalTitle, { color: colors.text }]}>
-              Assign to Member
-            </Text>
+            <Text style={[styles.assignModalTitle, { color: colors.text }]}>Assign to Member</Text>
             {selectedTemplate && (
-              <Text
-                style={[
-                  styles.assignModalSubtitle,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text style={[styles.assignModalSubtitle, { color: colors.mutedForeground }]}>
                 "{selectedTemplate.name}"
               </Text>
             )}
@@ -1511,30 +1181,17 @@ export default function WorkoutScreen() {
             {loadingAssignableMembers ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={colors.primary} size="small" />
-                <Text
-                  style={[
-                    styles.loadingText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
                   Loading members...
                 </Text>
               </View>
             ) : filteredAssignableMembers.length === 0 ? (
-              <Text
-                style={[
-                  styles.assignEmptyText,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text style={[styles.assignEmptyText, { color: colors.mutedForeground }]}>
                 No members available to assign yet.
               </Text>
             ) : (
               <ScrollView
-                style={[
-                  styles.assignMemberList,
-                  { borderColor: colors.border },
-                ]}
+                style={[styles.assignMemberList, { borderColor: colors.border }]}
                 contentContainerStyle={styles.assignMemberListContent}
                 keyboardShouldPersistTaps="handled"
               >
@@ -1546,41 +1203,21 @@ export default function WorkoutScreen() {
                       style={[
                         styles.assignMemberItem,
                         {
-                          backgroundColor: isSelected
-                            ? colors.primaryMuted
-                            : colors.background,
-                          borderColor: isSelected
-                            ? colors.primary
-                            : colors.border,
+                          backgroundColor: isSelected ? colors.primaryMuted : colors.background,
+                          borderColor: isSelected ? colors.primary : colors.border,
                         },
                       ]}
                       onPress={() => setSelectedMember(member)}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text
-                          style={[
-                            styles.assignMemberName,
-                            { color: colors.text },
-                          ]}
-                        >
+                        <Text style={[styles.assignMemberName, { color: colors.text }]}>
                           {member.name}
                         </Text>
-                        <Text
-                          style={[
-                            styles.assignMemberEmail,
-                            { color: colors.mutedForeground },
-                          ]}
-                        >
+                        <Text style={[styles.assignMemberEmail, { color: colors.mutedForeground }]}>
                           {member.email || member.id}
                         </Text>
                       </View>
-                      {isSelected && (
-                        <Feather
-                          name="check"
-                          size={18}
-                          color={colors.primary}
-                        />
-                      )}
+                      {isSelected && <Feather name="check" size={18} color={colors.primary} />}
                     </Pressable>
                   );
                 })}
@@ -1588,10 +1225,7 @@ export default function WorkoutScreen() {
             )}
             <View style={styles.assignModalActions}>
               <Pressable
-                style={[
-                  styles.assignModalCancelBtn,
-                  { borderColor: colors.border },
-                ]}
+                style={[styles.assignModalCancelBtn, { borderColor: colors.border }]}
                 onPress={() => {
                   setShowAssignModal(false);
                   setMemberSearch("");
@@ -1599,11 +1233,7 @@ export default function WorkoutScreen() {
                   setSelectedTemplate(null);
                 }}
               >
-                <Text
-                  style={[styles.assignModalCancelText, { color: colors.text }]}
-                >
-                  Cancel
-                </Text>
+                <Text style={[styles.assignModalCancelText, { color: colors.text }]}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={[
@@ -1648,17 +1278,12 @@ function CreateTemplateModal({
   getToken: () => Promise<string | null>;
 }) {
   const [templateName, setTemplateName] = useState("");
-  const [selectedExercises, setSelectedExercises] = useState<
-    TemplateExercise[]
-  >([]);
+  const [selectedExercises, setSelectedExercises] = useState<TemplateExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [showPicker, setShowPicker] = useState(false);
 
-  const filteredForPicker = useMemo(
-    () => searchExercises(exerciseSearch),
-    [exerciseSearch],
-  );
+  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
 
   const addExercise = (exId: string) => {
     const ex = EXERCISES.find((e) => e.id === exId);
@@ -1678,9 +1303,7 @@ function CreateTemplateModal({
   };
 
   const updateExercise = (idx: number, updates: Partial<TemplateExercise>) => {
-    setSelectedExercises((prev) =>
-      prev.map((e, i) => (i === idx ? { ...e, ...updates } : e)),
-    );
+    setSelectedExercises((prev) => prev.map((e, i) => (i === idx ? { ...e, ...updates } : e)));
   };
 
   const removeExercise = (idx: number) => {
@@ -1726,33 +1349,22 @@ function CreateTemplateModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[{ flex: 1, backgroundColor: colors.background }]}>
-        <View
-          style={[createStyles.header, { borderBottomColor: colors.border }]}
-        >
+        <View style={[createStyles.header, { borderBottomColor: colors.border }]}>
           <Pressable onPress={onClose}>
             <Feather name="x" size={24} color={colors.text} />
           </Pressable>
-          <Text style={[createStyles.headerTitle, { color: colors.text }]}>
-            Create Template
-          </Text>
+          <Text style={[createStyles.headerTitle, { color: colors.text }]}>Create Template</Text>
           <Pressable onPress={handleSave} disabled={saving}>
             {saving ? (
               <ActivityIndicator color={colors.primary} size="small" />
             ) : (
-              <Text style={[createStyles.saveBtn, { color: colors.primary }]}>
-                Save
-              </Text>
+              <Text style={[createStyles.saveBtn, { color: colors.primary }]}>Save</Text>
             )}
           </Pressable>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={createStyles.scroll}
-        >
-          <Text style={[createStyles.label, { color: colors.text }]}>
-            Workout Title
-          </Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={createStyles.scroll}>
+          <Text style={[createStyles.label, { color: colors.text }]}>Workout Title</Text>
           <TextInput
             style={[
               createStyles.input,
@@ -1768,9 +1380,7 @@ function CreateTemplateModal({
             onChangeText={setTemplateName}
           />
 
-          <Text style={[createStyles.label, { color: colors.text }]}>
-            Exercises
-          </Text>
+          <Text style={[createStyles.label, { color: colors.text }]}>Exercises</Text>
 
           {selectedExercises.map((ex, idx) => (
             <View
@@ -1781,25 +1391,14 @@ function CreateTemplateModal({
               ]}
             >
               <View style={createStyles.exCardHeader}>
-                <Text style={[createStyles.exCardName, { color: colors.text }]}>
-                  {ex.name}
-                </Text>
+                <Text style={[createStyles.exCardName, { color: colors.text }]}>{ex.name}</Text>
                 <Pressable onPress={() => removeExercise(idx)}>
-                  <Feather
-                    name="trash-2"
-                    size={16}
-                    color={colors.destructive}
-                  />
+                  <Feather name="trash-2" size={16} color={colors.destructive} />
                 </Pressable>
               </View>
               <View style={createStyles.exCardRow}>
                 <View style={createStyles.exCardField}>
-                  <Text
-                    style={[
-                      createStyles.exCardFieldLabel,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[createStyles.exCardFieldLabel, { color: colors.mutedForeground }]}>
                     Sets
                   </Text>
                   <TextInput
@@ -1813,18 +1412,11 @@ function CreateTemplateModal({
                     ]}
                     keyboardType="number-pad"
                     value={ex.sets.toString()}
-                    onChangeText={(v) =>
-                      updateExercise(idx, { sets: parseInt(v) || 1 })
-                    }
+                    onChangeText={(v) => updateExercise(idx, { sets: parseInt(v) || 1 })}
                   />
                 </View>
                 <View style={createStyles.exCardField}>
-                  <Text
-                    style={[
-                      createStyles.exCardFieldLabel,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[createStyles.exCardFieldLabel, { color: colors.mutedForeground }]}>
                     Reps
                   </Text>
                   <TextInput
@@ -1838,9 +1430,7 @@ function CreateTemplateModal({
                     ]}
                     keyboardType="number-pad"
                     value={ex.reps.toString()}
-                    onChangeText={(v) =>
-                      updateExercise(idx, { reps: parseInt(v) || 1 })
-                    }
+                    onChangeText={(v) => updateExercise(idx, { reps: parseInt(v) || 1 })}
                   />
                 </View>
               </View>
@@ -1867,11 +1457,7 @@ function CreateTemplateModal({
             onPress={() => setShowPicker(true)}
           >
             <Feather name="plus" size={16} color={colors.primary} />
-            <Text
-              style={[createStyles.addExBtnText, { color: colors.primary }]}
-            >
-              Add Exercise
-            </Text>
+            <Text style={[createStyles.addExBtnText, { color: colors.primary }]}>Add Exercise</Text>
           </Pressable>
 
           {showPicker && (
@@ -1900,41 +1486,20 @@ function CreateTemplateModal({
                 {filteredForPicker.slice(0, 30).map((ex) => (
                   <Pressable
                     key={ex.id}
-                    style={[
-                      createStyles.pickerItem,
-                      { borderBottomColor: colors.border },
-                    ]}
+                    style={[createStyles.pickerItem, { borderBottomColor: colors.border }]}
                     onPress={() => addExercise(ex.id)}
                   >
-                    <Text
-                      style={[
-                        createStyles.pickerItemName,
-                        { color: colors.text },
-                      ]}
-                    >
+                    <Text style={[createStyles.pickerItemName, { color: colors.text }]}>
                       {ex.name}
                     </Text>
-                    <Text
-                      style={[
-                        createStyles.pickerItemMeta,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
+                    <Text style={[createStyles.pickerItemMeta, { color: colors.mutedForeground }]}>
                       {ex.muscleGroup}
                     </Text>
                   </Pressable>
                 ))}
               </ScrollView>
-              <Pressable
-                onPress={() => setShowPicker(false)}
-                style={createStyles.pickerCancel}
-              >
-                <Text
-                  style={[
-                    createStyles.pickerCancelText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+              <Pressable onPress={() => setShowPicker(false)} style={createStyles.pickerCancel}>
+                <Text style={[createStyles.pickerCancelText, { color: colors.mutedForeground }]}>
                   Cancel
                 </Text>
               </Pressable>
@@ -1961,9 +1526,7 @@ function MemberPlanModal({
 }) {
   const [planName, setPlanName] = useState("");
   const [planFocus, setPlanFocus] = useState("");
-  const [selectedExercises, setSelectedExercises] = useState<
-    SaveWorkoutPlanInput["exercises"]
-  >([]);
+  const [selectedExercises, setSelectedExercises] = useState<SaveWorkoutPlanInput["exercises"]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [showPicker, setShowPicker] = useState(false);
@@ -1978,10 +1541,7 @@ function MemberPlanModal({
     setSaving(false);
   }, [initialPlan, visible]);
 
-  const filteredForPicker = useMemo(
-    () => searchExercises(exerciseSearch),
-    [exerciseSearch],
-  );
+  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
 
   const addExercise = (exerciseId: string) => {
     const exercise = EXERCISES.find((item) => item.id === exerciseId);
@@ -2006,9 +1566,7 @@ function MemberPlanModal({
     updates: Partial<SaveWorkoutPlanInput["exercises"][number]>,
   ) => {
     setSelectedExercises((prev) =>
-      prev.map((exercise, index) =>
-        index === idx ? { ...exercise, ...updates } : exercise,
-      ),
+      prev.map((exercise, index) => (index === idx ? { ...exercise, ...updates } : exercise)),
     );
   };
 
@@ -2038,9 +1596,7 @@ function MemberPlanModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[{ flex: 1, backgroundColor: colors.background }]}>
-        <View
-          style={[createStyles.header, { borderBottomColor: colors.border }]}
-        >
+        <View style={[createStyles.header, { borderBottomColor: colors.border }]}>
           <Pressable onPress={onClose}>
             <Feather name="x" size={24} color={colors.text} />
           </Pressable>
@@ -2051,20 +1607,13 @@ function MemberPlanModal({
             {saving ? (
               <ActivityIndicator color={colors.primary} size="small" />
             ) : (
-              <Text style={[createStyles.saveBtn, { color: colors.primary }]}>
-                Save
-              </Text>
+              <Text style={[createStyles.saveBtn, { color: colors.primary }]}>Save</Text>
             )}
           </Pressable>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={createStyles.scroll}
-        >
-          <Text style={[createStyles.label, { color: colors.text }]}>
-            Plan Title
-          </Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={createStyles.scroll}>
+          <Text style={[createStyles.label, { color: colors.text }]}>Plan Title</Text>
           <TextInput
             style={[
               createStyles.input,
@@ -2080,9 +1629,7 @@ function MemberPlanModal({
             onChangeText={setPlanName}
           />
 
-          <Text style={[createStyles.label, { color: colors.text }]}>
-            Focus
-          </Text>
+          <Text style={[createStyles.label, { color: colors.text }]}>Focus</Text>
           <TextInput
             style={[
               createStyles.input,
@@ -2098,9 +1645,7 @@ function MemberPlanModal({
             onChangeText={setPlanFocus}
           />
 
-          <Text style={[createStyles.label, { color: colors.text }]}>
-            Exercises
-          </Text>
+          <Text style={[createStyles.label, { color: colors.text }]}>Exercises</Text>
 
           {selectedExercises.map((exercise, idx) => (
             <View
@@ -2115,22 +1660,13 @@ function MemberPlanModal({
                   {exercise.name}
                 </Text>
                 <Pressable onPress={() => removeExercise(idx)}>
-                  <Feather
-                    name="trash-2"
-                    size={16}
-                    color={colors.destructive}
-                  />
+                  <Feather name="trash-2" size={16} color={colors.destructive} />
                 </Pressable>
               </View>
 
               <View style={createStyles.exCardRow}>
                 <View style={createStyles.exCardField}>
-                  <Text
-                    style={[
-                      createStyles.exCardFieldLabel,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[createStyles.exCardFieldLabel, { color: colors.mutedForeground }]}>
                     Sets
                   </Text>
                   <TextInput
@@ -2150,12 +1686,7 @@ function MemberPlanModal({
                   />
                 </View>
                 <View style={createStyles.exCardField}>
-                  <Text
-                    style={[
-                      createStyles.exCardFieldLabel,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
+                  <Text style={[createStyles.exCardFieldLabel, { color: colors.mutedForeground }]}>
                     Reps
                   </Text>
                   <TextInput
@@ -2199,11 +1730,7 @@ function MemberPlanModal({
             onPress={() => setShowPicker(true)}
           >
             <Feather name="plus" size={16} color={colors.primary} />
-            <Text
-              style={[createStyles.addExBtnText, { color: colors.primary }]}
-            >
-              Add Exercise
-            </Text>
+            <Text style={[createStyles.addExBtnText, { color: colors.primary }]}>Add Exercise</Text>
           </Pressable>
 
           {showPicker && (
@@ -2232,41 +1759,20 @@ function MemberPlanModal({
                 {filteredForPicker.slice(0, 30).map((exercise) => (
                   <Pressable
                     key={exercise.id}
-                    style={[
-                      createStyles.pickerItem,
-                      { borderBottomColor: colors.border },
-                    ]}
+                    style={[createStyles.pickerItem, { borderBottomColor: colors.border }]}
                     onPress={() => addExercise(exercise.id)}
                   >
-                    <Text
-                      style={[
-                        createStyles.pickerItemName,
-                        { color: colors.text },
-                      ]}
-                    >
+                    <Text style={[createStyles.pickerItemName, { color: colors.text }]}>
                       {exercise.name}
                     </Text>
-                    <Text
-                      style={[
-                        createStyles.pickerItemMeta,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
+                    <Text style={[createStyles.pickerItemMeta, { color: colors.mutedForeground }]}>
                       {exercise.muscleGroup}
                     </Text>
                   </Pressable>
                 ))}
               </ScrollView>
-              <Pressable
-                onPress={() => setShowPicker(false)}
-                style={createStyles.pickerCancel}
-              >
-                <Text
-                  style={[
-                    createStyles.pickerCancelText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+              <Pressable onPress={() => setShowPicker(false)} style={createStyles.pickerCancel}>
+                <Text style={[createStyles.pickerCancelText, { color: colors.mutedForeground }]}>
                   Cancel
                 </Text>
               </Pressable>

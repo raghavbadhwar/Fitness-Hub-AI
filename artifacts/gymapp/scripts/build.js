@@ -158,23 +158,12 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
   }
 
-  metroProcess = spawn(
-    "pnpm",
-    [
-      "exec",
-      "expo",
-      "start",
-      "--no-dev",
-      "--minify",
-      "--localhost",
-    ],
-    {
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: false,
-      cwd: projectRoot,
-      env,
-    },
-  );
+  metroProcess = spawn("pnpm", ["exec", "expo", "start", "--no-dev", "--minify", "--localhost"], {
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: false,
+    cwd: projectRoot,
+    env,
+  });
 
   if (metroProcess.stdout) {
     metroProcess.stdout.on("data", (data) => {
@@ -284,9 +273,7 @@ async function downloadManifest(platform) {
     return manifest;
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error(
-        `Manifest download timeout after 5m for platform: ${platform}`,
-      );
+      throw new Error(`Manifest download timeout after 5m for platform: ${platform}`);
     }
     throw error;
   } finally {
@@ -426,9 +413,7 @@ async function downloadAssets(assets, timestamp) {
   if (failures.length > 0) {
     const errorMsg =
       `Failed to download ${failures.length} asset(s):\n` +
-      failures
-        .map((f) => `  - ${f.filename}: ${f.error} (${f.url})`)
-        .join("\n");
+      failures.map((f) => `  - ${f.filename}: ${f.error} (${f.url})`).join("\n");
     exitWithError(errorMsg);
   }
 
@@ -450,22 +435,17 @@ function updateBundleUrls(timestamp, baseUrl) {
     );
     let bundle = fs.readFileSync(bundlePath, "utf-8");
 
-    bundle = bundle.replace(
-      /httpServerLocation:"(\/[^"]+)"/g,
-      (_match, capturedPath) => {
-        const tempUrl = new URL(`http://localhost:8081${capturedPath}`);
-        const unstablePath = tempUrl.searchParams.get("unstable_path");
+    bundle = bundle.replace(/httpServerLocation:"(\/[^"]+)"/g, (_match, capturedPath) => {
+      const tempUrl = new URL(`http://localhost:8081${capturedPath}`);
+      const unstablePath = tempUrl.searchParams.get("unstable_path");
 
-        if (!unstablePath) {
-          throw new Error(
-            `Asset missing unstable_path in bundle: ${capturedPath}`,
-          );
-        }
+      if (!unstablePath) {
+        throw new Error(`Asset missing unstable_path in bundle: ${capturedPath}`);
+      }
 
-        const decodedPath = decodeURIComponent(unstablePath);
-        return `httpServerLocation:"${baseUrl}${basePath}/${timestamp}/_expo/static/js/${decodedPath}"`;
-      },
-    );
+      const decodedPath = decodeURIComponent(unstablePath);
+      return `httpServerLocation:"${baseUrl}${basePath}/${timestamp}/_expo/static/js/${decodedPath}"`;
+    });
 
     fs.writeFileSync(bundlePath, bundle);
   };
@@ -483,13 +463,9 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
 
     manifest.launchAsset.url = `${baseUrl}${basePath}/${timestamp}/_expo/static/js/${platform}/bundle.js`;
     manifest.launchAsset.key = `bundle-${timestamp}`;
-    manifest.createdAt = new Date(
-      Number(timestamp.split("-")[0]),
-    ).toISOString();
-    manifest.extra.expoClient.hostUri =
-      baseUrl.replace("https://", "") + "/" + platform;
-    manifest.extra.expoGo.debuggerHost =
-      baseUrl.replace("https://", "") + "/" + platform;
+    manifest.createdAt = new Date(Number(timestamp.split("-")[0])).toISOString();
+    manifest.extra.expoClient.hostUri = baseUrl.replace("https://", "") + "/" + platform;
+    manifest.extra.expoGo.debuggerHost = baseUrl.replace("https://", "") + "/" + platform;
     manifest.extra.expoGo.packagerOpts.dev = false;
 
     if (manifest.assets && manifest.assets.length > 0) {

@@ -19,9 +19,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function normalizeRoutePath(path: string) {
-  const normalized = path
-    .replace(/\/\((auth|tabs)\)/g, "")
-    .replace(/\/+/g, "/");
+  const normalized = path.replace(/\/\((auth|tabs)\)/g, "").replace(/\/+/g, "/");
 
   return normalized === "" ? "/" : normalized;
 }
@@ -91,23 +89,52 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen
         name="add-meal"
-        options={{ headerShown: true, title: "Log Food", presentation: "modal", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
+        options={{
+          headerShown: true,
+          title: "Log Food",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#0C0E1A" },
+          headerTintColor: "#F0F2FF",
+        }}
       />
       <Stack.Screen
         name="workout-session"
-        options={{ headerShown: true, title: "Workout", presentation: "modal", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
+        options={{
+          headerShown: true,
+          title: "Workout",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#0C0E1A" },
+          headerTintColor: "#F0F2FF",
+        }}
       />
       <Stack.Screen
         name="progress"
-        options={{ headerShown: true, title: "Progress", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
+        options={{
+          headerShown: true,
+          title: "Progress",
+          headerStyle: { backgroundColor: "#0C0E1A" },
+          headerTintColor: "#F0F2FF",
+        }}
       />
       <Stack.Screen
         name="profile"
-        options={{ headerShown: true, title: "Profile", presentation: "modal", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
+        options={{
+          headerShown: true,
+          title: "Profile",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#0C0E1A" },
+          headerTintColor: "#F0F2FF",
+        }}
       />
       <Stack.Screen
         name="manage-class"
-        options={{ headerShown: true, title: "Manage Class", presentation: "modal", headerStyle: { backgroundColor: "#0C0E1A" }, headerTintColor: "#F0F2FF" }}
+        options={{
+          headerShown: true,
+          title: "Manage Class",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#0C0E1A" },
+          headerTintColor: "#F0F2FF",
+        }}
       />
       <Stack.Screen
         name="workout-complete"
@@ -120,9 +147,7 @@ function RootLayoutNav() {
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
 
 if (!publishableKey) {
-  throw new Error(
-    "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required. Add it to .env.local.",
-  );
+  throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required. Add it to .env.local.");
 }
 
 export default function RootLayout() {

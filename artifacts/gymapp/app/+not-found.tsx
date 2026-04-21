@@ -16,9 +16,7 @@ export default function NotFoundScreen() {
         </Text>
 
         <Pressable style={styles.link} onPress={() => router.replace("/")}>
-          <Text style={[styles.linkText, { color: colors.primary }]}>
-            Go to home screen!
-          </Text>
+          <Text style={[styles.linkText, { color: colors.primary }]}>Go to home screen!</Text>
         </Pressable>
       </View>
     </>

@@ -145,14 +145,12 @@ beforeEach(() => {
 
 describe("ai routes", () => {
   it("returns a parsed workout suggestion payload", async () => {
-    const response = await request(app)
-      .post("/ai/workout-suggestion")
-      .send({
-        recentWorkouts: [],
-        goals: "build strength",
-        fitnessLevel: "intermediate",
-        availableTime: 45,
-      });
+    const response = await request(app).post("/ai/workout-suggestion").send({
+      recentWorkouts: [],
+      goals: "build strength",
+      fitnessLevel: "intermediate",
+      availableTime: 45,
+    });
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body, {

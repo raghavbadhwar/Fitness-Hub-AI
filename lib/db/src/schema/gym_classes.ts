@@ -18,7 +18,10 @@ export const gymClassesTable = pgTable("gym_classes", {
   status: text("status").notNull().default("scheduled"),
   color: text("color").notNull().default("#9096B3"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const insertGymClassSchema = createInsertSchema(gymClassesTable).omit({

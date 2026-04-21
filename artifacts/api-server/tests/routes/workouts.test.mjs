@@ -81,22 +81,22 @@ mock.module("@workspace/db", {
           from(table) {
             return {
               where(condition) {
-                const rows = table === memberWorkoutPlans && condition?.op === "eq"
-                  ? [...plansByMemberClerkId.values()]
-                      .filter((plan) => plan.memberClerkId === condition.value)
-                      .map(clonePlan)
-                  : [];
+                const rows =
+                  table === memberWorkoutPlans && condition?.op === "eq"
+                    ? [...plansByMemberClerkId.values()]
+                        .filter((plan) => plan.memberClerkId === condition.value)
+                        .map(clonePlan)
+                    : [];
 
                 return {
                   orderBy() {
                     return Promise.resolve(
-                      rows.sort(
-                        (left, right) =>
-                          right.updatedAt.getTime() - left.updatedAt.getTime(),
-                      ).map((plan) => ({
-                        ...plan,
-                        source: "member",
-                      })),
+                      rows
+                        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+                        .map((plan) => ({
+                          ...plan,
+                          source: "member",
+                        })),
                     );
                   },
                 };

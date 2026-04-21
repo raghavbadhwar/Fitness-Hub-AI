@@ -32,9 +32,7 @@ function fieldErrorMessage(source: unknown, field: string): string | undefined {
   }
 
   const candidateRecord = candidate as { message?: unknown };
-  return typeof candidateRecord.message === "string"
-    ? candidateRecord.message
-    : undefined;
+  return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
 }
 
 export default function ForgotPassword() {
@@ -77,8 +75,7 @@ export default function ForgotPassword() {
     });
     if (createError) return;
 
-    const { error: sendCodeError } =
-      await signIn.resetPasswordEmailCode.sendCode();
+    const { error: sendCodeError } = await signIn.resetPasswordEmailCode.sendCode();
     if (sendCodeError) return;
 
     setCode("");
@@ -118,9 +115,7 @@ export default function ForgotPassword() {
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.header}>
             <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
-            <Text style={[styles.title, { color: colors.text }]}>
-              Verify your recovery
-            </Text>
+            <Text style={[styles.title, { color: colors.text }]}>Verify your recovery</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               Enter the email code to finish signing back in
             </Text>
@@ -143,9 +138,7 @@ export default function ForgotPassword() {
               autoFocus
             />
             {fieldError("code") && (
-              <Text style={[styles.errorText, { color: colors.error }]}>
-                {fieldError("code")}
-              </Text>
+              <Text style={[styles.errorText, { color: colors.error }]}>{fieldError("code")}</Text>
             )}
             <Pressable
               style={[
@@ -162,21 +155,11 @@ export default function ForgotPassword() {
                 <Text style={styles.buttonText}>Verify & Continue</Text>
               )}
             </Pressable>
-            <Pressable
-              onPress={() => signIn.mfa.sendEmailCode()}
-              style={styles.secondaryAction}
-            >
-              <Text style={[styles.secondaryLink, { color: colors.primary }]}>
-                Resend code
-              </Text>
+            <Pressable onPress={() => signIn.mfa.sendEmailCode()} style={styles.secondaryAction}>
+              <Text style={[styles.secondaryLink, { color: colors.primary }]}>Resend code</Text>
             </Pressable>
             <Pressable onPress={startOver} style={styles.secondaryAction}>
-              <Text
-                style={[
-                  styles.secondaryLink,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text style={[styles.secondaryLink, { color: colors.mutedForeground }]}>
                 Start over
               </Text>
             </Pressable>
@@ -196,8 +179,8 @@ export default function ForgotPassword() {
               Additional verification needed
             </Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              Your password was reset, but this account still needs a second
-              factor. Finish sign-in from the main login screen.
+              Your password was reset, but this account still needs a second factor. Finish sign-in
+              from the main login screen.
             </Text>
           </View>
           <View style={styles.form}>
@@ -208,12 +191,7 @@ export default function ForgotPassword() {
               <Text style={styles.buttonText}>Back to Sign In</Text>
             </Pressable>
             <Pressable onPress={startOver} style={styles.secondaryAction}>
-              <Text
-                style={[
-                  styles.secondaryLink,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text style={[styles.secondaryLink, { color: colors.mutedForeground }]}>
                 Reset another password
               </Text>
             </Pressable>
@@ -230,26 +208,17 @@ export default function ForgotPassword() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-          >
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
               <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
-              <Text style={[styles.title, { color: colors.text }]}>
-                Set a new password
-              </Text>
-              <Text
-                style={[styles.subtitle, { color: colors.mutedForeground }]}
-              >
+              <Text style={[styles.title, { color: colors.text }]}>Set a new password</Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
                 Choose a new password for your member account
               </Text>
             </View>
             <View style={styles.form}>
               <View style={styles.field}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>
-                  New Password
-                </Text>
+                <Text style={[styles.label, { color: colors.mutedForeground }]}>New Password</Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -300,18 +269,11 @@ export default function ForgotPassword() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            keyboardShouldPersistTaps="handled"
-          >
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
               <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
-              <Text style={[styles.title, { color: colors.text }]}>
-                Verify reset code
-              </Text>
-              <Text
-                style={[styles.subtitle, { color: colors.mutedForeground }]}
-              >
+              <Text style={[styles.title, { color: colors.text }]}>Verify reset code</Text>
+              <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
                 Enter the password reset code sent to {email}
               </Text>
             </View>
@@ -363,12 +325,7 @@ export default function ForgotPassword() {
                 </Text>
               </Pressable>
               <Pressable onPress={startOver} style={styles.secondaryAction}>
-                <Text
-                  style={[
-                    styles.secondaryLink,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
+                <Text style={[styles.secondaryLink, { color: colors.mutedForeground }]}>
                   Start over
                 </Text>
               </Pressable>
@@ -385,25 +342,18 @@ export default function ForgotPassword() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={[styles.logo, { color: colors.primary }]}>GymOS</Text>
-            <Text style={[styles.title, { color: colors.text }]}>
-              Forgot password?
-            </Text>
+            <Text style={[styles.title, { color: colors.text }]}>Forgot password?</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              Recover your member account without affecting the existing profile
-              sync and onboarding checks.
+              Recover your member account without affecting the existing profile sync and onboarding
+              checks.
             </Text>
           </View>
           <View style={styles.form}>
             <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>
-                Email
-              </Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Email</Text>
               <TextInput
                 style={[
                   styles.input,
@@ -482,6 +432,12 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, marginTop: 2 },
   secondaryAction: { alignItems: "center", paddingVertical: 8 },
   secondaryLink: { fontSize: 14, fontWeight: "600" },
-  footer: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 8 },
+  footer: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    marginTop: 8,
+  },
   footerText: { fontSize: 14 },
 });

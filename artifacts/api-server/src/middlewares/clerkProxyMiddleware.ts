@@ -36,8 +36,7 @@ export function clerkProxyMiddleware(): RequestHandler {
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
-    pathRewrite: (path: string) =>
-      path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
+    pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers["x-forwarded-proto"] || "https";

@@ -1,6 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/expo";
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getApiBase } from "@/lib/api-base";
 
 export type UserRole = "member" | "trainer" | "owner";
@@ -79,19 +87,33 @@ const DEFAULT_PROFILE: UserProfile = {
 };
 
 function calculateTargets(profile: Partial<UserProfile>): Partial<UserProfile> {
-  const { weight = 70, height = 170, age = 25, gender = "male", activityLevel = "moderate", fitnessGoal = "maintain" } = profile;
-  const activityMultiplier = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
-  const bmr = gender === "male"
-    ? 88.362 + 13.397 * weight + 4.799 * height - 5.677 * age
-    : 447.593 + 9.247 * weight + 3.098 * height - 4.330 * age;
+  const {
+    weight = 70,
+    height = 170,
+    age = 25,
+    gender = "male",
+    activityLevel = "moderate",
+    fitnessGoal = "maintain",
+  } = profile;
+  const activityMultiplier = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9,
+  };
+  const bmr =
+    gender === "male"
+      ? 88.362 + 13.397 * weight + 4.799 * height - 5.677 * age
+      : 447.593 + 9.247 * weight + 3.098 * height - 4.33 * age;
   let tdee = Math.round(bmr * activityMultiplier[activityLevel]);
   if (fitnessGoal === "lose_weight") tdee -= 400;
   if (fitnessGoal === "build_muscle") tdee += 300;
   return {
     dailyCalorieTarget: tdee,
     dailyProteinTarget: Math.round(weight * 2.0),
-    dailyCarbTarget: Math.round((tdee * 0.40) / 4),
-    dailyFatTarget: Math.round((tdee * 0.30) / 9),
+    dailyCarbTarget: Math.round((tdee * 0.4) / 4),
+    dailyFatTarget: Math.round((tdee * 0.3) / 9),
   };
 }
 
@@ -167,11 +189,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user?.firstName?.trim() ||
       user?.primaryEmailAddress?.emailAddress?.split("@")[0]?.trim() ||
       "",
-    [
-      user?.firstName,
-      user?.fullName,
-      user?.primaryEmailAddress?.emailAddress,
-    ],
+    [user?.firstName, user?.fullName, user?.primaryEmailAddress?.emailAddress],
   );
 
   useEffect(() => {
@@ -203,7 +221,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setProfile(storedProfile ? { ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) } : DEFAULT_PROFILE);
+        setProfile(
+          storedProfile ? { ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) } : DEFAULT_PROFILE,
+        );
         setWeightLog(storedWeightLog ? JSON.parse(storedWeightLog) : []);
         setBodyMeasurements(storedMeasurements ? JSON.parse(storedMeasurements) : []);
       } catch (e) {
@@ -220,7 +240,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authLoaded, isSignedIn, storageKeys.measurements, storageKeys.profile, storageKeys.weightLog, userId]);
+  }, [
+    authLoaded,
+    isSignedIn,
+    storageKeys.measurements,
+    storageKeys.profile,
+    storageKeys.weightLog,
+    userId,
+  ]);
 
   const persistProfile = useCallback(
     async (nextProfile: UserProfile) => {
@@ -230,22 +257,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [storageKeys.profile],
   );
 
-  const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
-    const newProfile = { ...profile, ...updates };
-    await persistProfile(newProfile);
-  }, [persistProfile, profile]);
+  const updateProfile = useCallback(
+    async (updates: Partial<UserProfile>) => {
+      const newProfile = { ...profile, ...updates };
+      await persistProfile(newProfile);
+    },
+    [persistProfile, profile],
+  );
 
-  const completeOnboarding = useCallback(async (data: Partial<UserProfile>) => {
-    const targets = calculateTargets({ ...profile, ...data });
-    const newProfile: UserProfile = {
-      ...profile,
-      ...data,
-      ...targets,
-      role: "member",
-      onboardingComplete: true,
-    };
-    await persistProfile(newProfile);
-  }, [persistProfile, profile]);
+  const completeOnboarding = useCallback(
+    async (data: Partial<UserProfile>) => {
+      const targets = calculateTargets({ ...profile, ...data });
+      const newProfile: UserProfile = {
+        ...profile,
+        ...data,
+        ...targets,
+        role: "member",
+        onboardingComplete: true,
+      };
+      await persistProfile(newProfile);
+    },
+    [persistProfile, profile],
+  );
 
   const refreshProfile = useCallback(async () => {
     if (!isSignedIn || !userId) {
@@ -264,20 +297,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const fallbackName =
-        currentProfile.name.trim() ||
-        clerkFallbackName ||
-        "User";
+      const fallbackName = currentProfile.name.trim() || clerkFallbackName || "User";
 
       const authHeaders = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
 
-      const accessCheckResponse = await fetch(
-        `${apiBase}/api/profiles/access-check`,
-        { headers: authHeaders },
-      );
+      const accessCheckResponse = await fetch(`${apiBase}/api/profiles/access-check`, {
+        headers: authHeaders,
+      });
       if (accessCheckResponse.ok) {
         const accessPayload = (await accessCheckResponse.json()) as {
           status?: "ready" | "missing_profile";
@@ -288,9 +317,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (accessPayload.status === "ready") {
           const nextProfile: UserProfile = {
             ...currentProfile,
-            name: hasNonEmptyValue(accessPayload.name)
-              ? accessPayload.name.trim()
-              : fallbackName,
+            name: hasNonEmptyValue(accessPayload.name) ? accessPayload.name.trim() : fallbackName,
             role: accessPayload.role ?? currentProfile.role,
           };
 
@@ -325,10 +352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         role: serverProfile.role,
       };
 
-      if (
-        nextProfile.name !== currentProfile.name ||
-        nextProfile.role !== currentProfile.role
-      ) {
+      if (nextProfile.name !== currentProfile.name || nextProfile.role !== currentProfile.role) {
         await persistProfile(nextProfile);
       }
     } catch (error) {
@@ -349,30 +373,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void refreshProfile();
   }, [authLoaded, isLoading, isSignedIn, refreshProfile, userId]);
 
-  const logWeight = useCallback(async (weight: number) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const updated = weightLog.filter((e) => e.date !== today);
-    updated.push({ date: today, weight });
-    updated.sort((a, b) => a.date.localeCompare(b.date));
-    setWeightLog(updated);
-    const newProfile = { ...profile, weight };
-    await Promise.all([
-      AsyncStorage.setItem(storageKeys.weightLog, JSON.stringify(updated)),
-      persistProfile(newProfile),
-    ]);
-  }, [persistProfile, profile, storageKeys.weightLog, weightLog]);
+  const logWeight = useCallback(
+    async (weight: number) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const updated = weightLog.filter((e) => e.date !== today);
+      updated.push({ date: today, weight });
+      updated.sort((a, b) => a.date.localeCompare(b.date));
+      setWeightLog(updated);
+      const newProfile = { ...profile, weight };
+      await Promise.all([
+        AsyncStorage.setItem(storageKeys.weightLog, JSON.stringify(updated)),
+        persistProfile(newProfile),
+      ]);
+    },
+    [persistProfile, profile, storageKeys.weightLog, weightLog],
+  );
 
-  const logMeasurement = useCallback(async (measurement: Omit<BodyMeasurement, "date">) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const updated = bodyMeasurements.filter((e) => e.date !== today);
-    updated.push({ date: today, ...measurement });
-    updated.sort((a, b) => a.date.localeCompare(b.date));
-    setBodyMeasurements(updated);
-    await AsyncStorage.setItem(storageKeys.measurements, JSON.stringify(updated));
-  }, [bodyMeasurements, storageKeys.measurements]);
+  const logMeasurement = useCallback(
+    async (measurement: Omit<BodyMeasurement, "date">) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const updated = bodyMeasurements.filter((e) => e.date !== today);
+      updated.push({ date: today, ...measurement });
+      updated.sort((a, b) => a.date.localeCompare(b.date));
+      setBodyMeasurements(updated);
+      await AsyncStorage.setItem(storageKeys.measurements, JSON.stringify(updated));
+    },
+    [bodyMeasurements, storageKeys.measurements],
+  );
 
   return (
-    <AppContext.Provider value={{ profile, updateProfile, completeOnboarding, refreshProfile, isLoading, weightLog, logWeight, bodyMeasurements, logMeasurement }}>
+    <AppContext.Provider
+      value={{
+        profile,
+        updateProfile,
+        completeOnboarding,
+        refreshProfile,
+        isLoading,
+        weightLog,
+        logWeight,
+        bodyMeasurements,
+        logMeasurement,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

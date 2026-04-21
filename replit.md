@@ -31,6 +31,7 @@ Retired copies are not part of the active app surface and should not be used for
 Mobile app for gym owners, trainers, and members. All data stored in AsyncStorage.
 
 **Key Features:**
+
 - **Auth**: Clerk v3 email/password (Core v3 API - `useSignIn().signIn.password()`, `signIn.finalize()`)
 - **Onboarding**: 4-step flow (personal info, fitness goals, diet preferences, role selection)
 - **Home**: Calorie ring, macro bars, streaks, today's classes, recent workouts
@@ -44,7 +45,8 @@ Mobile app for gym owners, trainers, and members. All data stored in AsyncStorag
 **Design Tokens:** Dark theme - saffron/orange `#FF6B00`, deep navy `#0C0E1A` background
 
 **Contexts:**
-- `AppContext`: user profile + BMR/TDEE calculation  
+
+- `AppContext`: user profile + BMR/TDEE calculation
 - `NutritionContext`: meals/diary/water, `@gymapp_nutrition`
 - `WorkoutContext`: sessions/PRs, `@gymapp_sessions`, `@gymapp_prs`
 - `ScheduleContext`: classes + enrollments, `@gymapp_classes`, `@gymapp_enrolled`
@@ -52,6 +54,7 @@ Mobile app for gym owners, trainers, and members. All data stored in AsyncStorag
 **AsyncStorage Keys:** `@gymapp_profile`, `@gymapp_nutrition`, `@gymapp_sessions`, `@gymapp_prs`, `@gymapp_classes`, `@gymapp_enrolled`
 
 **Important Clerk v3 API Pattern (Expo):**
+
 ```ts
 const { signIn, errors, fetchStatus } = useSignIn(); // NOT setActive/isLoaded
 await signIn.password({ emailAddress, password });    // NOT signIn.create()
@@ -63,6 +66,7 @@ await signIn.finalize({ navigate: ... });
 Gym owner web admin panel at `/admin/` preview path. Secured with Clerk Auth (owner role only).
 
 **Pages:**
+
 - `/admin/` — Dashboard with stats cards (classes this week, enrollments, members, popular category) + Recharts weekly bar chart
 - `/admin/classes` — Sortable class table, create/edit modal, delete confirmation
 - `/admin/members` — Read-only searchable member table (pulls from Clerk API)
@@ -75,11 +79,13 @@ Gym owner web admin panel at `/admin/` preview path. Secured with Clerk Auth (ow
 ### artifacts/api-server (Express)
 
 AI endpoints for GymOS:
+
 - `POST /api/ai/analyze-food` — Gemini Flash Vision photo food analysis
 - `POST /api/ai/chat` — SSE streaming chat with Gemini
 - `POST /api/ai/workout-suggestion` — AI workout recommendations
 
 Admin endpoints (owner-only via Clerk requireAuth + role check):
+
 - `GET/POST /api/admin/classes` — list/create gym classes
 - `PUT/DELETE /api/admin/classes/:id` — update/delete gym class
 - `GET/PUT /api/admin/settings` — gym settings (name, address, phone, hours, description)
@@ -87,12 +93,14 @@ Admin endpoints (owner-only via Clerk requireAuth + role check):
 - `GET /api/admin/dashboard` — dashboard stats
 
 Public endpoints:
+
 - `GET /api/classes` — public class list for mobile app (no auth)
 
 Uses `@workspace/integrations-gemini-ai`, model: `gemini-2.5-flash-preview-04-17`
 Uses `@clerk/backend` for member list from Clerk user directory.
 
 **DB Tables:**
+
 - `gym_classes` — class schedule (name, category, trainer, date, time, duration, room, status, etc.)
 - `gym_settings` — gym info (name, address, phone, working hours, description)
 

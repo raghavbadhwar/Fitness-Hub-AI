@@ -5,6 +5,8 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "sh -c 'set -a; [ -f ./.env.local ] && . ./.env.local; set +a; pnpm run typecheck && pnpm -r --if-present run build'",
+    "format": "prettier --cache --write .",
+    "format:check": "prettier --cache --check .",
     "preflight:beta-secrets": "pnpm --filter @workspace/scripts run beta-secrets-preflight",
     "preflight:beta-secrets:init": "pnpm --filter @workspace/scripts run beta-secrets-preflight:init",
     "preflight:beta-secrets:accept-risk": "pnpm --filter @workspace/scripts run beta-secrets-preflight:accept-risk",
@@ -23,7 +25,7 @@
   "private": true,
   "devDependencies": {
     "@playwright/test": "^1.55.0",
-    "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
   }
 }

@@ -17,6 +17,8 @@ Use **pnpm** only (root preinstall enforces this).
 
 - Full typecheck (workspace references): `pnpm run typecheck`
 - Full build (typecheck + all package builds): `pnpm run build`
+- Format the repo: `pnpm run format`
+- Check formatting only: `pnpm run format:check`
 - API dev: `pnpm run dev:api`
 - Admin dev: `pnpm run dev:admin`
 - Member/mobile dev (Expo): `pnpm run dev:member`
@@ -31,8 +33,8 @@ Package-scoped commands:
 
 Testing/linting:
 
-- No repo-wide test script is currently defined in `package.json` files.
-- No ESLint/biome config is currently present; formatting tool available is Prettier.
+- Root test entrypoints are focused on smoke and beta verification flows rather than one generic `test` script.
+- No ESLint/biome config is currently present; formatting is handled with Prettier via the root scripts.
 
 ## High-level architecture (cross-package flow)
 

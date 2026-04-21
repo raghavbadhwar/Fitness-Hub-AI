@@ -87,15 +87,17 @@ export default function Members() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Members Directory</h1>
-        <p className="text-muted-foreground mt-1">View all registered users of your gym application.</p>
+        <p className="text-muted-foreground mt-1">
+          View all registered users of your gym application.
+        </p>
       </div>
 
       <div className="relative max-w-md">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input 
-          type="search" 
-          placeholder="Search by name or email..." 
-          className="pl-8" 
+        <Input
+          type="search"
+          placeholder="Search by name or email..."
+          className="pl-8"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid="input-search-members"
@@ -117,7 +119,9 @@ export default function Members() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">Loading members...</TableCell>
+                <TableCell colSpan={6} className="h-24 text-center">
+                  Loading members...
+                </TableCell>
               </TableRow>
             ) : filteredMembers.length === 0 ? (
               <TableRow>
@@ -134,93 +138,100 @@ export default function Members() {
                 const draftRole =
                   member.role === "owner"
                     ? undefined
-                    : draftRoles[member.id] ?? (member.role as "member" | "trainer");
+                    : (draftRoles[member.id] ?? (member.role as "member" | "trainer"));
                 const hasRoleChange =
                   member.role !== "owner" &&
                   Boolean(draftRoles[member.id]) &&
                   draftRoles[member.id] !== member.role;
 
                 return (
-                <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary/10 p-2 rounded-full">
-                        <UserCircle className="h-5 w-5 text-primary" />
+                  <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <UserCircle className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="font-medium">{displayName}</div>
                       </div>
-                      <div className="font-medium">{displayName}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5 mr-1.5" />
-                      {member.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {member.role === "owner" ? (
-                      <Badge variant="default" className="capitalize">
-                        owner
-                      </Badge>
-                    ) : (
-                      <Select
-                        value={draftRole}
-                        onValueChange={(value: "member" | "trainer") =>
-                          setDraftRoles((current) => ({ ...current, [member.id]: value }))
-                        }
-                      >
-                        <SelectTrigger className="w-[140px]" data-testid={`select-member-role-${member.id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="member">Member</SelectItem>
-                          <SelectItem value="trainer">Trainer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {member.aiMemorySummary ? (
-                        <>
-                          <Badge variant="secondary">{member.aiRecentMessageCount} memory notes</Badge>
-                          <p className="max-w-[260px] truncate text-sm text-muted-foreground">
-                            {member.aiMemorySummary}
-                          </p>
-                        </>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Mail className="h-3.5 w-3.5 mr-1.5" />
+                        {member.email}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {member.role === "owner" ? (
+                        <Badge variant="default" className="capitalize">
+                          owner
+                        </Badge>
                       ) : (
-                        <span className="text-sm text-muted-foreground">No learned profile yet</span>
+                        <Select
+                          value={draftRole}
+                          onValueChange={(value: "member" | "trainer") =>
+                            setDraftRoles((current) => ({ ...current, [member.id]: value }))
+                          }
+                        >
+                          <SelectTrigger
+                            className="w-[140px]"
+                            data-testid={`select-member-role-${member.id}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Member</SelectItem>
+                            <SelectItem value="trainer">Trainer</SelectItem>
+                          </SelectContent>
+                        </Select>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm">
-                      <Calendar className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                      {format(new Date(member.createdAt), "MMM d, yyyy")}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {member.role === "owner" ? (
-                      <span className="text-sm text-muted-foreground">Locked</span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant={hasRoleChange ? "default" : "secondary"}
-                        disabled={!hasRoleChange || savingMemberId === member.id}
-                        onClick={() => handleRoleSave(member.id)}
-                        data-testid={`button-save-member-role-${member.id}`}
-                      >
-                        {savingMemberId === member.id ? (
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {member.aiMemorySummary ? (
                           <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving
+                            <Badge variant="secondary">
+                              {member.aiRecentMessageCount} memory notes
+                            </Badge>
+                            <p className="max-w-[260px] truncate text-sm text-muted-foreground">
+                              {member.aiMemorySummary}
+                            </p>
                           </>
                         ) : (
-                          "Save"
+                          <span className="text-sm text-muted-foreground">
+                            No learned profile yet
+                          </span>
                         )}
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-sm">
+                        <Calendar className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                        {format(new Date(member.createdAt), "MMM d, yyyy")}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {member.role === "owner" ? (
+                        <span className="text-sm text-muted-foreground">Locked</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant={hasRoleChange ? "default" : "secondary"}
+                          disabled={!hasRoleChange || savingMemberId === member.id}
+                          onClick={() => handleRoleSave(member.id)}
+                          data-testid={`button-save-member-role-${member.id}`}
+                        >
+                          {savingMemberId === member.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving
+                            </>
+                          ) : (
+                            "Save"
+                          )}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
                 );
               })
             )}

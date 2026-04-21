@@ -11,7 +11,14 @@ interface MacroBarProps {
   fatTarget: number;
 }
 
-export function MacroBar({ protein, carbs, fat, proteinTarget, carbTarget, fatTarget }: MacroBarProps) {
+export function MacroBar({
+  protein,
+  carbs,
+  fat,
+  proteinTarget,
+  carbTarget,
+  fatTarget,
+}: MacroBarProps) {
   const colors = useColors();
 
   const macros = [
@@ -27,7 +34,9 @@ export function MacroBar({ protein, carbs, fat, proteinTarget, carbTarget, fatTa
         return (
           <View key={macro.label} style={styles.macroItem}>
             <View style={styles.macroHeader}>
-              <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>{macro.label}</Text>
+              <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
+                {macro.label}
+              </Text>
               <Text style={[styles.macroValue, { color: colors.text }]}>
                 {Math.round(macro.value)}
                 <Text style={[styles.macroTarget, { color: colors.mutedForeground }]}>

@@ -83,29 +83,31 @@ export function EnrollmentsSheet({ open, onOpenChange, gymClass }: EnrollmentsSh
             <div className="text-sm text-muted-foreground animate-pulse">Loading members...</div>
           )}
 
-          {error && (
-            <div className="text-sm text-destructive">{error}</div>
-          )}
+          {error && <div className="text-sm text-destructive">{error}</div>}
 
           {!loading && !error && members.length === 0 && (
             <div className="text-sm text-muted-foreground">No members enrolled yet.</div>
           )}
 
-          {!loading && members.map((m) => (
-            <div
-              key={m.id}
-              className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-              data-testid={`enrollment-member-${m.id}`}
-            >
-              <div>
-                <div className="font-medium">{fullName(m)}</div>
-                <div className="text-xs text-muted-foreground">{m.email}</div>
+          {!loading &&
+            members.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                data-testid={`enrollment-member-${m.id}`}
+              >
+                <div>
+                  <div className="font-medium">{fullName(m)}</div>
+                  <div className="text-xs text-muted-foreground">{m.email}</div>
+                </div>
+                <Badge
+                  variant={m.role === "owner" ? "default" : "secondary"}
+                  className="capitalize"
+                >
+                  {m.role}
+                </Badge>
               </div>
-              <Badge variant={m.role === "owner" ? "default" : "secondary"} className="capitalize">
-                {m.role}
-              </Badge>
-            </div>
-          ))}
+            ))}
         </div>
       </SheetContent>
     </Sheet>

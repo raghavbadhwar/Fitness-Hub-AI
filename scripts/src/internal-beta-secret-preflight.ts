@@ -113,9 +113,10 @@ export function parseEnvFile(text: string): Record<string, string> {
 }
 
 export function buildRotationTemplate(): RotationStatus {
-  const secrets = Object.fromEntries(
-    ROTATION_SECRETS.map(({ key }) => [key, false]),
-  ) as Record<RotationSecretKey, boolean>;
+  const secrets = Object.fromEntries(ROTATION_SECRETS.map(({ key }) => [key, false])) as Record<
+    RotationSecretKey,
+    boolean
+  >;
 
   return {
     incident: KNOWN_INCIDENT,
@@ -196,8 +197,7 @@ function buildAcceptedRiskStatus(
     acceptedAt,
     acceptedBy,
     notes:
-      !existingNotes ||
-      existingNotes.startsWith("Set each secret to true after rotating it")
+      !existingNotes || existingNotes.startsWith("Set each secret to true after rotating it")
         ? defaultNotes
         : existingNotes,
   };
@@ -214,9 +214,7 @@ export function evaluatePreflight(snapshot: PreflightSnapshot): PreflightResult 
       : "git no longer lists .env.local as a tracked file.",
   });
 
-  const missingTemplateKeys = TEMPLATE_KEYS.filter(
-    (key) => !(key in snapshot.exampleValues),
-  );
+  const missingTemplateKeys = TEMPLATE_KEYS.filter((key) => !(key in snapshot.exampleValues));
   const unsanitizedTemplateKeys = TEMPLATE_KEYS.filter((key) => {
     const value = snapshot.exampleValues[key];
     return value !== undefined && !isPlaceholderValue(key, value);
@@ -229,9 +227,7 @@ export function evaluatePreflight(snapshot: PreflightSnapshot): PreflightResult 
       missingTemplateKeys.length === 0 && unsanitizedTemplateKeys.length === 0
         ? "Committed env template contains the expected placeholder values."
         : [
-            missingTemplateKeys.length > 0
-              ? `missing keys: ${missingTemplateKeys.join(", ")}`
-              : "",
+            missingTemplateKeys.length > 0 ? `missing keys: ${missingTemplateKeys.join(", ")}` : "",
             unsanitizedTemplateKeys.length > 0
               ? `non-placeholder values: ${unsanitizedTemplateKeys.join(", ")}`
               : "",
@@ -365,9 +361,15 @@ function printResult(result: PreflightResult): void {
   if (!result.ok) {
     console.log("");
     console.log("Next actions:");
-    console.log(`- Run pnpm run preflight:beta-secrets:init if the attestation file does not exist yet.`);
-    console.log("- Rotate every listed provider secret, update your local env, then mark the attestation file.");
-    console.log("- Or record an explicit local accepted-risk decision with pnpm run preflight:beta-secrets:accept-risk.");
+    console.log(
+      `- Run pnpm run preflight:beta-secrets:init if the attestation file does not exist yet.`,
+    );
+    console.log(
+      "- Rotate every listed provider secret, update your local env, then mark the attestation file.",
+    );
+    console.log(
+      "- Or record an explicit local accepted-risk decision with pnpm run preflight:beta-secrets:accept-risk.",
+    );
     console.log("- Re-run pnpm run preflight:beta-secrets before internal beta verification.");
   }
 }
@@ -378,8 +380,12 @@ async function main(): Promise<void> {
   if (args.has("--init")) {
     await writeRotationTemplate(rotationStatusPath);
     console.log(`Wrote ${path.relative(repoRoot, rotationStatusPath)}`);
-    console.log("Fill in rotatedAt and flip each secret to true after provider-side rotation is complete.");
-    console.log("If you are deliberately carrying the residual risk for internal beta, run the accepted-risk command instead.");
+    console.log(
+      "Fill in rotatedAt and flip each secret to true after provider-side rotation is complete.",
+    );
+    console.log(
+      "If you are deliberately carrying the residual risk for internal beta, run the accepted-risk command instead.",
+    );
     return;
   }
 
@@ -392,7 +398,9 @@ async function main(): Promise<void> {
     );
 
     await writeRotationStatus(rotationStatusPath, acceptedRiskStatus);
-    console.log(`Recorded accepted-risk resolution in ${path.relative(repoRoot, rotationStatusPath)}`);
+    console.log(
+      `Recorded accepted-risk resolution in ${path.relative(repoRoot, rotationStatusPath)}`,
+    );
     console.log("This is a local-only acknowledgment. It does not rotate provider secrets.");
     return;
   }

@@ -88,16 +88,20 @@ async function listAllClerkUsers(secretKey: string): Promise<ClerkUserSummary[]>
 function buildAdminMemberPayload(
   user: ClerkUserSummary,
   profile?: { name: string; role: string } | undefined,
-  aiProfile?: {
-    memorySummary: string;
-    updatedAt: Date;
-    recentMessages: unknown;
-  } | undefined,
+  aiProfile?:
+    | {
+        memorySummary: string;
+        updatedAt: Date;
+        recentMessages: unknown;
+      }
+    | undefined,
 ): AdminMemberPayload {
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const resolvedName = profile?.name?.trim() || fullName || null;
   const metadataRole = user.publicMetadata?.role;
-  const recentMessageCount = Array.isArray(aiProfile?.recentMessages) ? aiProfile.recentMessages.length : 0;
+  const recentMessageCount = Array.isArray(aiProfile?.recentMessages)
+    ? aiProfile.recentMessages.length
+    : 0;
 
   return {
     id: user.id,
@@ -165,7 +169,10 @@ router.get("/access", async (req: Request, res: Response): Promise<void> => {
 
 router.get("/classes", async (req: Request, res: Response): Promise<void> => {
   if (!(await requireOwner(req, res))) return;
-  const classes = await db.select().from(gymClassesTable).orderBy(gymClassesTable.date, gymClassesTable.startTime);
+  const classes = await db
+    .select()
+    .from(gymClassesTable)
+    .orderBy(gymClassesTable.date, gymClassesTable.startTime);
   res.json(classes.map(formatClass));
 });
 
@@ -196,10 +203,7 @@ router.post("/classes", async (req: Request, res: Response): Promise<void> => {
     color,
   };
 
-  const [newClass] = await db
-    .insert(gymClassesTable)
-    .values(newClassValues)
-    .returning();
+  const [newClass] = await db.insert(gymClassesTable).values(newClassValues).returning();
 
   res.status(201).json(formatClass(newClass));
 });
@@ -351,7 +355,9 @@ router.get("/members", async (req: Request, res: Response): Promise<void> => {
     const aiProfileMap = new Map(aiProfiles.map((profile) => [profile.memberClerkId, profile]));
 
     const members = users
-      .map((user) => buildAdminMemberPayload(user, profileMap.get(user.id), aiProfileMap.get(user.id)))
+      .map((user) =>
+        buildAdminMemberPayload(user, profileMap.get(user.id), aiProfileMap.get(user.id)),
+      )
       .sort((left, right) => {
         const leftName = (left.name || left.email).toLowerCase();
         const rightName = (right.name || right.email).toLowerCase();
@@ -439,7 +445,10 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
           publicMetadata: previousPublicMetadata,
         });
       } catch (rollbackError) {
-        req.log.error({ rollbackError, userId }, "Failed to rollback Clerk role after database error");
+        req.log.error(
+          { rollbackError, userId },
+          "Failed to rollback Clerk role after database error",
+        );
       }
 
       throw dbError;
@@ -490,7 +499,8 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     for (const c of allClasses) {
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
     }
-    const mostPopularCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
+    const mostPopularCategory =
+      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
@@ -560,7 +570,7 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
         } catch {
           return { id: userId, firstName: null, lastName: null, email: "", role: "member" };
         }
-      })
+      }),
     );
     res.json(members);
   } catch (err) {

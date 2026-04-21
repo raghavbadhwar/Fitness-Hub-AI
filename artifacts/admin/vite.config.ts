@@ -7,9 +7,7 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 const rawPort = process.env.PORT;
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const port = Number(rawPort);
@@ -21,20 +19,24 @@ if (Number.isNaN(port) || port <= 0) {
 const basePath = process.env.BASE_PATH;
 
 if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
+  throw new Error("BASE_PATH environment variable is required but was not provided.");
 }
 
 const basePathWithoutTrailingSlash = basePath.replace(/\/$/, "") || "/";
 
 function redirectBasePathWithoutTrailingSlashPlugin() {
   const attachRedirect = (middlewares: {
-    use: (handler: (req: { url?: string }, res: {
-      statusCode?: number;
-      setHeader: (name: string, value: string) => void;
-      end: () => void;
-    }, next: () => void) => void) => void;
+    use: (
+      handler: (
+        req: { url?: string },
+        res: {
+          statusCode?: number;
+          setHeader: (name: string, value: string) => void;
+          end: () => void;
+        },
+        next: () => void,
+      ) => void,
+    ) => void;
   }) => {
     middlewares.use((req, res, next) => {
       if (req.url === basePathWithoutTrailingSlash && req.url !== basePath) {
@@ -50,10 +52,14 @@ function redirectBasePathWithoutTrailingSlashPlugin() {
 
   return {
     name: "redirect-base-path-without-trailing-slash",
-    configureServer(server: { middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never } }) {
+    configureServer(server: {
+      middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never };
+    }) {
       attachRedirect(server.middlewares);
     },
-    configurePreviewServer(server: { middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never } }) {
+    configurePreviewServer(server: {
+      middlewares: { use: typeof attachRedirect extends (arg: infer T) => void ? T["use"] : never };
+    }) {
       attachRedirect(server.middlewares);
     },
   };
@@ -66,17 +72,14 @@ export default defineConfig({
     tailwindcss(),
     runtimeErrorOverlay(),
     redirectBasePathWithoutTrailingSlashPlugin(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+    ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer({
               root: path.resolve(import.meta.dirname, ".."),
             }),
           ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
+          await import("@replit/vite-plugin-dev-banner").then((m) => m.devBanner()),
         ]
       : []),
   ],

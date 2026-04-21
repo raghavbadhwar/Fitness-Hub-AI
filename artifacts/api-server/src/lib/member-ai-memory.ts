@@ -63,7 +63,10 @@ function normalizeMessage(entry: unknown): MemberAiMemoryMessage | null {
   }
 
   const candidate = entry as Partial<MemberAiMemoryMessage>;
-  if ((candidate.role !== "user" && candidate.role !== "assistant") || typeof candidate.content !== "string") {
+  if (
+    (candidate.role !== "user" && candidate.role !== "assistant") ||
+    typeof candidate.content !== "string"
+  ) {
     return null;
   }
 
@@ -84,7 +87,9 @@ function normalizeMessage(entry: unknown): MemberAiMemoryMessage | null {
   };
 }
 
-export function sanitizeIncomingMessages(messages: unknown): Array<{ role: "user" | "assistant"; content: string }> {
+export function sanitizeIncomingMessages(
+  messages: unknown,
+): Array<{ role: "user" | "assistant"; content: string }> {
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -96,8 +101,12 @@ export function sanitizeIncomingMessages(messages: unknown): Array<{ role: "user
       }
 
       const candidate = entry as ChatMessageInput;
-      const role = candidate.role === "assistant" ? "assistant" : candidate.role === "user" ? "user" : null;
-      const content = typeof candidate.content === "string" ? candidate.content.trim().slice(0, MAX_MESSAGE_CHARS) : "";
+      const role =
+        candidate.role === "assistant" ? "assistant" : candidate.role === "user" ? "user" : null;
+      const content =
+        typeof candidate.content === "string"
+          ? candidate.content.trim().slice(0, MAX_MESSAGE_CHARS)
+          : "";
 
       if (!role || !content) {
         return null;
@@ -154,7 +163,7 @@ export function mergeMemoryUpdate(
     memorySummary:
       typeof update?.memorySummary === "string" && update.memorySummary.trim()
         ? update.memorySummary.trim().slice(0, 1200)
-        : existing?.memorySummary ?? "",
+        : (existing?.memorySummary ?? ""),
     goals: normalizeStringList(update?.goals ?? existing?.goals ?? []),
     preferences: normalizeStringList(update?.preferences ?? existing?.preferences ?? []),
     barriers: normalizeStringList(update?.barriers ?? existing?.barriers ?? []),
@@ -163,12 +172,17 @@ export function mergeMemoryUpdate(
   };
 }
 
-export function parseMemoryExtraction(rawText: string | undefined): Partial<MemoryExtractionResult> | null {
+export function parseMemoryExtraction(
+  rawText: string | undefined,
+): Partial<MemoryExtractionResult> | null {
   if (!rawText) {
     return null;
   }
 
-  const cleaned = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  const cleaned = rawText
+    .replace(/```json\s*/g, "")
+    .replace(/```\s*/g, "")
+    .trim();
   if (!cleaned) {
     return null;
   }

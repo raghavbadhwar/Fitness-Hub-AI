@@ -4,14 +4,7 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useRouter, type Href } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-} from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -77,15 +70,10 @@ export function GoogleAuthButton({
 
   useWarmUpBrowser();
 
-  const redirectUrl = useMemo(
-    () => Linking.createURL("/sign-in", { scheme: "gymapp" }),
-    [],
-  );
+  const redirectUrl = useMemo(() => Linking.createURL("/sign-in", { scheme: "gymapp" }), []);
 
   const hasNativeGoogleConfig = useMemo(() => {
-    const hasWebClient = Boolean(
-      process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID,
-    );
+    const hasWebClient = Boolean(process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID);
     if (!hasWebClient) return false;
 
     if (Platform.OS === "ios") {
@@ -124,17 +112,12 @@ export function GoogleAuthButton({
 
     setIsLoading(true);
     try {
-      if (
-        Platform.OS !== "web" &&
-        hasNativeGoogleConfig
-      ) {
+      if (Platform.OS !== "web" && hasNativeGoogleConfig) {
         try {
           const nativeResult = await startGoogleAuthenticationFlow();
           const nativeComplete = await activateSession(
             nativeResult.createdSessionId,
-            nativeResult.setActive as
-              | ((params: { session: string }) => Promise<void>)
-              | undefined,
+            nativeResult.setActive as ((params: { session: string }) => Promise<void>) | undefined,
           );
 
           if (nativeComplete) {
@@ -142,9 +125,7 @@ export function GoogleAuthButton({
           }
         } catch (nativeError) {
           const code =
-            nativeError &&
-            typeof nativeError === "object" &&
-            "code" in nativeError
+            nativeError && typeof nativeError === "object" && "code" in nativeError
               ? String(nativeError.code)
               : "";
 
@@ -152,10 +133,7 @@ export function GoogleAuthButton({
             return;
           }
 
-          console.warn(
-            "Native Google sign-in failed, falling back to OAuth",
-            nativeError,
-          );
+          console.warn("Native Google sign-in failed, falling back to OAuth", nativeError);
         }
       }
 
@@ -166,15 +144,11 @@ export function GoogleAuthButton({
 
       const oauthComplete = await activateSession(
         oauthResult.createdSessionId,
-        oauthResult.setActive as
-          | ((params: { session: string }) => Promise<void>)
-          | undefined,
+        oauthResult.setActive as ((params: { session: string }) => Promise<void>) | undefined,
       );
 
       if (!oauthComplete) {
-        throw new Error(
-          "Google authentication did not complete. Please try again.",
-        );
+        throw new Error("Google authentication did not complete. Please try again.");
       }
     } catch (error) {
       console.error("Google authentication failed", error);

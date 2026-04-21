@@ -1,0 +1,28 @@
+# dependencies and local runtime state
+node_modules
+.codex
+.cache
+.local
+.playwright-cli
+.expo
+.expo-shared
+
+# build output
+coverage
+dist
+artifacts/**/dist
+artifacts/**/.expo
+artifacts/**/.expo-shared
+artifacts/gymapp/static-build
+
+# generated artifacts
+lib/api-client-react/src/generated
+lib/api-zod/src/generated
+lib/db/migrations/meta/*.json
+pnpm-lock.yaml
+
+# machine-generated notes
+docs/codebase/.codebase-scan.txt
+
+# logs
+*.log

@@ -74,9 +74,7 @@ export default function SchedulePreviewRoute() {
   const [confirmSheetClass, setConfirmSheetClass] = useState<GymClass | null>(null);
 
   const bookingMessage =
-    scenario === "error"
-      ? "This class is already full. Please pick another slot."
-      : null;
+    scenario === "error" ? "This class is already full. Please pick another slot." : null;
   const isLoading = scenario === "loading";
 
   const isEnrolled = useCallback(
@@ -124,9 +122,7 @@ export default function SchedulePreviewRoute() {
       return;
     }
 
-    setEnrolledClassIds((current) =>
-      current.filter((classId) => classId !== confirmSheetClass.id),
-    );
+    setEnrolledClassIds((current) => current.filter((classId) => classId !== confirmSheetClass.id));
     setClasses((current) =>
       current.map((existingClass) =>
         existingClass.id === confirmSheetClass.id

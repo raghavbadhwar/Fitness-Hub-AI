@@ -111,18 +111,26 @@ mock.module("@workspace/db", {
                 return {
                   limit(count) {
                     if (table === userProfiles) {
-                      const profile = condition?.op === "eq" ? userProfilesByClerkId.get(condition.value) : null;
+                      const profile =
+                        condition?.op === "eq" ? userProfilesByClerkId.get(condition.value) : null;
                       const rows = profile ? [profile] : [];
                       return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
                     }
 
                     if (table === memberAiProfiles) {
-                      const profile = condition?.op === "eq" ? memberAiProfilesByClerkId.get(condition.value) : null;
+                      const profile =
+                        condition?.op === "eq"
+                          ? memberAiProfilesByClerkId.get(condition.value)
+                          : null;
                       const rows = profile ? [profile] : [];
-                      return Promise.resolve(rows.slice(0, count).map((row) => ({
-                        ...row,
-                        recentMessages: Array.isArray(row.recentMessages) ? [...row.recentMessages] : row.recentMessages,
-                      })));
+                      return Promise.resolve(
+                        rows.slice(0, count).map((row) => ({
+                          ...row,
+                          recentMessages: Array.isArray(row.recentMessages)
+                            ? [...row.recentMessages]
+                            : row.recentMessages,
+                        })),
+                      );
                     }
 
                     return Promise.resolve([]);
@@ -150,7 +158,10 @@ mock.module("@workspace/db", {
                       clerkId: values.clerkId,
                       name: set?.name ?? values.name,
                       role: set?.role ?? values.role,
-                      updatedAt: set?.updatedAt ?? existing?.updatedAt ?? new Date("2026-04-20T10:00:00.000Z"),
+                      updatedAt:
+                        set?.updatedAt ??
+                        existing?.updatedAt ??
+                        new Date("2026-04-20T10:00:00.000Z"),
                     };
                     userProfilesByClerkId.set(values.clerkId, { ...nextProfile });
                     return Promise.resolve([{ ...nextProfile }]);
@@ -265,9 +276,7 @@ beforeEach(() => {
 
 describe("admin routes", () => {
   it("updates a member role and returns the normalized member payload", async () => {
-    const response = await request(app)
-      .patch("/admin/members/member_1")
-      .send({ role: "trainer" });
+    const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body, {
@@ -289,9 +298,7 @@ describe("admin routes", () => {
   it("returns unauthorized when the caller is not authenticated", async () => {
     authState.userId = null;
 
-    const response = await request(app)
-      .patch("/admin/members/member_1")
-      .send({ role: "trainer" });
+    const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
 
     assert.equal(response.status, 401);
     assert.deepEqual(response.body, {
@@ -310,9 +317,7 @@ describe("admin routes", () => {
       }),
     );
 
-    const response = await request(app)
-      .patch("/admin/members/member_1")
-      .send({ role: "trainer" });
+    const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
 
     assert.equal(response.status, 403);
     assert.deepEqual(response.body, {

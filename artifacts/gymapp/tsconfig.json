@@ -5,21 +5,11 @@
     "baseUrl": ".",
     "strict": true,
     "paths": {
-      "react-native": [
-        "./types/react-native/index.d.ts"
-      ],
-      "@/*": [
-        "./*"
-      ]
+      "react-native": ["./types/react-native/index.d.ts"],
+      "@/*": ["./*"]
     }
   },
-  "include": [
-    "**/*.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ],
+  "include": ["**/*.d.ts", "**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "references": [
     {
       "path": "../../lib/api-client-react"

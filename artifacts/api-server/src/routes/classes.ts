@@ -77,16 +77,12 @@ function hydrateLockedClass(row: LockedClassRow): typeof gymClassesTable.$inferS
     duration: row.duration,
     maxParticipants: row.max_participants,
     enrolledCount: row.enrolled_count,
-    enrolledMemberIds: Array.isArray(row.enrolled_member_ids)
-      ? row.enrolled_member_ids
-      : [],
+    enrolledMemberIds: Array.isArray(row.enrolled_member_ids) ? row.enrolled_member_ids : [],
     room: row.room,
     status: row.status,
     color: row.color,
-    createdAt:
-      row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
-    updatedAt:
-      row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at),
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(row.updated_at),
   };
 }
 
@@ -195,126 +191,135 @@ router.get("/classes", async (_req: Request, res: Response): Promise<void> => {
   res.json(classes.map(serializeClass));
 });
 
-router.get("/classes/enrolled", requireAuth(), async (req: Request, res: Response): Promise<void> => {
-  const auth = getAuth(req);
-  const callerUserId = auth.userId;
-  if (!callerUserId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
-  const today = new Date().toISOString().split("T")[0];
-  const classes = await db
-    .select({
-      id: gymClassesTable.id,
-      enrolledMemberIds: gymClassesTable.enrolledMemberIds,
-    })
-    .from(gymClassesTable)
-    .where(gte(gymClassesTable.date, today));
-
-  const enrolledClassIds = classes
-    .filter((cls) => Array.isArray(cls.enrolledMemberIds) && cls.enrolledMemberIds.includes(callerUserId))
-    .map((cls) => String(cls.id));
-
-  res.json({ classIds: enrolledClassIds });
-});
-
-router.post("/classes/:id/enroll", requireAuth(), async (req: Request, res: Response): Promise<void> => {
-  const auth = getAuth(req);
-  const callerUserId = auth.userId;
-  if (!callerUserId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
-  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const classId = parseInt(rawId, 10);
-  if (isNaN(classId)) {
-    res.status(400).json({ error: "Invalid class ID" });
-    return;
-  }
-
-  try {
-    const updated = await withLockedClass(classId, async (client, cls) => {
-      const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds)
-        ? cls.enrolledMemberIds
-        : [];
-      if (enrolledMemberIds.includes(callerUserId)) {
-        return cls;
-      }
-
-      if (cls.enrolledCount >= cls.maxParticipants) {
-        throw new RouteError(409, "Class is full");
-      }
-
-      return persistLockedClass(client, classId, cls.enrolledCount + 1, [
-        ...enrolledMemberIds,
-        callerUserId,
-      ]);
-    });
-
-    if (!updated) {
-      res.status(404).json({ error: "Class not found" });
+router.get(
+  "/classes/enrolled",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const auth = getAuth(req);
+    const callerUserId = auth.userId;
+    if (!callerUserId) {
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    res.json(serializeClass(updated));
-  } catch (error) {
-    if (isRouteError(error)) {
-      res.status(error.statusCode).json({ error: error.message });
+    const today = new Date().toISOString().split("T")[0];
+    const classes = await db
+      .select({
+        id: gymClassesTable.id,
+        enrolledMemberIds: gymClassesTable.enrolledMemberIds,
+      })
+      .from(gymClassesTable)
+      .where(gte(gymClassesTable.date, today));
+
+    const enrolledClassIds = classes
+      .filter(
+        (cls) =>
+          Array.isArray(cls.enrolledMemberIds) && cls.enrolledMemberIds.includes(callerUserId),
+      )
+      .map((cls) => String(cls.id));
+
+    res.json({ classIds: enrolledClassIds });
+  },
+);
+
+router.post(
+  "/classes/:id/enroll",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const auth = getAuth(req);
+    const callerUserId = auth.userId;
+    if (!callerUserId) {
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    console.error("Error enrolling in class:", error);
-    res.status(500).json({ error: "Failed to enroll in class" });
-  }
-});
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const classId = parseInt(rawId, 10);
+    if (isNaN(classId)) {
+      res.status(400).json({ error: "Invalid class ID" });
+      return;
+    }
 
-router.delete("/classes/:id/enroll", requireAuth(), async (req: Request, res: Response): Promise<void> => {
-  const auth = getAuth(req);
-  const callerUserId = auth.userId;
-  if (!callerUserId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+    try {
+      const updated = await withLockedClass(classId, async (client, cls) => {
+        const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        if (enrolledMemberIds.includes(callerUserId)) {
+          return cls;
+        }
 
-  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const classId = parseInt(rawId, 10);
-  if (isNaN(classId)) {
-    res.status(400).json({ error: "Invalid class ID" });
-    return;
-  }
+        if (cls.enrolledCount >= cls.maxParticipants) {
+          throw new RouteError(409, "Class is full");
+        }
 
-  try {
-    const updated = await withLockedClass(classId, async (client, cls) => {
-      const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds)
-        ? cls.enrolledMemberIds
-        : [];
-      if (!enrolledMemberIds.includes(callerUserId)) {
-        return cls;
+        return persistLockedClass(client, classId, cls.enrolledCount + 1, [
+          ...enrolledMemberIds,
+          callerUserId,
+        ]);
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: "Class not found" });
+        return;
       }
 
-      const nextMemberIds = enrolledMemberIds.filter(
-        (memberId) => memberId !== callerUserId,
-      );
-      return persistLockedClass(
-        client,
-        classId,
-        Math.max(0, cls.enrolledCount - 1),
-        nextMemberIds,
-      );
-    });
+      res.json(serializeClass(updated));
+    } catch (error) {
+      if (isRouteError(error)) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
 
-    if (!updated) {
-      res.status(404).json({ error: "Class not found" });
+      console.error("Error enrolling in class:", error);
+      res.status(500).json({ error: "Failed to enroll in class" });
+    }
+  },
+);
+
+router.delete(
+  "/classes/:id/enroll",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const auth = getAuth(req);
+    const callerUserId = auth.userId;
+    if (!callerUserId) {
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    res.json(serializeClass(updated));
-  } catch (error) {
-    console.error("Error leaving class:", error);
-    res.status(500).json({ error: "Failed to leave class" });
-  }
-});
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const classId = parseInt(rawId, 10);
+    if (isNaN(classId)) {
+      res.status(400).json({ error: "Invalid class ID" });
+      return;
+    }
+
+    try {
+      const updated = await withLockedClass(classId, async (client, cls) => {
+        const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        if (!enrolledMemberIds.includes(callerUserId)) {
+          return cls;
+        }
+
+        const nextMemberIds = enrolledMemberIds.filter((memberId) => memberId !== callerUserId);
+        return persistLockedClass(
+          client,
+          classId,
+          Math.max(0, cls.enrolledCount - 1),
+          nextMemberIds,
+        );
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: "Class not found" });
+        return;
+      }
+
+      res.json(serializeClass(updated));
+    } catch (error) {
+      console.error("Error leaving class:", error);
+      res.status(500).json({ error: "Failed to leave class" });
+    }
+  },
+);
 
 export default router;

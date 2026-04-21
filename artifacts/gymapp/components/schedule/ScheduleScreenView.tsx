@@ -80,7 +80,9 @@ export function ScheduleScreenView({
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>Schedule</Text>
+        <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>
+          Schedule
+        </Text>
         {(profileRole === "owner" || profileRole === "trainer") && (
           <View
             style={[
@@ -122,7 +124,9 @@ export function ScheduleScreenView({
               ]}
               testID={`schedule-day-${dateKey}`}
             >
-              <Text style={[styles.dayName, { color: isSelected ? "#fff" : colors.mutedForeground }]}>
+              <Text
+                style={[styles.dayName, { color: isSelected ? "#fff" : colors.mutedForeground }]}
+              >
                 {WEEKDAYS[date.getDay()]}
               </Text>
               <Text style={[styles.dayNum, { color: isSelected ? "#fff" : colors.text }]}>
@@ -165,9 +169,7 @@ export function ScheduleScreenView({
             testID="schedule-booking-error"
           >
             <Feather name="alert-circle" size={14} color={colors.error} />
-            <Text style={[styles.feedbackText, { color: colors.error }]}>
-              {bookingMessage}
-            </Text>
+            <Text style={[styles.feedbackText, { color: colors.error }]}>{bookingMessage}</Text>
           </View>
         ) : null}
 
@@ -299,10 +301,7 @@ export function ScheduleScreenView({
                     >
                       {isUpdating ? (
                         <View style={{ marginRight: 6 }}>
-                          <ActivityIndicator
-                            size="small"
-                            color={enrolled ? colors.text : "#fff"}
-                          />
+                          <ActivityIndicator size="small" color={enrolled ? colors.text : "#fff"} />
                         </View>
                       ) : enrolled ? (
                         <View style={{ marginRight: 4 }}>
@@ -313,11 +312,7 @@ export function ScheduleScreenView({
                         style={[
                           styles.enrollBtnText,
                           {
-                            color: enrolled
-                              ? colors.text
-                              : full
-                                ? colors.mutedForeground
-                                : "#fff",
+                            color: enrolled ? colors.text : full ? colors.mutedForeground : "#fff",
                           },
                         ]}
                       >
@@ -338,9 +333,7 @@ export function ScheduleScreenView({
         )}
 
         <View style={[styles.allClassesSection, { borderTopColor: colors.border }]}>
-          <Text
-            style={[styles.allClassesTitle, typography.sectionTitle, { color: colors.text }]}
-          >
+          <Text style={[styles.allClassesTitle, typography.sectionTitle, { color: colors.text }]}>
             All Upcoming Classes
           </Text>
           <View style={typography.sectionTitleUnderline} />
@@ -366,9 +359,7 @@ export function ScheduleScreenView({
                 testID={`schedule-mini-class-${gymClass.id}`}
               >
                 <View style={styles.miniClassLeft}>
-                  <Text style={styles.miniEmoji}>
-                    {CATEGORY_EMOJI[gymClass.category] || "🏋️"}
-                  </Text>
+                  <Text style={styles.miniEmoji}>{CATEGORY_EMOJI[gymClass.category] || "🏋️"}</Text>
                   <View>
                     <Text style={[styles.miniClassName, { color: colors.text }]}>
                       {gymClass.name}
@@ -385,10 +376,7 @@ export function ScheduleScreenView({
                 </View>
                 {isEnrolled(gymClass.id) ? (
                   <View
-                    style={[
-                      styles.miniEnrolledBadge,
-                      { backgroundColor: `${colors.success}22` },
-                    ]}
+                    style={[styles.miniEnrolledBadge, { backgroundColor: `${colors.success}22` }]}
                   >
                     <Feather name="check" size={11} color={colors.success} />
                   </View>

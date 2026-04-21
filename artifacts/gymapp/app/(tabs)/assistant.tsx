@@ -93,7 +93,11 @@ function TypingDots({ color }: { color: string }) {
     a1.start();
     a2.start();
     a3.start();
-    return () => { a1.stop(); a2.stop(); a3.stop(); };
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
   }, []);
 
   return (
@@ -124,7 +128,13 @@ function PulsingStatusDot({ color }: { color: string }) {
 
   return (
     <Animated.View
-      style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, transform: [{ scale }] }}
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: color,
+        transform: [{ scale }],
+      }}
     />
   );
 }
@@ -179,7 +189,9 @@ export default function AssistantScreen() {
                         id: generateId(),
                         role: message.role,
                         content: message.content,
-                        timestamp: message.timestamp ? new Date(message.timestamp).getTime() : Date.now(),
+                        timestamp: message.timestamp
+                          ? new Date(message.timestamp).getTime()
+                          : Date.now(),
                       } satisfies Message;
                     })
                     .filter((message): message is Message => Boolean(message))
@@ -210,15 +222,18 @@ export default function AssistantScreen() {
     void loadHistory();
   }, [authLoaded, getToken, isSignedIn, storageKey, userId]);
 
-  const persistMessages = useCallback(async (msgs: Message[]) => {
-    try {
-      const userAndAssistant = msgs.filter((m) => m.id !== "welcome");
-      const trimmed = userAndAssistant.slice(-MAX_PERSISTED_MESSAGES);
-      await AsyncStorage.setItem(storageKey, JSON.stringify(trimmed));
-    } catch {
-      // non-critical: storage write failure doesn't break chat
-    }
-  }, [storageKey]);
+  const persistMessages = useCallback(
+    async (msgs: Message[]) => {
+      try {
+        const userAndAssistant = msgs.filter((m) => m.id !== "welcome");
+        const trimmed = userAndAssistant.slice(-MAX_PERSISTED_MESSAGES);
+        await AsyncStorage.setItem(storageKey, JSON.stringify(trimmed));
+      } catch {
+        // non-critical: storage write failure doesn't break chat
+      }
+    },
+    [storageKey],
+  );
 
   const todayCalories = todayLog.entries.reduce((sum, e) => sum + e.calories, 0);
   const recentWorkouts = sessions.slice(0, 3).map((s) => ({ name: s.name, date: s.date }));
@@ -233,14 +248,22 @@ export default function AssistantScreen() {
     async (text: string) => {
       if (!text.trim() || isLoading) return;
 
-      const userMsg: Message = { id: generateId(), role: "user", content: text.trim(), timestamp: Date.now() };
+      const userMsg: Message = {
+        id: generateId(),
+        role: "user",
+        content: text.trim(),
+        timestamp: Date.now(),
+      };
       const updatedMessages = [...messages, userMsg];
       setMessages(updatedMessages);
       setInputText("");
       setIsLoading(true);
 
       const assistantId = generateId();
-      setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "", timestamp: Date.now() }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", content: "", timestamp: Date.now() },
+      ]);
 
       try {
         const token = await getToken();
@@ -248,7 +271,9 @@ export default function AssistantScreen() {
           throw new Error("Authentication required");
         }
 
-        const chatHistory = updatedMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+        const chatHistory = updatedMessages
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
         const userProfile = {
           name: profile.name,
           goal: profile.fitnessGoal,
@@ -318,9 +343,12 @@ export default function AssistantScreen() {
           }
         }
 
-        const finalContent = accumulated || "I apologize, I couldn't generate a response. Please try again.";
+        const finalContent =
+          accumulated || "I apologize, I couldn't generate a response. Please try again.";
         setMessages((prev) => {
-          const updated = prev.map((m) => (m.id === assistantId ? { ...m, content: finalContent } : m));
+          const updated = prev.map((m) =>
+            m.id === assistantId ? { ...m, content: finalContent } : m,
+          );
           persistMessages(updated);
           return updated;
         });
@@ -328,7 +356,11 @@ export default function AssistantScreen() {
         setMessages((prev) => {
           const updated = prev.map((m) =>
             m.id === assistantId
-              ? { ...m, content: "Sorry, I'm having trouble connecting right now. Please check your internet connection and try again." }
+              ? {
+                  ...m,
+                  content:
+                    "Sorry, I'm having trouble connecting right now. Please check your internet connection and try again.",
+                }
               : m,
           );
           persistMessages(updated);
@@ -339,7 +371,17 @@ export default function AssistantScreen() {
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
       }
     },
-    [messages, isLoading, profile, todayCalories, recentWorkouts, persistMessages, getToken, behaviorProfile, savedPlans],
+    [
+      messages,
+      isLoading,
+      profile,
+      todayCalories,
+      recentWorkouts,
+      persistMessages,
+      getToken,
+      behaviorProfile,
+      savedPlans,
+    ],
   );
 
   const handleClearHistory = useCallback(async () => {
@@ -369,7 +411,9 @@ export default function AssistantScreen() {
     return (
       <View style={[styles.messageWrapper, isUser && styles.userWrapper]}>
         {!isUser && (
-          <View style={[styles.avatar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[styles.avatar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
             <Feather name="cpu" size={14} color={colors.primary} />
           </View>
         )}
@@ -385,17 +429,30 @@ export default function AssistantScreen() {
             {isStreaming ? (
               <TypingDots color={colors.mutedForeground} />
             ) : (
-              <Text style={[styles.bubbleText, { color: isUser ? "#fff" : colors.text }]}>{item.content}</Text>
+              <Text style={[styles.bubbleText, { color: isUser ? "#fff" : colors.text }]}>
+                {item.content}
+              </Text>
             )}
           </View>
           {tsLabel ? (
-            <Text style={[styles.timestamp, { color: colors.mutedForeground }, isUser && styles.tsRight]}>
+            <Text
+              style={[
+                styles.timestamp,
+                { color: colors.mutedForeground },
+                isUser && styles.tsRight,
+              ]}
+            >
               {tsLabel}
             </Text>
           ) : null}
         </View>
         {isUser && (
-          <View style={[styles.avatar, { backgroundColor: SAFFRON + "22", borderColor: SAFFRON + "44" }]}>
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: SAFFRON + "22", borderColor: SAFFRON + "44" },
+            ]}
+          >
             <Feather name="user" size={14} color={SAFFRON} />
           </View>
         )}
@@ -414,13 +471,18 @@ export default function AssistantScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
         <View style={[styles.botAvatar, { backgroundColor: colors.primary }]}>
           <Feather name="cpu" size={18} color="#fff" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.botName, typography.cardTitle, { color: colors.text }]}>GymOS AI Coach</Text>
+          <Text style={[styles.botName, typography.cardTitle, { color: colors.text }]}>
+            GymOS AI Coach
+          </Text>
           <View style={styles.statusRow}>
             <PulsingStatusDot color={isLoading ? SAFFRON : colors.success} />
             <Text style={[styles.statusText, { color: colors.mutedForeground }]}>
@@ -428,12 +490,19 @@ export default function AssistantScreen() {
             </Text>
           </View>
         </View>
-        <Pressable onPress={handleClearHistory} style={[styles.clearBtn, { borderColor: colors.border }]}>
+        <Pressable
+          onPress={handleClearHistory}
+          style={[styles.clearBtn, { borderColor: colors.border }]}
+        >
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={TAB_BAR_HEIGHT}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={TAB_BAR_HEIGHT}
+      >
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -445,10 +514,19 @@ export default function AssistantScreen() {
           ListHeaderComponent={
             messages.length <= 1 ? (
               <View style={styles.quickPromptsContainer}>
-                <Text style={[styles.quickPromptsTitle, { color: colors.mutedForeground }]}>Quick questions</Text>
+                <Text style={[styles.quickPromptsTitle, { color: colors.mutedForeground }]}>
+                  Quick questions
+                </Text>
                 <View style={styles.quickPrompts}>
                   {QUICK_PROMPTS.map((p) => (
-                    <Pressable key={p} style={[styles.quickPrompt, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => sendMessage(p)}>
+                    <Pressable
+                      key={p}
+                      style={[
+                        styles.quickPrompt,
+                        { backgroundColor: colors.card, borderColor: colors.border },
+                      ]}
+                      onPress={() => sendMessage(p)}
+                    >
                       <Text style={[styles.quickPromptText, { color: colors.text }]}>{p}</Text>
                     </Pressable>
                   ))}
@@ -458,8 +536,19 @@ export default function AssistantScreen() {
           }
         />
 
-        <View style={[styles.inputContainer, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: TAB_BAR_HEIGHT + 4 }]}>
-          <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.border,
+              paddingBottom: TAB_BAR_HEIGHT + 4,
+            },
+          ]}
+        >
+          <View
+            style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
             <TextInput
               style={[styles.input, { color: colors.text }]}
               placeholder="Ask your AI coach anything..."
@@ -471,11 +560,18 @@ export default function AssistantScreen() {
               onSubmitEditing={() => sendMessage(inputText)}
             />
             <Pressable
-              style={[styles.sendBtn, { backgroundColor: inputText.trim() && !isLoading ? SAFFRON : colors.muted }]}
+              style={[
+                styles.sendBtn,
+                { backgroundColor: inputText.trim() && !isLoading ? SAFFRON : colors.muted },
+              ]}
               onPress={() => sendMessage(inputText)}
               disabled={!inputText.trim() || isLoading}
             >
-              {isLoading ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="send" size={16} color="#fff" />
+              )}
             </Pressable>
           </View>
         </View>
@@ -487,16 +583,44 @@ export default function AssistantScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  botAvatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  botAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   botName: { fontSize: 16, fontWeight: "700" },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   statusText: { fontSize: 12 },
-  clearBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  clearBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   messageList: { paddingHorizontal: 16, gap: 12, paddingTop: 12 },
   messageWrapper: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
   userWrapper: { justifyContent: "flex-end" },
-  avatar: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center", flexShrink: 0, borderWidth: 1 },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    borderWidth: 1,
+  },
   bubbleCol: { maxWidth: "75%", gap: 3 },
   bubble: { borderRadius: 18, padding: 13 },
   userBubble: { borderBottomRightRadius: 4 },
@@ -505,12 +629,32 @@ const styles = StyleSheet.create({
   timestamp: { fontSize: 11, paddingHorizontal: 4 },
   tsRight: { textAlign: "right" },
   quickPromptsContainer: { paddingBottom: 16, gap: 8 },
-  quickPromptsTitle: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: "600", marginBottom: 4 },
+  quickPromptsTitle: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
   quickPrompts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   quickPrompt: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
   quickPromptText: { fontSize: 13 },
   inputContainer: { borderTopWidth: 1, padding: 12 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, borderRadius: 16, borderWidth: 1, padding: 8, paddingLeft: 14 },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 8,
+    paddingLeft: 14,
+  },
   input: { flex: 1, fontSize: 15, maxHeight: 100, paddingVertical: 4 },
-  sendBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

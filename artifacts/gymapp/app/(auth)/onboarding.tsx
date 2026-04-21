@@ -62,9 +62,7 @@ const DIET_TYPE_OPTIONS: { label: string; value: DietType }[] = [
   { label: "Eggetarian", value: "eggetarian" },
 ];
 
-const ROLE_OPTIONS: { label: string; value: UserRole }[] = [
-  { label: "Member", value: "member" },
-];
+const ROLE_OPTIONS: { label: string; value: UserRole }[] = [{ label: "Member", value: "member" }];
 
 const EXPERIENCE_OPTIONS: { label: string; value: FitnessExperience }[] = [
   { label: "Beginner", value: "beginner" },
@@ -123,7 +121,7 @@ function calculateTargets(data: {
   const bmr =
     data.gender === "male"
       ? 88.362 + 13.397 * weight + 4.799 * height - 5.677 * age
-      : 447.593 + 9.247 * weight + 3.098 * height - 4.330 * age;
+      : 447.593 + 9.247 * weight + 3.098 * height - 4.33 * age;
   let tdee = Math.round(bmr * activityMultiplier[data.activityLevel]);
   if (data.fitnessGoal === "lose_weight") tdee -= 400;
   if (data.fitnessGoal === "build_muscle") tdee += 300;
@@ -268,7 +266,7 @@ export default function Onboarding() {
   const renderOption = <T extends string>(
     choices: { label: string; value: T }[],
     field: string,
-    current: T
+    current: T,
   ) =>
     choices.map(({ label, value }) => (
       <Pressable
@@ -302,9 +300,7 @@ export default function Onboarding() {
         ]}
         onPress={() => toggleInjury(injury)}
       >
-        <Text style={[styles.optionText, { color: selected ? "#fff" : colors.text }]}>
-          {label}
-        </Text>
+        <Text style={[styles.optionText, { color: selected ? "#fff" : colors.text }]}>{label}</Text>
       </Pressable>
     );
   };
@@ -327,20 +323,35 @@ export default function Onboarding() {
                 <TextInput
                   style={[
                     styles.input,
-                    { backgroundColor: colors.card, borderColor: errors.name ? colors.destructive : colors.border, color: colors.text },
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: errors.name ? colors.destructive : colors.border,
+                      color: colors.text,
+                    },
                   ]}
                   placeholder="Name"
                   placeholderTextColor={colors.mutedForeground}
                   value={data.name}
                   onChangeText={(v) => update("name", v)}
                 />
-                {errors.name ? <Text style={[styles.errorText, { color: colors.destructive }]}>{errors.name}</Text> : null}
+                {errors.name ? (
+                  <Text style={[styles.errorText, { color: colors.destructive }]}>
+                    {errors.name}
+                  </Text>
+                ) : null}
               </View>
               <View style={styles.row}>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={[styles.label, { color: colors.mutedForeground }]}>Age</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
                     placeholder="25"
                     placeholderTextColor={colors.mutedForeground}
                     value={data.age}
@@ -353,7 +364,11 @@ export default function Onboarding() {
                   <TextInput
                     style={[
                       styles.input,
-                      { backgroundColor: colors.card, borderColor: errors.height ? colors.destructive : colors.border, color: colors.text },
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: errors.height ? colors.destructive : colors.border,
+                        color: colors.text,
+                      },
                     ]}
                     placeholder="170"
                     placeholderTextColor={colors.mutedForeground}
@@ -361,7 +376,11 @@ export default function Onboarding() {
                     onChangeText={(v) => update("height", v)}
                     keyboardType="decimal-pad"
                   />
-                  {errors.height ? <Text style={[styles.errorText, { color: colors.destructive }]}>{errors.height}</Text> : null}
+                  {errors.height ? (
+                    <Text style={[styles.errorText, { color: colors.destructive }]}>
+                      {errors.height}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
               <View style={styles.row}>
@@ -370,7 +389,11 @@ export default function Onboarding() {
                   <TextInput
                     style={[
                       styles.input,
-                      { backgroundColor: colors.card, borderColor: errors.weight ? colors.destructive : colors.border, color: colors.text },
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: errors.weight ? colors.destructive : colors.border,
+                        color: colors.text,
+                      },
                     ]}
                     placeholder="70"
                     placeholderTextColor={colors.mutedForeground}
@@ -378,12 +401,23 @@ export default function Onboarding() {
                     onChangeText={(v) => update("weight", v)}
                     keyboardType="decimal-pad"
                   />
-                  {errors.weight ? <Text style={[styles.errorText, { color: colors.destructive }]}>{errors.weight}</Text> : null}
+                  {errors.weight ? (
+                    <Text style={[styles.errorText, { color: colors.destructive }]}>
+                      {errors.weight}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={[styles.label, { color: colors.mutedForeground }]}>Target (kg)</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
                     placeholder="65"
                     placeholderTextColor={colors.mutedForeground}
                     value={data.targetWeight}
@@ -410,15 +444,21 @@ export default function Onboarding() {
               Help us tailor workouts to your experience and schedule
             </Text>
             <View style={styles.form}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Experience Level</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                Experience Level
+              </Text>
               <View style={styles.optionGrid}>
                 {renderOption(EXPERIENCE_OPTIONS, "fitnessExperience", data.fitnessExperience)}
               </View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Preferred Workout Time</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                Preferred Workout Time
+              </Text>
               <View style={styles.optionGrid}>
                 {renderOption(WORKOUT_TIME_OPTIONS, "workoutTime", data.workoutTime)}
               </View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Equipment Access</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                Equipment Access
+              </Text>
               <View style={styles.optionGrid}>
                 {renderOption(EQUIPMENT_OPTIONS, "equipment", data.equipment)}
               </View>
@@ -429,7 +469,9 @@ export default function Onboarding() {
       case 2:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>Any Injuries or Limitations?</Text>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>
+              Any Injuries or Limitations?
+            </Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
               Select all that apply — your AI coach will avoid exercises that could aggravate them
             </Text>
@@ -473,7 +515,9 @@ export default function Onboarding() {
               <View style={styles.optionGrid}>
                 {renderOption(DIET_TYPE_OPTIONS, "dietType", data.dietType)}
               </View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Meal Timing Preference</Text>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                Meal Timing Preference
+              </Text>
               <View style={styles.optionGrid}>
                 {renderOption(MEAL_TIMING_OPTIONS, "mealTiming", data.mealTiming)}
               </View>
@@ -486,16 +530,22 @@ export default function Onboarding() {
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: colors.text }]}>How will you use GymOS?</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Your account starts as a member. Trainer and owner access is enabled by your gym admin after signup.
+              Your account starts as a member. Trainer and owner access is enabled by your gym admin
+              after signup.
             </Text>
             <View style={styles.form}>
-              <View style={styles.optionGrid}>
-                {renderOption(ROLE_OPTIONS, "role", data.role)}
-              </View>
-              <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.optionGrid}>{renderOption(ROLE_OPTIONS, "role", data.role)}</View>
+              <View
+                style={[
+                  styles.summaryCard,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
                 <Text style={[styles.summaryCardTitle, { color: colors.text }]}>Access model</Text>
                 <Text style={[styles.summaryNote, { color: colors.mutedForeground }]}>
-                  Members can start using the app immediately. If you should have trainer tools, your gym admin can promote your account from the admin panel and the Expo app will pick it up automatically.
+                  Members can start using the app immediately. If you should have trainer tools,
+                  your gym admin can promote your account from the admin panel and the Expo app will
+                  pick it up automatically.
                 </Text>
               </View>
             </View>
@@ -506,18 +556,35 @@ export default function Onboarding() {
         return (
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: colors.text }]}>You're all set!</Text>
-            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>{motivationalMsg}</Text>
-            <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.summaryCardTitle, { color: colors.text }]}>Your Daily Targets</Text>
+            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
+              {motivationalMsg}
+            </Text>
+            <View
+              style={[
+                styles.summaryCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.summaryCardTitle, { color: colors.text }]}>
+                Your Daily Targets
+              </Text>
               <View style={styles.calorieRow}>
-                <Text style={[styles.calorieValue, { color: colors.primary }]}>{summary.calories}</Text>
-                <Text style={[styles.calorieUnit, { color: colors.mutedForeground }]}>kcal / day</Text>
+                <Text style={[styles.calorieValue, { color: colors.primary }]}>
+                  {summary.calories}
+                </Text>
+                <Text style={[styles.calorieUnit, { color: colors.mutedForeground }]}>
+                  kcal / day
+                </Text>
               </View>
               <View style={styles.macroRow}>
                 <View style={styles.macroItem}>
                   <View style={[styles.macroDot, { backgroundColor: "#ef4444" }]} />
-                  <Text style={[styles.macroValue, { color: colors.text }]}>{summary.protein}g</Text>
-                  <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>Protein</Text>
+                  <Text style={[styles.macroValue, { color: colors.text }]}>
+                    {summary.protein}g
+                  </Text>
+                  <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
+                    Protein
+                  </Text>
                 </View>
                 <View style={styles.macroItem}>
                   <View style={[styles.macroDot, { backgroundColor: "#f59e0b" }]} />
@@ -531,11 +598,38 @@ export default function Onboarding() {
                 </View>
               </View>
             </View>
-            <View style={[styles.summaryDetails, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <SummaryRow label="Goal" value={FITNESS_GOAL_OPTIONS.find((o) => o.value === data.fitnessGoal)?.label || ""} textColor={colors.text} mutedColor={colors.mutedForeground} />
-              <SummaryRow label="Experience" value={EXPERIENCE_OPTIONS.find((o) => o.value === data.fitnessExperience)?.label || ""} textColor={colors.text} mutedColor={colors.mutedForeground} />
-              <SummaryRow label="Diet" value={DIET_TYPE_OPTIONS.find((o) => o.value === data.dietType)?.label || ""} textColor={colors.text} mutedColor={colors.mutedForeground} />
-              <SummaryRow label="Equipment" value={EQUIPMENT_OPTIONS.find((o) => o.value === data.equipment)?.label || ""} textColor={colors.text} mutedColor={colors.mutedForeground} />
+            <View
+              style={[
+                styles.summaryDetails,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <SummaryRow
+                label="Goal"
+                value={FITNESS_GOAL_OPTIONS.find((o) => o.value === data.fitnessGoal)?.label || ""}
+                textColor={colors.text}
+                mutedColor={colors.mutedForeground}
+              />
+              <SummaryRow
+                label="Experience"
+                value={
+                  EXPERIENCE_OPTIONS.find((o) => o.value === data.fitnessExperience)?.label || ""
+                }
+                textColor={colors.text}
+                mutedColor={colors.mutedForeground}
+              />
+              <SummaryRow
+                label="Diet"
+                value={DIET_TYPE_OPTIONS.find((o) => o.value === data.dietType)?.label || ""}
+                textColor={colors.text}
+                mutedColor={colors.mutedForeground}
+              />
+              <SummaryRow
+                label="Equipment"
+                value={EQUIPMENT_OPTIONS.find((o) => o.value === data.equipment)?.label || ""}
+                textColor={colors.text}
+                mutedColor={colors.mutedForeground}
+              />
             </View>
           </View>
         );
@@ -553,9 +647,12 @@ export default function Onboarding() {
             <Text style={styles.welcomeLogoText}>G</Text>
           </View>
           <Text style={[styles.welcomeTitle, { color: colors.text }]}>GymOS</Text>
-          <Text style={[styles.welcomeTagline, { color: colors.primary }]}>Train Smarter. Live Better.</Text>
+          <Text style={[styles.welcomeTagline, { color: colors.primary }]}>
+            Train Smarter. Live Better.
+          </Text>
           <Text style={[styles.welcomeDesc, { color: colors.mutedForeground }]}>
-            AI-powered gym companion for Indian athletes. Get personalised workouts, nutrition plans, and a coach that knows your goals.
+            AI-powered gym companion for Indian athletes. Get personalised workouts, nutrition
+            plans, and a coach that knows your goals.
           </Text>
         </View>
         <Pressable
@@ -572,7 +669,10 @@ export default function Onboarding() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
         <View style={styles.progressBar}>
           {STEP_LABELS.map((_, i) => (
             <View
@@ -598,7 +698,10 @@ export default function Onboarding() {
         </Animated.View>
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
           {step > 0 && (
-            <Pressable style={[styles.backBtn, { borderColor: colors.border }]} onPress={handleBack}>
+            <Pressable
+              style={[styles.backBtn, { borderColor: colors.border }]}
+              onPress={handleBack}
+            >
               <Text style={[styles.backText, { color: colors.text }]}>Back</Text>
             </Pressable>
           )}
@@ -612,9 +715,7 @@ export default function Onboarding() {
             onPress={isLastStep ? handleFinish : handleNext}
             disabled={loading}
           >
-            <Text style={styles.nextText}>
-              {isLastStep ? "Start My Journey" : "Continue"}
-            </Text>
+            <Text style={styles.nextText}>{isLastStep ? "Start My Journey" : "Continue"}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -644,7 +745,14 @@ function SummaryRow({
 const styles = StyleSheet.create({
   welcomeContainer: { flex: 1, padding: 32, justifyContent: "space-between" },
   welcomeContent: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16 },
-  welcomeLogo: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  welcomeLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
   welcomeLogoText: { fontSize: 40, fontWeight: "900", color: "#fff" },
   welcomeTitle: { fontSize: 40, fontWeight: "900", letterSpacing: -1 },
   welcomeTagline: { fontSize: 18, fontWeight: "600" },
@@ -663,7 +771,13 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   row: { flexDirection: "row", gap: 12 },
   label: { fontSize: 14, fontWeight: "500", marginBottom: 4 },
-  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+  },
   errorText: { fontSize: 12, marginTop: 2 },
   optionRow: { flexDirection: "row", gap: 8 },
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

@@ -9,7 +9,10 @@ export const gymSettingsTable = pgTable("gym_settings", {
   phone: text("phone").notNull().default(""),
   workingHours: text("working_hours").notNull().default("Mon-Fri: 6am-10pm, Sat-Sun: 7am-8pm"),
   description: text("description").notNull().default(""),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const insertGymSettingsSchema = createInsertSchema(gymSettingsTable).omit({

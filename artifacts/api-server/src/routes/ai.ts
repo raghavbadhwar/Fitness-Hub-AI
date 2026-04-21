@@ -21,7 +21,10 @@ const RATE_LIMIT_MAX_PER_WINDOW = 20;
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "unknown";
+  const ip =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+    req.socket.remoteAddress ??
+    "unknown";
   const now = Date.now();
   const entry = ipRequestCounts.get(ip);
 
@@ -118,7 +121,10 @@ router.delete("/history", async (req: Request, res: Response) => {
 
 router.post("/analyze-food", async (req: Request, res: Response) => {
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = (req.body ?? {}) as { imageBase64?: string; mimeType?: string };
+    const { imageBase64, mimeType = "image/jpeg" } = (req.body ?? {}) as {
+      imageBase64?: string;
+      mimeType?: string;
+    };
 
     if (!imageBase64 || typeof imageBase64 !== "string") {
       res.status(400).json({ error: "imageBase64 is required" });
@@ -152,16 +158,16 @@ Return only the JSON, no other text.`;
       contents: [
         {
           role: "user",
-          parts: [
-            { inlineData: { mimeType, data: imageBase64 } },
-            { text: prompt },
-          ],
+          parts: [{ inlineData: { mimeType, data: imageBase64 } }, { text: prompt }],
         },
       ],
     });
 
     const text = response.text ?? "";
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = text
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
 
     try {
       const parsed: unknown = JSON.parse(cleaned);
@@ -196,8 +202,7 @@ router.post("/chat", async (req: Request, res: Response) => {
       return;
     }
 
-    const { messages, userProfile, todayStats, behaviorProfile, savedPlans } =
-      (req.body ?? {}) as {
+    const { messages, userProfile, todayStats, behaviorProfile, savedPlans } = (req.body ?? {}) as {
       messages?: Array<{ role: string; content: string }>;
       userProfile?: Record<string, unknown>;
       todayStats?: Record<string, unknown>;
@@ -274,7 +279,9 @@ router.post("/chat", async (req: Request, res: Response) => {
       { role: "user", content: lastMessage.content },
       {
         role: "assistant",
-        content: finalAssistantText.trim() || "I apologize, but I could not generate a helpful response this time.",
+        content:
+          finalAssistantText.trim() ||
+          "I apologize, but I could not generate a helpful response this time.",
       },
     ]);
 
@@ -305,29 +312,32 @@ Return JSON only with this shape:
 
 Current memory:
 ${JSON.stringify({
-                  memorySummary: memoryProfile?.memorySummary ?? "",
-                  goals: memoryProfile?.goals ?? [],
-                  preferences: memoryProfile?.preferences ?? [],
-                  barriers: memoryProfile?.barriers ?? [],
-                  motivators: memoryProfile?.motivators ?? [],
-                  injuries: memoryProfile?.injuries ?? [],
-                })}
+  memorySummary: memoryProfile?.memorySummary ?? "",
+  goals: memoryProfile?.goals ?? [],
+  preferences: memoryProfile?.preferences ?? [],
+  barriers: memoryProfile?.barriers ?? [],
+  motivators: memoryProfile?.motivators ?? [],
+  injuries: memoryProfile?.injuries ?? [],
+})}
 
 Latest context:
 ${JSON.stringify({
-                  userProfile: userProfile ?? {},
-                  todayStats: todayStats ?? {},
-                  behaviorProfile: behaviorProfile ?? {},
-                  savedPlans: savedPlans ?? [],
-                  recentMessages: persistedMessages.slice(-6),
-                })}`,
+  userProfile: userProfile ?? {},
+  todayStats: todayStats ?? {},
+  behaviorProfile: behaviorProfile ?? {},
+  savedPlans: savedPlans ?? [],
+  recentMessages: persistedMessages.slice(-6),
+})}`,
               },
             ],
           },
         ],
       });
 
-      mergedMemory = mergeMemoryUpdate(memoryProfile, parseMemoryExtraction(memoryUpdateResponse.text));
+      mergedMemory = mergeMemoryUpdate(
+        memoryProfile,
+        parseMemoryExtraction(memoryUpdateResponse.text),
+      );
     } catch (memoryErr) {
       console.error("AI memory extraction error:", memoryErr);
     }
@@ -376,21 +386,15 @@ ${JSON.stringify({
 
 router.post("/workout-suggestion", async (req: Request, res: Response) => {
   try {
-    const {
-      recentWorkouts,
-      goals,
-      fitnessLevel,
-      availableTime,
-      behaviorProfile,
-      savedPlans,
-    } = (req.body ?? {}) as {
-      recentWorkouts?: unknown[];
-      goals?: string;
-      fitnessLevel?: string;
-      availableTime?: number;
-      behaviorProfile?: Record<string, unknown>;
-      savedPlans?: unknown[];
-    };
+    const { recentWorkouts, goals, fitnessLevel, availableTime, behaviorProfile, savedPlans } =
+      (req.body ?? {}) as {
+        recentWorkouts?: unknown[];
+        goals?: string;
+        fitnessLevel?: string;
+        availableTime?: number;
+        behaviorProfile?: Record<string, unknown>;
+        savedPlans?: unknown[];
+      };
 
     const prompt = `You are a professional fitness coach. Based on the following user data, suggest a workout plan.
 
@@ -428,7 +432,10 @@ Return ONLY this JSON (no markdown):
     });
 
     const text = response.text ?? "";
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = text
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
 
     try {
       const parsed: unknown = JSON.parse(cleaned);

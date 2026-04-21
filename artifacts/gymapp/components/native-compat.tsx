@@ -1,13 +1,7 @@
 import React, { type ReactNode } from "react";
-import {
-  BlurView as NativeBlurView,
-} from "expo-blur";
-import {
-  LinearGradient as NativeLinearGradient,
-} from "expo-linear-gradient";
-import {
-  GestureHandlerRootView as NativeGestureHandlerRootView,
-} from "react-native-gesture-handler";
+import { BlurView as NativeBlurView } from "expo-blur";
+import { LinearGradient as NativeLinearGradient } from "expo-linear-gradient";
+import { GestureHandlerRootView as NativeGestureHandlerRootView } from "react-native-gesture-handler";
 import {
   SafeAreaProvider as NativeSafeAreaProvider,
   SafeAreaView as NativeSafeAreaView,
@@ -78,8 +72,7 @@ type LinearGradientProps = {
 
 const SafeAreaProviderBase =
   NativeSafeAreaProvider as unknown as React.ComponentType<SafeAreaProviderProps>;
-const SafeAreaViewBase =
-  NativeSafeAreaView as unknown as React.ComponentType<SafeAreaViewProps>;
+const SafeAreaViewBase = NativeSafeAreaView as unknown as React.ComponentType<SafeAreaViewProps>;
 const GestureHandlerRootViewBase =
   NativeGestureHandlerRootView as unknown as React.ComponentType<GestureHandlerRootViewProps>;
 const BlurViewBase = NativeBlurView as unknown as React.ComponentType<BlurViewProps>;

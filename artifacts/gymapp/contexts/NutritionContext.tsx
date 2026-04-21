@@ -91,7 +91,10 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     async (entry: Omit<FoodEntry, "id" | "timestamp">, date: string = today) => {
       const currentLog = logs[date] || { date, entries: [], waterIntake: 0 };
       const newEntry: FoodEntry = { ...entry, id: generateId(), timestamp: Date.now() };
-      const newLogs = { ...logs, [date]: { ...currentLog, entries: [...currentLog.entries, newEntry] } };
+      const newLogs = {
+        ...logs,
+        [date]: { ...currentLog, entries: [...currentLog.entries, newEntry] },
+      };
       await saveLogs(newLogs);
     },
     [logs, saveLogs, today],
@@ -147,7 +150,16 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <NutritionContext.Provider
-      value={{ todayLog, getLogForDate, addFoodEntry, removeFoodEntry, updateWaterIntake, getWeeklyCalories, get30DayCalories, isLoading }}
+      value={{
+        todayLog,
+        getLogForDate,
+        addFoodEntry,
+        removeFoodEntry,
+        updateWaterIntake,
+        getWeeklyCalories,
+        get30DayCalories,
+        isLoading,
+      }}
     >
       {children}
     </NutritionContext.Provider>

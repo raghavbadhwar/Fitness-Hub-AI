@@ -23,9 +23,7 @@ export const memberWorkoutPlans = pgTable("member_workout_plans", {
     .$onUpdate(() => new Date()),
 });
 
-export const insertMemberWorkoutPlanSchema = createInsertSchema(
-  memberWorkoutPlans,
-).omit({
+export const insertMemberWorkoutPlanSchema = createInsertSchema(memberWorkoutPlans).omit({
   id: true,
   memberClerkId: true,
   createdAt: true,

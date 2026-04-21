@@ -2,10 +2,10 @@ import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { 
+import {
   useAdminCreateClass,
   useAdminUpdateClass,
-  getAdminListClassesQueryKey
+  getAdminListClassesQueryKey,
 } from "@workspace/api-client-react";
 import type { GymClass } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,13 +38,19 @@ import {
 import { Save } from "lucide-react";
 
 const classCategories = [
-  "Yoga", "Zumba", "CrossFit", "HIIT", "Spinning", 
-  "Boxing", "Pilates", "Strength", "Cardio", "Other"
+  "Yoga",
+  "Zumba",
+  "CrossFit",
+  "HIIT",
+  "Spinning",
+  "Boxing",
+  "Pilates",
+  "Strength",
+  "Cardio",
+  "Other",
 ] as const;
 
-const classStatuses = [
-  "scheduled", "in_progress", "completed", "cancelled"
-] as const;
+const classStatuses = ["scheduled", "in_progress", "completed", "cancelled"] as const;
 
 const classSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -80,7 +86,7 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
       category: "Other",
       description: "",
       trainer: "",
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       startTime: "09:00",
       duration: 60,
       maxParticipants: 20,
@@ -92,11 +98,13 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
   useEffect(() => {
     if (open) {
       if (editingClass) {
-        const category = classCategories.includes(editingClass.category as typeof classCategories[number])
-          ? (editingClass.category as typeof classCategories[number])
+        const category = classCategories.includes(
+          editingClass.category as (typeof classCategories)[number],
+        )
+          ? (editingClass.category as (typeof classCategories)[number])
           : "Other";
-        const status = classStatuses.includes(editingClass.status as typeof classStatuses[number])
-          ? (editingClass.status as typeof classStatuses[number])
+        const status = classStatuses.includes(editingClass.status as (typeof classStatuses)[number])
+          ? (editingClass.status as (typeof classStatuses)[number])
           : "scheduled";
         form.reset({
           name: editingClass.name,
@@ -116,7 +124,7 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
           category: "Other",
           description: "",
           trainer: "",
-          date: new Date().toISOString().split('T')[0],
+          date: new Date().toISOString().split("T")[0],
           startTime: "09:00",
           duration: 60,
           maxParticipants: 20,
@@ -136,8 +144,8 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
       },
       onError: (error) => {
         toast({ title: "Failed to create class", variant: "destructive" });
-      }
-    }
+      },
+    },
   });
 
   const updateClass = useAdminUpdateClass({
@@ -149,8 +157,8 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
       },
       onError: (error) => {
         toast({ title: "Failed to update class", variant: "destructive" });
-      }
-    }
+      },
+    },
   });
 
   function onSubmit(data: ClassFormValues) {
@@ -167,9 +175,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Class' : 'Create New Class'}</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Class" : "Create New Class"}</DialogTitle>
           <DialogDescription>
-            {isEditing ? 'Update the details for this gym class.' : 'Add a new class to your gym schedule.'}
+            {isEditing
+              ? "Update the details for this gym class."
+              : "Add a new class to your gym schedule."}
           </DialogDescription>
         </DialogHeader>
 
@@ -183,7 +193,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                   <FormItem>
                     <FormLabel>Class Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Morning Yoga" {...field} data-testid="input-class-name" />
+                      <Input
+                        placeholder="e.g. Morning Yoga"
+                        {...field}
+                        data-testid="input-class-name"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -203,8 +217,10 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {classCategories.map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        {classCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -220,7 +236,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                   <FormItem>
                     <FormLabel>Trainer</FormLabel>
                     <FormControl>
-                      <Input placeholder="Trainer name" {...field} data-testid="input-class-trainer" />
+                      <Input
+                        placeholder="Trainer name"
+                        {...field}
+                        data-testid="input-class-trainer"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -234,7 +254,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                   <FormItem>
                     <FormLabel>Room/Studio</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Studio A" {...field} data-testid="input-class-room" />
+                      <Input
+                        placeholder="e.g. Studio A"
+                        {...field}
+                        data-testid="input-class-room"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -297,7 +321,7 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                 )}
               />
             </div>
-            
+
             {isEditing && (
               <FormField
                 control={form.control}
@@ -312,8 +336,10 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {classStatuses.map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        {classStatuses.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -330,10 +356,10 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Class description..." 
-                      className="resize-none" 
-                      {...field} 
+                    <Textarea
+                      placeholder="Class description..."
+                      className="resize-none"
+                      {...field}
                       data-testid="input-class-desc"
                     />
                   </FormControl>
@@ -343,7 +369,12 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
             />
 
             <div className="flex justify-end pt-4">
-              <Button type="button" variant="outline" className="mr-2" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-2"
+                onClick={() => onOpenChange(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isPending} data-testid="button-save-class">
