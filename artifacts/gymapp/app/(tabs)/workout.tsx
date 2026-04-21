@@ -110,9 +110,9 @@ interface AssignableMember {
 
 interface AISuggestedExercise {
   name?: string;
-  sets?: number;
+  sets?: number | string;
   reps?: string | number;
-  restSeconds?: number;
+  restSeconds?: number | string;
   notes?: string;
 }
 
@@ -126,6 +126,14 @@ interface AIWorkoutSuggestion {
   motivationalTip?: string;
 }
 
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
+  }
+
+  const parsed = parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export default function WorkoutScreen() {
   const { profile, refreshProfile } = useApp();
@@ -413,19 +421,21 @@ export default function WorkoutScreen() {
 
       const exercises = (suggestion.exercises || []).map((ex) => {
         const exName = typeof ex.name === "string" ? ex.name : "Custom Exercise";
+        const setCount = parsePositiveInteger(ex.sets, 3);
+        const reps = parsePositiveInteger(ex.reps, 10);
         const found = EXERCISES.find((e) =>
           e.name.toLowerCase().includes(exName.toLowerCase().split(" ")[0]),
         );
         return {
           exerciseId: found?.id || "custom",
           name: exName,
-          sets: Array.from({ length: ex.sets || 3 }, (_, i) => ({
+          sets: Array.from({ length: setCount }, (_, i) => ({
             id: Date.now().toString() + i,
             weight: 0,
-            reps: typeof ex.reps === "string" ? parseInt(ex.reps) || 10 : (ex.reps || 10),
+            reps,
             completed: false,
           })),
-          notes: ex.notes,
+          notes: typeof ex.notes === "string" ? ex.notes : undefined,
         };
       });
 
