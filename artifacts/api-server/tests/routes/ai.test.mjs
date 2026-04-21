@@ -94,30 +94,32 @@ mock.module("../../src/lib/member-ai-memory.ts", {
   },
 });
 
+let generateContentImpl = async () => ({
+  text: JSON.stringify({
+    workoutName: "Upper Body Strength",
+    focus: "push",
+    duration: 45,
+    exercises: [
+      {
+        name: "Bench Press",
+        sets: 3,
+        reps: "8-10",
+        restSeconds: 60,
+        notes: "keep the shoulder blades set",
+      },
+    ],
+    warmup: "5 minutes of light cardio and shoulder circles",
+    cooldown: "2 minutes of chest and triceps stretching",
+    motivationalTip: "Stay consistent and finish strong.",
+  }),
+});
+
 mock.module("@workspace/integrations-gemini-ai", {
   namedExports: {
     ai: {
       models: {
-        async generateContent() {
-          return {
-            text: JSON.stringify({
-              workoutName: "Upper Body Strength",
-              focus: "push",
-              duration: 45,
-              exercises: [
-                {
-                  name: "Bench Press",
-                  sets: 3,
-                  reps: "8-10",
-                  restSeconds: 60,
-                  notes: "keep the shoulder blades set",
-                },
-              ],
-              warmup: "5 minutes of light cardio and shoulder circles",
-              cooldown: "2 minutes of chest and triceps stretching",
-              motivationalTip: "Stay consistent and finish strong.",
-            }),
-          };
+        async generateContent(...args) {
+          return generateContentImpl(...args);
         },
       },
       chats: {
@@ -141,6 +143,25 @@ app.use("/ai", aiRouter);
 
 beforeEach(() => {
   authState.userId = "member_1";
+  generateContentImpl = async () => ({
+    text: JSON.stringify({
+      workoutName: "Upper Body Strength",
+      focus: "push",
+      duration: 45,
+      exercises: [
+        {
+          name: "Bench Press",
+          sets: 3,
+          reps: "8-10",
+          restSeconds: 60,
+          notes: "keep the shoulder blades set",
+        },
+      ],
+      warmup: "5 minutes of light cardio and shoulder circles",
+      cooldown: "2 minutes of chest and triceps stretching",
+      motivationalTip: "Stay consistent and finish strong.",
+    }),
+  });
 });
 
 describe("ai routes", () => {
@@ -169,6 +190,32 @@ describe("ai routes", () => {
       warmup: "5 minutes of light cardio and shoulder circles",
       cooldown: "2 minutes of chest and triceps stretching",
       motivationalTip: "Stay consistent and finish strong.",
+    });
+  });
+
+  it("returns default unknown food payload when AI returns malformed JSON", async () => {
+    generateContentImpl = async () => ({
+      text: "this is not valid json { [malformed",
+    });
+
+    const response = await request(app).post("/ai/analyze-food").send({
+      imageBase64: "dummybase64data",
+      mimeType: "image/jpeg",
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, {
+      dishName: "Unknown Food",
+      cuisine: "Unknown",
+      servingSize: "1 serving",
+      calories: 250,
+      protein: 10,
+      carbs: 30,
+      fat: 8,
+      fiber: 2,
+      confidence: "low",
+      ingredients: [],
+      healthTip: "Unable to analyze this food item accurately.",
     });
   });
 });
