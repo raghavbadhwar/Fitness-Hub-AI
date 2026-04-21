@@ -23,7 +23,12 @@ const memberAiProfiles = {
   recentMessages: Symbol("recentMessages"),
 };
 
-const gymClassesTable = { id: Symbol("id") };
+const gymClassesTable = {
+  id: Symbol("id"),
+  date: Symbol("date"),
+  category: Symbol("category"),
+  enrolledCount: Symbol("enrolledCount"),
+};
 const gymSettingsTable = { id: Symbol("id") };
 
 mock.module("drizzle-orm", {
@@ -34,11 +39,20 @@ mock.module("drizzle-orm", {
     gte(field, value) {
       return { op: "gte", field, value };
     },
+    lte(field, value) {
+      return { op: "lte", field, value };
+    },
+    and(...conditions) {
+      return { op: "and", conditions };
+    },
     count() {
       return { op: "count" };
     },
-    sum() {
-      return { op: "sum" };
+    sum(field) {
+      return { op: "sum", field };
+    },
+    desc(field) {
+      return { op: "desc", field };
     },
   },
 });
@@ -94,6 +108,9 @@ mock.module("@clerk/backend", {
             clerkUsers.set(userId, cloneUser(nextUser));
             return cloneUser(nextUser);
           },
+          async getCount() {
+            return clerkUsers.size;
+          },
         },
       };
     },
@@ -106,9 +123,11 @@ mock.module("@workspace/db", {
       select(selection) {
         return {
           from(table) {
-            return {
+            const baseQuery = {
               where(condition) {
                 return {
+                  ...baseQuery,
+                  condition,
                   limit(count) {
                     if (table === userProfiles) {
                       const profile =
@@ -135,9 +154,54 @@ mock.module("@workspace/db", {
 
                     return Promise.resolve([]);
                   },
+                  groupBy(groupByField) {
+                    return {
+                      ...baseQuery,
+                      condition,
+                      groupByField,
+                      orderBy(orderBySpec) {
+                        return {
+                          ...baseQuery,
+                          condition,
+                          groupByField,
+                          orderBySpec,
+                          limit(l) {
+                            // mostPopularCategory query
+                            if (selection?.category && selection?.count?.op === "count") {
+                              return Promise.resolve([{ category: "Yoga", count: 2 }]);
+                            }
+                            return Promise.resolve([]);
+                          },
+                        };
+                      },
+                      then(cb) {
+                        // weeklyClassCounts query
+                        if (selection?.date && selection?.count?.op === "count") {
+                          return Promise.resolve([
+                            { date: "2026-04-19", count: 1 },
+                            { date: "2026-04-20", count: 1 },
+                            { date: "2026-04-21", count: 1 },
+                          ]).then(cb);
+                        }
+                        return Promise.resolve([]).then(cb);
+                      },
+                    };
+                  },
                 };
               },
+              then(cb) {
+                // totalEnrollments sum query
+                if (selection?.val?.op === "sum") {
+                  return Promise.resolve([{ val: 18 }]).then(cb);
+                }
+                // totalClassesThisWeek count query (if no groupBy)
+                if (selection?.val?.op === "count") {
+                  return Promise.resolve([{ val: 3 }]).then(cb);
+                }
+                return Promise.resolve([]).then(cb);
+              },
             };
+            return baseQuery;
           },
         };
       },
@@ -326,5 +390,40 @@ describe("admin routes", () => {
       role: "member",
       allowlistConfigured: false,
     });
+  });
+
+  it("returns dashboard statistics optimized from database", async () => {
+    // Mock date to 2026-04-20 (Monday)
+    const fixedDate = new Date("2026-04-20T12:00:00Z");
+    const originalDate = global.Date;
+    global.Date = class extends Date {
+      constructor(date) {
+        if (date) return new originalDate(date);
+        return fixedDate;
+      }
+    };
+
+    try {
+      const response = await request(app).get("/admin/dashboard");
+
+      assert.equal(response.status, 200);
+      assert.deepEqual(response.body, {
+        totalClassesThisWeek: 3,
+        totalEnrollments: 18,
+        mostPopularCategory: "Yoga",
+        totalActiveMembers: 1,
+        weeklyClassCounts: [
+          { day: "Sun", count: 1 }, // 2026-04-19
+          { day: "Mon", count: 1 }, // 2026-04-20
+          { day: "Tue", count: 1 }, // 2026-04-21
+          { day: "Wed", count: 0 },
+          { day: "Thu", count: 0 },
+          { day: "Fri", count: 0 },
+          { day: "Sat", count: 0 },
+        ],
+      });
+    } finally {
+      global.Date = originalDate;
+    }
   });
 });
