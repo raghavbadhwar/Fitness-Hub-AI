@@ -108,6 +108,25 @@ interface AssignableMember {
   email: string;
 }
 
+interface AISuggestedExercise {
+  name?: string;
+  sets?: number;
+  reps?: string | number;
+  restSeconds?: number;
+  notes?: string;
+}
+
+interface AIWorkoutSuggestion {
+  workoutName?: string;
+  focus?: string;
+  duration?: number;
+  exercises?: AISuggestedExercise[];
+  warmup?: string;
+  cooldown?: string;
+  motivationalTip?: string;
+}
+
+
 export default function WorkoutScreen() {
   const { profile, refreshProfile } = useApp();
   const {
@@ -390,19 +409,20 @@ export default function WorkoutScreen() {
         }),
       });
       if (!response.ok) throw new Error("Failed to get workout");
-      const suggestion = await response.json();
+      const suggestion: AIWorkoutSuggestion = await response.json();
 
-      const exercises = (suggestion.exercises || []).map((ex: any) => {
+      const exercises = (suggestion.exercises || []).map((ex) => {
+        const exName = typeof ex.name === "string" ? ex.name : "Custom Exercise";
         const found = EXERCISES.find((e) =>
-          e.name.toLowerCase().includes(ex.name.toLowerCase().split(" ")[0]),
+          e.name.toLowerCase().includes(exName.toLowerCase().split(" ")[0]),
         );
         return {
           exerciseId: found?.id || "custom",
-          name: ex.name,
+          name: exName,
           sets: Array.from({ length: ex.sets || 3 }, (_, i) => ({
             id: Date.now().toString() + i,
             weight: 0,
-            reps: parseInt(ex.reps) || 10,
+            reps: typeof ex.reps === "string" ? parseInt(ex.reps) || 10 : (ex.reps || 10),
             completed: false,
           })),
           notes: ex.notes,
