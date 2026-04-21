@@ -556,23 +556,32 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
 
   try {
     const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-    const members = await Promise.all(
-      memberIds.map(async (userId) => {
-        try {
-          const user = await clerkClient.users.getUser(userId);
-          return {
-            id: user.id,
-            firstName: user.firstName ?? null,
-            lastName: user.lastName ?? null,
-            email: user.emailAddresses[0]?.emailAddress ?? "",
-            role: (user.publicMetadata?.role as string) ?? "member",
-          };
-        } catch {
-          return { id: userId, firstName: null, lastName: null, email: "", role: "member" };
-        }
-      }),
-    );
-    res.json(members);
+    const usersMap = new Map<string, ClerkUserSummary>();
+    const chunkSize = 100;
+    const uniqueMemberIds = Array.from(new Set(memberIds));
+    for (let i = 0; i < uniqueMemberIds.length; i += chunkSize) {
+      const chunk = uniqueMemberIds.slice(i, i + chunkSize);
+      const { data } = await clerkClient.users.getUserList({ userId: chunk });
+      for (const user of data) {
+        usersMap.set(user.id, user as ClerkUserSummary);
+      }
+    }
+
+    const responseMembers = memberIds.map((userId) => {
+      const user = usersMap.get(userId);
+      if (user) {
+        return {
+          id: user.id,
+          firstName: user.firstName ?? null,
+          lastName: user.lastName ?? null,
+          email: user.emailAddresses[0]?.emailAddress ?? "",
+          role: (user.publicMetadata?.role as string) ?? "member",
+        };
+      }
+      return { id: userId, firstName: null, lastName: null, email: "", role: "member" };
+    });
+
+    res.json(responseMembers);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch enrolled members");
     res.status(500).json({ error: "Failed to fetch enrolled members" });

@@ -23,7 +23,7 @@ const memberAiProfiles = {
   recentMessages: Symbol("recentMessages"),
 };
 
-const gymClassesTable = { id: Symbol("id") };
+const gymClassesTable = { id: Symbol("id"), enrolledMemberIds: Symbol("enrolledMemberIds") };
 const gymSettingsTable = { id: Symbol("id") };
 
 mock.module("drizzle-orm", {
@@ -79,6 +79,13 @@ mock.module("@clerk/backend", {
     createClerkClient() {
       return {
         users: {
+          async getUserList({ userId = [] }) {
+            const data = userId
+              .map((id) => clerkUsers.get(id))
+              .filter(Boolean)
+              .map(cloneUser);
+            return { data, totalCount: data.length };
+          },
           async getUser(userId) {
             return cloneUser(clerkUsers.get(userId) ?? defaultClerkUser({ id: userId }));
           },
@@ -115,6 +122,19 @@ mock.module("@workspace/db", {
                         condition?.op === "eq" ? userProfilesByClerkId.get(condition.value) : null;
                       const rows = profile ? [profile] : [];
                       return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
+                    }
+
+                    if (table === gymClassesTable) {
+                      if (condition?.value === 1) {
+                        return Promise.resolve([
+                          { id: 1, enrolledMemberIds: ["member_1", "missing_user"] },
+                        ]);
+                      }
+                      if (condition?.value === 2) {
+                        const ids = Array.from({ length: 101 }, (_, i) => `u_${i}`);
+                        ids.forEach((id) => clerkUsers.set(id, defaultClerkUser({ id })));
+                        return Promise.resolve([{ id: 2, enrolledMemberIds: ids }]);
+                      }
                     }
 
                     if (table === memberAiProfiles) {
@@ -326,5 +346,33 @@ describe("admin routes", () => {
       role: "member",
       allowlistConfigured: false,
     });
+  });
+
+  it("returns enrolled members including missing users fallback", async () => {
+    const response = await request(app).get("/admin/classes/1/enrollments");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.length, 2);
+    assert.deepEqual(response.body[0], {
+      id: "member_1",
+      firstName: "Morgan",
+      lastName: "Hill",
+      email: "morgan@example.com",
+      role: "owner",
+    });
+    assert.deepEqual(response.body[1], {
+      id: "missing_user",
+      firstName: null,
+      lastName: null,
+      email: "",
+      role: "member",
+    });
+  });
+
+  it("batches getUserList correctly for large classes", async () => {
+    const response = await request(app).get("/admin/classes/2/enrollments");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.length, 101);
+    assert.equal(response.body[0].id, "u_0");
+    assert.equal(response.body[100].id, "u_100");
   });
 });
