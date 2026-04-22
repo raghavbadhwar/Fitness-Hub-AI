@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
-import { eq, gte, count, sum } from "drizzle-orm";
+import { eq, gte, count, sum, and, lte, desc } from "drizzle-orm";
 import {
   db,
   gymClassesTable,
@@ -489,18 +489,26 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     const weekEnd = endOfWeek.toISOString().split("T")[0];
 
-    const allClasses = await db.select().from(gymClassesTable);
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+    const thisWeekClasses = await db
+      .select()
+      .from(gymClassesTable)
+      .where(and(gte(gymClassesTable.date, weekStart), lte(gymClassesTable.date, weekEnd)));
 
     const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
 
-    const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
-    }
-    const mostPopularCategory =
-      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
+    // Bolt: Use DB aggregations instead of fetching all classes into memory
+    const [enrollmentResult] = await db
+      .select({ total: sum(gymClassesTable.enrolledCount) })
+      .from(gymClassesTable);
+    const totalEnrollments = Number(enrollmentResult?.total ?? 0);
+
+    const categoryStats = await db
+      .select({ category: gymClassesTable.category, c: count() })
+      .from(gymClassesTable)
+      .groupBy(gymClassesTable.category)
+      .orderBy(desc(count()))
+      .limit(1);
+    const mostPopularCategory = categoryStats[0]?.category ?? "None";
 
     let totalActiveMembers = 0;
     try {
@@ -515,7 +523,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      const dayCount = thisWeekClasses.filter((c) => c.date === dateStr).length;
       return { day, count: dayCount };
     });
 
