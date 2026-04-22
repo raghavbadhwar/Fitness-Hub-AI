@@ -1,0 +1,4 @@
+## 2025-02-28 - [High] Fix overly permissive CORS configuration
+**Vulnerability:** CORS was configured with `origin: true` while `credentials: true` was enabled. This allowed any website to make cross-origin requests with the user's credentials, opening the door to CSRF and cross-origin data exposure.
+**Learning:** By default, express's cors middleware with `origin: true` dynamically echoes the request's Origin back in the `Access-Control-Allow-Origin` header. When combined with credentials, this defeats browser same-origin policies entirely.
+**Prevention:** Always restrict allowed CORS origins using an explicit allowlist (e.g. from environment variables) or fail-closed (false) in production by default. Do not use a blanket `origin: true` in production environments when credentials are enabled.
