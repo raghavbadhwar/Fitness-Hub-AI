@@ -490,7 +490,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     const weekEnd = endOfWeek.toISOString().split("T")[0];
 
     const thisWeekClasses = await db
-      .select()
+      .select({ date: gymClassesTable.date })
       .from(gymClassesTable)
       .where(and(gte(gymClassesTable.date, weekStart), lte(gymClassesTable.date, weekEnd)));
 
@@ -502,11 +502,12 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .from(gymClassesTable);
     const totalEnrollments = Number(enrollmentResult?.total ?? 0);
 
+    const classCount = count();
     const categoryStats = await db
-      .select({ category: gymClassesTable.category, c: count() })
+      .select({ category: gymClassesTable.category, c: classCount })
       .from(gymClassesTable)
       .groupBy(gymClassesTable.category)
-      .orderBy(desc(count()))
+      .orderBy(desc(classCount))
       .limit(1);
     const mostPopularCategory = categoryStats[0]?.category ?? "None";
 
