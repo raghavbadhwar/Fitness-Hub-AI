@@ -18,18 +18,22 @@ const router = Router();
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_PER_WINDOW = 20;
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
-    req.socket.remoteAddress ??
-    "unknown";
+  const auth = getAuth(req);
+  const userId = auth.userId;
+
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const now = Date.now();
-  const entry = ipRequestCounts.get(ip);
+  const entry = requestCounts.get(userId);
 
   if (!entry || now > entry.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    requestCounts.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     next();
     return;
   }
@@ -69,9 +73,8 @@ router.get("/history", async (req: Request, res: Response) => {
       lastConversationAt: profile?.lastConversationAt?.toISOString() ?? null,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("AI history load error:", err);
-    res.status(500).json({ error: "Failed to load AI history", details: message });
+    res.status(500).json({ error: "Failed to load AI history" });
   }
 });
 
@@ -113,9 +116,8 @@ router.delete("/history", async (req: Request, res: Response) => {
 
     res.json({ ok: true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("AI history clear error:", err);
-    res.status(500).json({ error: "Failed to clear AI history", details: message });
+    res.status(500).json({ error: "Failed to clear AI history" });
   }
 });
 
@@ -188,9 +190,8 @@ Return only the JSON, no other text.`;
       });
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Food analysis error:", err);
-    res.status(500).json({ error: "Failed to analyze food", details: message });
+    res.status(500).json({ error: "Failed to analyze food" });
   }
 });
 
@@ -373,12 +374,11 @@ ${JSON.stringify({
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("AI chat error:", err);
     if (!res.headersSent) {
-      res.status(500).json({ error: "AI chat failed", details: message });
+      res.status(500).json({ error: "AI chat failed" });
     } else {
-      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: "AI chat failed" })}\n\n`);
       res.end();
     }
   }
@@ -444,9 +444,8 @@ Return ONLY this JSON (no markdown):
       res.status(500).json({ error: "Failed to parse workout suggestion" });
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Workout suggestion error:", err);
-    res.status(500).json({ error: "Failed to generate workout", details: message });
+    res.status(500).json({ error: "Failed to generate workout" });
   }
 });
 
