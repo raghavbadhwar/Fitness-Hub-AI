@@ -4,6 +4,7 @@
     "allowJs": false,
     "baseUrl": ".",
     "strict": true,
+    "types": ["node"],
     "paths": {
       "react-native": ["./types/react-native/index.d.ts"],
       "@/*": ["./*"]

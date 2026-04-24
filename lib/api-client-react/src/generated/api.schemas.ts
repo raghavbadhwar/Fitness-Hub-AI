@@ -29,10 +29,16 @@ export type AccessCheckResponseStatus =
 export const AccessCheckResponseStatus = {
   missing_profile: "missing_profile",
   ready: "ready",
+  pending_approval: "pending_approval",
+  revoked: "revoked",
 } as const;
 
 export interface AccessCheckResponse {
   status: AccessCheckResponseStatus;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  message?: string | null;
   /** @nullable */
   name?: string | null;
   /** @nullable */
@@ -62,8 +68,7 @@ export interface EnrolledClassIdsResponse {
   classIds: string[];
 }
 
-export type GymClassCategory =
-  (typeof GymClassCategory)[keyof typeof GymClassCategory];
+export type GymClassCategory = (typeof GymClassCategory)[keyof typeof GymClassCategory];
 
 export const GymClassCategory = {
   Yoga: "Yoga",
@@ -78,8 +83,7 @@ export const GymClassCategory = {
   Other: "Other",
 } as const;
 
-export type GymClassStatus =
-  (typeof GymClassStatus)[keyof typeof GymClassStatus];
+export type GymClassStatus = (typeof GymClassStatus)[keyof typeof GymClassStatus];
 
 export const GymClassStatus = {
   scheduled: "scheduled",
@@ -202,6 +206,14 @@ export interface UpdateGymSettingsBody {
   description?: string;
 }
 
+export type MemberAccessStatus = (typeof MemberAccessStatus)[keyof typeof MemberAccessStatus];
+
+export const MemberAccessStatus = {
+  pending: "pending",
+  approved: "approved",
+  revoked: "revoked",
+} as const;
+
 export interface Member {
   id: string;
   /** @nullable */
@@ -212,6 +224,9 @@ export interface Member {
   lastName?: string | null;
   email: string;
   role: string;
+  accessStatus: MemberAccessStatus;
+  /** @nullable */
+  accessUpdatedAt: string | null;
   createdAt: string;
   /** @nullable */
   aiMemorySummary?: string | null;
@@ -220,8 +235,7 @@ export interface Member {
   aiRecentMessageCount: number;
 }
 
-export type UpdateMemberBodyRole =
-  (typeof UpdateMemberBodyRole)[keyof typeof UpdateMemberBodyRole];
+export type UpdateMemberBodyRole = (typeof UpdateMemberBodyRole)[keyof typeof UpdateMemberBodyRole];
 
 export const UpdateMemberBodyRole = {
   member: "member",
@@ -230,6 +244,28 @@ export const UpdateMemberBodyRole = {
 
 export interface UpdateMemberBody {
   role: UpdateMemberBodyRole;
+}
+
+export type SetMemberAccessBodyRole =
+  (typeof SetMemberAccessBodyRole)[keyof typeof SetMemberAccessBodyRole];
+
+export const SetMemberAccessBodyRole = {
+  member: "member",
+  trainer: "trainer",
+} as const;
+
+export type SetMemberAccessBodyAccessStatus =
+  (typeof SetMemberAccessBodyAccessStatus)[keyof typeof SetMemberAccessBodyAccessStatus];
+
+export const SetMemberAccessBodyAccessStatus = {
+  approved: "approved",
+  revoked: "revoked",
+} as const;
+
+export interface SetMemberAccessBody {
+  email: string;
+  role: SetMemberAccessBodyRole;
+  accessStatus: SetMemberAccessBodyAccessStatus;
 }
 
 export interface WeeklyClassCount {
@@ -245,8 +281,7 @@ export interface DashboardStats {
   weeklyClassCounts: WeeklyClassCount[];
 }
 
-export type AiMemoryMessageRole =
-  (typeof AiMemoryMessageRole)[keyof typeof AiMemoryMessageRole];
+export type AiMemoryMessageRole = (typeof AiMemoryMessageRole)[keyof typeof AiMemoryMessageRole];
 
 export const AiMemoryMessageRole = {
   user: "user",
@@ -300,8 +335,7 @@ export interface JsonObject {
   [key: string]: unknown;
 }
 
-export type AiChatMessageRole =
-  (typeof AiChatMessageRole)[keyof typeof AiChatMessageRole];
+export type AiChatMessageRole = (typeof AiChatMessageRole)[keyof typeof AiChatMessageRole];
 
 export const AiChatMessageRole = {
   user: "user",

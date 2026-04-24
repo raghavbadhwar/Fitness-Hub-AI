@@ -32,7 +32,7 @@ import type {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
-const STEP_LABELS = ["Personal", "Experience", "Health", "Goals", "Diet", "Role", "Summary"];
+const STEP_LABELS = ["Personal", "Experience", "Health", "Goals", "Diet", "Access", "Summary"];
 
 const GENDER_OPTIONS: { label: string; value: "male" | "female" | "other" }[] = [
   { label: "Male", value: "male" },
@@ -530,8 +530,7 @@ export default function Onboarding() {
           <View style={styles.stepContent}>
             <Text style={[styles.stepTitle, { color: colors.text }]}>How will you use GymOS?</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Your account starts as a member. Trainer and owner access is enabled by your gym admin
-              after signup.
+              Your gym team controls which email can enter the app and which tools each person sees.
             </Text>
             <View style={styles.form}>
               <View style={styles.optionGrid}>{renderOption(ROLE_OPTIONS, "role", data.role)}</View>
@@ -543,9 +542,8 @@ export default function Onboarding() {
               >
                 <Text style={[styles.summaryCardTitle, { color: colors.text }]}>Access model</Text>
                 <Text style={[styles.summaryNote, { color: colors.mutedForeground }]}>
-                  Members can start using the app immediately. If you should have trainer tools,
-                  your gym admin can promote your account from the admin panel and the Expo app will
-                  pick it up automatically.
+                  This account starts with member app access. If you need trainer tools later, your
+                  gym team can turn them on for this email.
                 </Text>
               </View>
             </View>

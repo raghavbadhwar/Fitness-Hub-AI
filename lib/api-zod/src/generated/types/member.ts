@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MemberAccessStatus } from "./memberAccessStatus";
 
 export interface Member {
   id: string;
@@ -16,6 +17,9 @@ export interface Member {
   lastName?: string | null;
   email: string;
   role: string;
+  accessStatus: MemberAccessStatus;
+  /** @nullable */
+  accessUpdatedAt: string | null;
   createdAt: string;
   /** @nullable */
   aiMemorySummary?: string | null;

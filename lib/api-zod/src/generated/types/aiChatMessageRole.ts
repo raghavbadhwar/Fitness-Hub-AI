@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AiChatMessageRole =
-  (typeof AiChatMessageRole)[keyof typeof AiChatMessageRole];
+export type AiChatMessageRole = (typeof AiChatMessageRole)[keyof typeof AiChatMessageRole];
 
 export const AiChatMessageRole = {
   user: "user",

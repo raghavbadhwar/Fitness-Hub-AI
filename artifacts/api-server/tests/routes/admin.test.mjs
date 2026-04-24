@@ -7,6 +7,7 @@ const authState = { userId: "member_1" };
 const clerkUsers = new Map();
 const userProfilesByClerkId = new Map();
 const memberAiProfilesByClerkId = new Map();
+const accessControlsByEmail = new Map();
 
 const userProfiles = {
   id: Symbol("id"),
@@ -21,6 +22,16 @@ const memberAiProfiles = {
   memorySummary: Symbol("memorySummary"),
   updatedAt: Symbol("updatedAt"),
   recentMessages: Symbol("recentMessages"),
+};
+
+const userAccessControls = {
+  email: Symbol("email"),
+  role: Symbol("role"),
+  status: Symbol("status"),
+  note: Symbol("note"),
+  createdByClerkId: Symbol("createdByClerkId"),
+  updatedAt: Symbol("updatedAt"),
+  createdAt: Symbol("createdAt"),
 };
 
 const gymClassesTable = { id: Symbol("id"), enrolledMemberIds: Symbol("enrolledMemberIds") };
@@ -79,11 +90,20 @@ mock.module("@clerk/backend", {
     createClerkClient() {
       return {
         users: {
-          async getUserList({ userId = [] }) {
-            const data = userId
-              .map((id) => clerkUsers.get(id))
-              .filter(Boolean)
-              .map(cloneUser);
+          async getUserList({ userId = [], emailAddress = [], limit = 200, offset = 0 } = {}) {
+            let users = [];
+            if (userId.length > 0) {
+              users = userId.map((id) => clerkUsers.get(id)).filter(Boolean);
+            } else if (emailAddress.length > 0) {
+              const emails = new Set(emailAddress.map((email) => email.toLowerCase()));
+              users = [...clerkUsers.values()].filter((user) =>
+                user.emailAddresses.some((entry) => emails.has(entry.emailAddress.toLowerCase())),
+              );
+            } else {
+              users = [...clerkUsers.values()];
+            }
+
+            const data = users.slice(offset, offset + limit).map(cloneUser);
             return { data, totalCount: data.length };
           },
           async getUser(userId) {
@@ -153,6 +173,21 @@ mock.module("@workspace/db", {
                       );
                     }
 
+                    if (table === userAccessControls) {
+                      const accessControl =
+                        condition?.op === "eq"
+                          ? accessControlsByEmail.get(condition.value)
+                          : null;
+                      const rows = accessControl ? [accessControl] : [];
+                      return Promise.resolve(
+                        rows.slice(0, count).map((row) => ({
+                          ...row,
+                          updatedAt: new Date(row.updatedAt),
+                          createdAt: new Date(row.createdAt),
+                        })),
+                      );
+                    }
+
                     return Promise.resolve([]);
                   },
                 };
@@ -168,23 +203,48 @@ mock.module("@workspace/db", {
               onConflictDoUpdate({ set }) {
                 return {
                   returning() {
-                    if (table !== userProfiles) {
-                      return Promise.resolve([]);
+                    if (table === userProfiles) {
+                      const existing = userProfilesByClerkId.get(values.clerkId);
+                      const nextProfile = {
+                        id: existing?.id ?? userProfilesByClerkId.size + 1,
+                        clerkId: values.clerkId,
+                        name: set?.name ?? values.name,
+                        role: set?.role ?? values.role,
+                        updatedAt:
+                          set?.updatedAt ??
+                          existing?.updatedAt ??
+                          new Date("2026-04-20T10:00:00.000Z"),
+                      };
+                      userProfilesByClerkId.set(values.clerkId, { ...nextProfile });
+                      return Promise.resolve([{ ...nextProfile }]);
                     }
 
-                    const existing = userProfilesByClerkId.get(values.clerkId);
-                    const nextProfile = {
-                      id: existing?.id ?? userProfilesByClerkId.size + 1,
-                      clerkId: values.clerkId,
-                      name: set?.name ?? values.name,
-                      role: set?.role ?? values.role,
-                      updatedAt:
-                        set?.updatedAt ??
-                        existing?.updatedAt ??
-                        new Date("2026-04-20T10:00:00.000Z"),
-                    };
-                    userProfilesByClerkId.set(values.clerkId, { ...nextProfile });
-                    return Promise.resolve([{ ...nextProfile }]);
+                    if (table === userAccessControls) {
+                      const existing = accessControlsByEmail.get(values.email);
+                      const nextAccessControl = {
+                        email: values.email,
+                        role: set?.role ?? values.role,
+                        status: set?.status ?? values.status,
+                        note: set?.note ?? values.note ?? "",
+                        createdByClerkId:
+                          set?.createdByClerkId ??
+                          values.createdByClerkId ??
+                          existing?.createdByClerkId ??
+                          null,
+                        updatedAt:
+                          set?.updatedAt ??
+                          existing?.updatedAt ??
+                          new Date("2026-04-20T10:00:00.000Z"),
+                        createdAt:
+                          existing?.createdAt ??
+                          values.createdAt ??
+                          new Date("2026-04-20T10:00:00.000Z"),
+                      };
+                      accessControlsByEmail.set(values.email, { ...nextAccessControl });
+                      return Promise.resolve([{ ...nextAccessControl }]);
+                    }
+
+                    return Promise.resolve([]);
                   },
                 };
               },
@@ -196,6 +256,8 @@ mock.module("@workspace/db", {
     gymClassesTable,
     gymSettingsTable,
     memberAiProfiles,
+    userAccessControls,
+    userAccessStatusEnum: ["pending", "approved", "revoked"],
     userProfiles,
     userRoleEnum: ["member", "trainer", "owner"],
   },
@@ -277,6 +339,7 @@ beforeEach(() => {
   clerkUsers.clear();
   userProfilesByClerkId.clear();
   memberAiProfilesByClerkId.clear();
+  accessControlsByEmail.clear();
 
   clerkUsers.set("member_1", defaultClerkUser());
   userProfilesByClerkId.set("member_1", {
@@ -299,20 +362,91 @@ describe("admin routes", () => {
     const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, {
+    assert.match(response.body.accessUpdatedAt, /^\d{4}-\d{2}-\d{2}T/);
+    assert.deepEqual(
+      { ...response.body, accessUpdatedAt: null },
+      {
       id: "member_1",
       name: "Morgan Hill",
       firstName: "Morgan",
       lastName: "Hill",
       email: "morgan@example.com",
       role: "trainer",
+      accessStatus: "approved",
+      accessUpdatedAt: null,
       createdAt: "2026-04-10T12:00:00.000Z",
       aiMemorySummary: "Prefers strength sessions and 45-minute workouts.",
       aiLastUpdatedAt: "2026-04-19T10:00:00.000Z",
       aiRecentMessageCount: 1,
-    });
+      },
+    );
     assert.equal(clerkUsers.get("member_1").publicMetadata.role, "trainer");
     assert.equal(userProfilesByClerkId.get("member_1").role, "trainer");
+    assert.equal(accessControlsByEmail.get("morgan@example.com").status, "approved");
+    assert.equal(accessControlsByEmail.get("morgan@example.com").role, "trainer");
+  });
+
+  it("grants access to an email that has not signed up yet", async () => {
+    const response = await request(app).post("/admin/member-access").send({
+      email: "  New.Member@Example.COM  ",
+      role: "trainer",
+      accessStatus: "approved",
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      { ...response.body, accessUpdatedAt: null, createdAt: null },
+      {
+        id: "email:new.member@example.com",
+        name: null,
+        firstName: null,
+        lastName: null,
+        email: "new.member@example.com",
+        role: "trainer",
+        accessStatus: "approved",
+        accessUpdatedAt: null,
+        createdAt: null,
+        aiMemorySummary: null,
+        aiLastUpdatedAt: null,
+        aiRecentMessageCount: 0,
+      },
+    );
+    assert.equal(accessControlsByEmail.get("new.member@example.com").createdByClerkId, "member_1");
+  });
+
+  it("revokes access from an existing member and downgrades their app role", async () => {
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "trainer" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "trainer",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const response = await request(app).post("/admin/member-access").send({
+      email: "alex@example.com",
+      role: "member",
+      accessStatus: "revoked",
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.id, "member_2");
+    assert.equal(response.body.email, "alex@example.com");
+    assert.equal(response.body.role, "member");
+    assert.equal(response.body.accessStatus, "revoked");
+    assert.equal(clerkUsers.get("member_2").publicMetadata.role, "member");
+    assert.equal(userProfilesByClerkId.get("member_2").role, "member");
+    assert.equal(accessControlsByEmail.get("alex@example.com").status, "revoked");
   });
 
   it("returns unauthorized when the caller is not authenticated", async () => {

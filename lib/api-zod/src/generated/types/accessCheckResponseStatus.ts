@@ -12,4 +12,6 @@ export type AccessCheckResponseStatus =
 export const AccessCheckResponseStatus = {
   missing_profile: "missing_profile",
   ready: "ready",
+  pending_approval: "pending_approval",
+  revoked: "revoked",
 } as const;

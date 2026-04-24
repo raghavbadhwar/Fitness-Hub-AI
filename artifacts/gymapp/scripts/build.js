@@ -21,6 +21,14 @@ function findWorkspaceRoot(startDir) {
 
 const workspaceRoot = findWorkspaceRoot(projectRoot);
 const basePath = (process.env.BASE_PATH || "/").replace(/\/+$/, "");
+const downloadTimeoutMS = Number.parseInt(
+  process.env.EXPO_BUILD_DOWNLOAD_TIMEOUT_MS || "900000",
+  10,
+);
+
+function formatTimeout(timeoutMS) {
+  return `${Math.round(timeoutMS / 60_000)}m`;
+}
 
 function exitWithError(message) {
   console.error(message);
@@ -194,8 +202,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
 async function downloadFile(url, outputPath) {
   const controller = new AbortController();
-  const fiveMinMS = 5 * 60 * 1_000;
-  const timeoutId = setTimeout(() => controller.abort(), fiveMinMS);
+  const timeoutId = setTimeout(() => controller.abort(), downloadTimeoutMS);
 
   try {
     console.log(`Downloading: ${url}`);
@@ -220,7 +227,7 @@ async function downloadFile(url, outputPath) {
     }
 
     if (error.name === "AbortError") {
-      throw new Error(`Download timeout after 5m: ${url}`);
+      throw new Error(`Download timeout after ${formatTimeout(downloadTimeoutMS)}: ${url}`);
     }
     throw error;
   } finally {
@@ -255,7 +262,7 @@ async function downloadBundle(platform, timestamp) {
 
 async function downloadManifest(platform) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
+  const timeoutId = setTimeout(() => controller.abort(), downloadTimeoutMS);
 
   try {
     console.log(`Fetching ${platform} manifest...`);
@@ -273,7 +280,9 @@ async function downloadManifest(platform) {
     return manifest;
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error(`Manifest download timeout after 5m for platform: ${platform}`);
+      throw new Error(
+        `Manifest download timeout after ${formatTimeout(downloadTimeoutMS)} for platform: ${platform}`,
+      );
     }
     throw error;
   } finally {
@@ -509,7 +518,7 @@ async function main() {
 
   await startMetro(domain, expoPublicReplId);
 
-  const downloadTimeout = 600000;
+  const downloadTimeout = downloadTimeoutMS * 2;
   const downloadPromise = downloadBundlesAndManifests(timestamp);
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {

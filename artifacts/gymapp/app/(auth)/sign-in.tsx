@@ -1,6 +1,6 @@
 import { useSignIn } from "@clerk/expo";
-import { useRouter, type Href } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter, type Href } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -36,15 +36,23 @@ function fieldErrorMessage(source: unknown, field: string): string | undefined {
   return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
 }
 
+function firstStringParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
 export default function SignIn() {
   const { signIn, errors, fetchStatus } = useSignIn();
+  const params = useLocalSearchParams<{ __clerk_ticket?: string | string[] }>();
   const router = useRouter();
   const colors = useColors();
+  const ticket = firstStringParam(params.__clerk_ticket).trim();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [hasRequestedVerificationCode, setHasRequestedVerificationCode] = useState(false);
+  const [isTicketSignIn, setIsTicketSignIn] = useState(Boolean(ticket));
+  const [ticketError, setTicketError] = useState("");
 
   const isLoading = fetchStatus === "fetching";
   const needsEmailCodeVerification =
@@ -77,14 +85,56 @@ export default function SignIn() {
     };
   }, [hasRequestedVerificationCode, needsEmailCodeVerification, signIn]);
 
-  const finalizeSignIn = async () => {
+  const finalizeSignIn = useCallback(async () => {
     await signIn.finalize({
       navigate: ({ session, decorateUrl }) => {
         if (session?.currentTask) return;
         router.replace(decorateUrl("/") as Href);
       },
     });
-  };
+  }, [router, signIn]);
+
+  useEffect(() => {
+    if (!ticket) {
+      setIsTicketSignIn(false);
+      setTicketError("");
+      return;
+    }
+
+    let isActive = true;
+
+    const completeTicketSignIn = async () => {
+      setIsTicketSignIn(true);
+      setTicketError("");
+
+      try {
+        const { error } = await signIn.create({
+          strategy: "ticket",
+          ticket,
+        } as unknown as Parameters<typeof signIn.create>[0]);
+        if (error) {
+          if (isActive) {
+            setTicketError("This sign-in link could not be used. Please sign in again.");
+            setIsTicketSignIn(false);
+          }
+          return;
+        }
+
+        await finalizeSignIn();
+      } catch {
+        if (isActive) {
+          setTicketError("This sign-in link could not be used. Please sign in again.");
+          setIsTicketSignIn(false);
+        }
+      }
+    };
+
+    void completeTicketSignIn();
+
+    return () => {
+      isActive = false;
+    };
+  }, [finalizeSignIn, signIn, ticket]);
 
   const handleSignIn = async () => {
     if (!email || !password) return;
@@ -102,6 +152,17 @@ export default function SignIn() {
       await finalizeSignIn();
     }
   };
+
+  if (isTicketSignIn) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.ticketLoading}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={[styles.title, { color: colors.text }]}>Signing you in</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (needsEmailCodeVerification) {
     return (
@@ -168,6 +229,11 @@ export default function SignIn() {
             </Text>
           </View>
           <View style={styles.form}>
+            {ticketError ? (
+              <Text style={[styles.errorText, styles.ticketErrorText, { color: colors.error }]}>
+                {ticketError}
+              </Text>
+            ) : null}
             <GoogleAuthButton />
             <View style={styles.divider}>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
@@ -280,6 +346,8 @@ const styles = StyleSheet.create({
   secondaryActions: { alignItems: "flex-end" },
   secondaryLink: { fontSize: 14, fontWeight: "600" },
   errorText: { fontSize: 13, marginTop: 2 },
+  ticketErrorText: { textAlign: "center" },
+  ticketLoading: { alignItems: "center", flex: 1, justifyContent: "center", padding: 24 },
   resend: { alignItems: "center", paddingVertical: 8 },
   resendText: { fontSize: 14, fontWeight: "500" },
 });

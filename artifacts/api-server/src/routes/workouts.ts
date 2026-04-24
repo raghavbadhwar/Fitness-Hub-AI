@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
-import { requireAuth, getAuth } from "@clerk/express";
+import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
 import { db } from "@workspace/db";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { userProfiles, type TemplateExercise } from "@workspace/db";
 import { eq, and, isNull, desc } from "drizzle-orm";
+import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
 
@@ -85,22 +86,8 @@ async function listAllClerkUsers(secretKey: string) {
 }
 
 async function requireTrainerOrOwner(req: Request, res: Response): Promise<string | null> {
-  const auth = getAuth(req);
-  const userId = auth.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return null;
-  }
-  const [profile] = await db
-    .select({ role: userProfiles.role })
-    .from(userProfiles)
-    .where(eq(userProfiles.clerkId, userId))
-    .limit(1);
-  if (!profile || (profile.role !== "trainer" && profile.role !== "owner")) {
-    res.status(403).json({ error: "Only trainers and owners can perform this action" });
-    return null;
-  }
-  return userId;
+  const access = await requireApprovedAccess(req, res, ["trainer", "owner"]);
+  return access?.userId ?? null;
 }
 
 router.get("/members", async (req: Request, res: Response) => {
@@ -142,7 +129,7 @@ router.get("/members", async (req: Request, res: Response) => {
 
     res.json(members);
   } catch (err) {
-    console.error("Error fetching workout members:", err);
+    req.log.error({ err }, "Error fetching workout members");
     res.status(500).json({ error: "Failed to fetch members" });
   }
 });
@@ -158,7 +145,7 @@ router.get("/templates", async (req: Request, res: Response) => {
       .orderBy(workoutTemplates.createdAt);
     res.json(templates);
   } catch (err) {
-    console.error("Error fetching templates:", err);
+    req.log.error({ err }, "Error fetching templates");
     res.status(500).json({ error: "Failed to fetch templates" });
   }
 });
@@ -202,7 +189,7 @@ router.post("/templates", async (req: Request, res: Response) => {
       .returning();
     res.status(201).json(template);
   } catch (err) {
-    console.error("Error creating template:", err);
+    req.log.error({ err }, "Error creating template");
     res.status(500).json({ error: "Failed to create template" });
   }
 });
@@ -222,7 +209,7 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
       .where(and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.trainerId, trainerId)));
     res.json({ success: true });
   } catch (err) {
-    console.error("Error deleting template:", err);
+    req.log.error({ err }, "Error deleting template");
     res.status(500).json({ error: "Failed to delete template" });
   }
 });
@@ -278,19 +265,16 @@ router.post("/assign", async (req: Request, res: Response) => {
       .returning();
     res.status(201).json(assignment);
   } catch (err) {
-    console.error("Error assigning workout:", err);
+    req.log.error({ err }, "Error assigning workout");
     res.status(500).json({ error: "Failed to assign workout" });
   }
 });
 
 router.get("/member-plans", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const plans = await db
       .select()
@@ -300,19 +284,16 @@ router.get("/member-plans", async (req: Request, res: Response) => {
 
     res.json(plans.map(serializeMemberWorkoutPlan));
   } catch (err) {
-    console.error("Error fetching member workout plans:", err);
+    req.log.error({ err }, "Error fetching member workout plans");
     res.status(500).json({ error: "Failed to fetch saved workout plans" });
   }
 });
 
 router.post("/member-plans", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const { name, focus, exercises } = (req.body ?? {}) as {
       name?: string;
@@ -344,19 +325,16 @@ router.post("/member-plans", async (req: Request, res: Response) => {
 
     res.status(201).json(serializeMemberWorkoutPlan(plan));
   } catch (err) {
-    console.error("Error creating member workout plan:", err);
+    req.log.error({ err }, "Error creating member workout plan");
     res.status(500).json({ error: "Failed to save workout plan" });
   }
 });
 
 router.patch("/member-plans/:id", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const planId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!planId || !planId.trim()) {
@@ -401,19 +379,16 @@ router.patch("/member-plans/:id", async (req: Request, res: Response) => {
 
     res.json(serializeMemberWorkoutPlan(updatedPlan));
   } catch (err) {
-    console.error("Error updating member workout plan:", err);
+    req.log.error({ err }, "Error updating member workout plan");
     res.status(500).json({ error: "Failed to update workout plan" });
   }
 });
 
 router.delete("/member-plans/:id", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const planId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!planId || !planId.trim()) {
@@ -435,19 +410,16 @@ router.delete("/member-plans/:id", async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error("Error deleting member workout plan:", err);
+    req.log.error({ err }, "Error deleting member workout plan");
     res.status(500).json({ error: "Failed to delete workout plan" });
   }
 });
 
 router.post("/assigned/bind", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
     const [serverProfile] = await db
       .select({ name: userProfiles.name })
       .from(userProfiles)
@@ -469,19 +441,16 @@ router.post("/assigned/bind", async (req: Request, res: Response) => {
       .returning();
     res.json({ bound: result.length });
   } catch (err) {
-    console.error("Error binding assignments:", err);
+    req.log.error({ err }, "Error binding assignments");
     res.status(500).json({ error: "Failed to bind assignments" });
   }
 });
 
 router.get("/assigned", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
     const memberId = Array.isArray(req.query.memberId)
       ? (req.query.memberId[0] as string)
       : (req.query.memberId as string | undefined);
@@ -511,19 +480,16 @@ router.get("/assigned", async (req: Request, res: Response) => {
       .where(eq(workoutAssignments.memberClerkId, callerUserId));
     res.json(assignments);
   } catch (err) {
-    console.error("Error fetching assigned workouts:", err);
+    req.log.error({ err }, "Error fetching assigned workouts");
     res.status(500).json({ error: "Failed to fetch assigned workouts" });
   }
 });
 
 router.patch("/assigned/:id/complete", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
     const rawAssignmentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const assignmentId = parseInt(rawAssignmentId, 10);
     if (isNaN(assignmentId)) {
@@ -546,7 +512,7 @@ router.patch("/assigned/:id/complete", async (req: Request, res: Response) => {
     }
     res.json(updated);
   } catch (err) {
-    console.error("Error completing assignment:", err);
+    req.log.error({ err }, "Error completing assignment");
     res.status(500).json({ error: "Failed to complete assignment" });
   }
 });

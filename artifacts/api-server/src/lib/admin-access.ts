@@ -1,12 +1,6 @@
 import type { Request } from "express";
-import { getAuth } from "@clerk/express";
-import { createClerkClient } from "@clerk/backend";
-
-type ClerkUserWithEmail = {
-  id: string;
-  publicMetadata?: Record<string, unknown>;
-  emailAddresses?: Array<{ emailAddress?: string | null }>;
-};
+import { getAuthenticatedClerkUser } from "./clerk-request.ts";
+import { getPrimaryEmail, normalizeEmail } from "./user-access.ts";
 
 export type AdminAccessResult =
   | {
@@ -27,19 +21,6 @@ export type AdminAccessResult =
       reason: string;
     };
 
-function normalizeEmail(value: string | null | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return normalized ? normalized : null;
-}
-
-function getPrimaryEmail(user: ClerkUserWithEmail): string | null {
-  return normalizeEmail(user.emailAddresses?.[0]?.emailAddress ?? null);
-}
-
 function getAllowedAdminEmails(): Set<string> {
   const raw = process.env.ADMIN_ALLOWED_EMAILS;
   if (typeof raw !== "string" || !raw.trim()) {
@@ -55,8 +36,8 @@ function getAllowedAdminEmails(): Set<string> {
 }
 
 export async function resolveAdminAccess(req: Request): Promise<AdminAccessResult> {
-  const auth = getAuth(req);
-  if (!auth?.userId) {
+  const identity = await getAuthenticatedClerkUser(req);
+  if (!identity) {
     return {
       allowed: false,
       status: 401,
@@ -68,8 +49,7 @@ export async function resolveAdminAccess(req: Request): Promise<AdminAccessResul
     };
   }
 
-  const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-  const user = (await clerkClient.users.getUser(auth.userId)) as ClerkUserWithEmail;
+  const user = identity.user;
   const role = typeof user.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
   const email = getPrimaryEmail(user);
   const allowedEmails = getAllowedAdminEmails();

@@ -7,7 +7,8 @@
     "dev": "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:-$CLERK_PUBLISHABLE_KEY} EXPO_PACKAGER_PROXY_URL=${EXPO_PACKAGER_PROXY_URL:-${REPLIT_EXPO_DEV_DOMAIN:+https://$REPLIT_EXPO_DEV_DOMAIN}} EXPO_PUBLIC_DOMAIN=${EXPO_PUBLIC_DOMAIN:-$REPLIT_DEV_DOMAIN} EXPO_PUBLIC_REPL_ID=${EXPO_PUBLIC_REPL_ID:-$REPL_ID} REACT_NATIVE_PACKAGER_HOSTNAME=${REACT_NATIVE_PACKAGER_HOSTNAME:-$REPLIT_DEV_DOMAIN} PORT=${PORT:-8081} pnpm exec expo start --localhost --port ${PORT:-8081}",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-test-module-mocks --experimental-strip-types --test lib/api-base.test.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -19,6 +20,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@stardazed/streams-text-encoding": "^1.0.2",
     "@tanstack/react-query": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
     "@ungap/structured-clone": "^1.3.0",

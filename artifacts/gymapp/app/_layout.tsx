@@ -1,15 +1,15 @@
 import { ClerkLoaded, ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type Href, Stack, usePathname, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { useAuth } from "@clerk/expo";
 
+import { AppAuthGate } from "@/components/AppAuthGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GestureHandlerRootView, SafeAreaProvider } from "@/components/native-compat";
-import { AppProvider, useApp } from "@/contexts/AppContext";
+import { AppProvider } from "@/contexts/AppContext";
 import { NutritionProvider } from "@/contexts/NutritionContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
 import { ScheduleProvider } from "@/contexts/ScheduleContext";
@@ -17,70 +17,6 @@ import { ScheduleProvider } from "@/contexts/ScheduleContext";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-
-function normalizeRoutePath(path: string) {
-  const normalized = path.replace(/\/\((auth|tabs)\)/g, "").replace(/\/+/g, "/");
-
-  return normalized === "" ? "/" : normalized;
-}
-
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded } = useAuth();
-  const pathname = usePathname();
-  const router = useRouter();
-  const { profile, isLoading: isProfileLoading } = useApp();
-  const redirectTargetRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!isLoaded || isProfileLoading) return;
-    void SplashScreen.hideAsync();
-  }, [isLoaded, isProfileLoading]);
-
-  useEffect(() => {
-    if (!isLoaded || isProfileLoading) return;
-    const currentPath = normalizeRoutePath(pathname || "/");
-    const activeRedirect = redirectTargetRef.current;
-
-    if (activeRedirect && activeRedirect === currentPath) {
-      redirectTargetRef.current = null;
-    }
-
-    const inAuthGroup =
-      currentPath === "/sign-in" ||
-      currentPath === "/sign-up" ||
-      currentPath === "/forgot-password" ||
-      currentPath === "/onboarding";
-    const isE2EPreviewRoute = currentPath.startsWith("/__e2e");
-    const onOnboardingScreen = currentPath === "/onboarding";
-    let nextPath: Href | null = null;
-
-    if (isE2EPreviewRoute) {
-      return;
-    }
-
-    if (!isSignedIn && !inAuthGroup) {
-      nextPath = "/sign-in";
-    } else if (isSignedIn && !profile.onboardingComplete && !onOnboardingScreen) {
-      nextPath = "/onboarding";
-    } else if (isSignedIn && inAuthGroup && profile.onboardingComplete) {
-      nextPath = "/";
-    }
-
-    const normalizedNextPath = nextPath ? normalizeRoutePath(nextPath) : null;
-
-    if (
-      nextPath &&
-      normalizedNextPath &&
-      normalizedNextPath !== currentPath &&
-      redirectTargetRef.current !== normalizedNextPath
-    ) {
-      redirectTargetRef.current = normalizedNextPath;
-      router.replace(nextPath);
-    }
-  }, [isLoaded, isProfileLoading, isSignedIn, pathname, profile.onboardingComplete, router]);
-
-  return <>{children}</>;
-}
 
 function RootLayoutNav() {
   return (
@@ -140,6 +76,7 @@ function RootLayoutNav() {
         name="workout-complete"
         options={{ headerShown: false, presentation: "modal", gestureEnabled: false }}
       />
+      <Stack.Screen name="approval-required" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -163,9 +100,9 @@ export default function RootLayout() {
                     <ScheduleProvider>
                       <GestureHandlerRootView style={{ flex: 1 }}>
                         <KeyboardProvider>
-                          <AuthGate>
+                          <AppAuthGate>
                             <RootLayoutNav />
-                          </AuthGate>
+                          </AppAuthGate>
                         </KeyboardProvider>
                       </GestureHandlerRootView>
                     </ScheduleProvider>

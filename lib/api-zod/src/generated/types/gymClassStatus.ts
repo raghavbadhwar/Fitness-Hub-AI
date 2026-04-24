@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GymClassStatus =
-  (typeof GymClassStatus)[keyof typeof GymClassStatus];
+export type GymClassStatus = (typeof GymClassStatus)[keyof typeof GymClassStatus];
 
 export const GymClassStatus = {
   scheduled: "scheduled",

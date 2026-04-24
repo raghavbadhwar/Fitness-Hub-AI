@@ -481,6 +481,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/member-access:
+    post:
+      operationId: adminSetMemberAccess
+      tags: [admin]
+      summary: Grant or revoke app access by email
+      description: Creates or updates an email-based access rule for member app access (owner-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetMemberAccessBody"
+      responses:
+        "200":
+          description: Member access updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/dashboard:
     get:
       operationId: adminGetDashboard
@@ -1306,7 +1344,11 @@ components:
       properties:
         status:
           type: string
-          enum: [missing_profile, ready]
+          enum: [missing_profile, ready, pending_approval, revoked]
+        email:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
         name:
           type: ["string", "null"]
         role:
@@ -1516,6 +1558,11 @@ components:
           type: string
         role:
           type: string
+        accessStatus:
+          type: string
+          enum: [pending, approved, revoked]
+        accessUpdatedAt:
+          type: ["string", "null"]
         createdAt:
           type: string
         aiMemorySummary:
@@ -1528,6 +1575,8 @@ components:
         - id
         - email
         - role
+        - accessStatus
+        - accessUpdatedAt
         - createdAt
         - aiRecentMessageCount
 
@@ -1539,6 +1588,22 @@ components:
           enum: [member, trainer]
       required:
         - role
+
+    SetMemberAccessBody:
+      type: object
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+          enum: [member, trainer]
+        accessStatus:
+          type: string
+          enum: [approved, revoked]
+      required:
+        - email
+        - role
+        - accessStatus
 
     WeeklyClassCount:
       type: object

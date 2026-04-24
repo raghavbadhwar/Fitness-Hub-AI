@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, ViewStyle, TextStyle } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 
@@ -9,19 +9,16 @@ export default function TabLayout() {
   const colors = useColors();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
-  const tabBarStyle: ViewStyle = {
-    position: "absolute",
-    backgroundColor: isIOS ? "transparent" : colors.tabBackground,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    elevation: 0,
-    height: isWeb ? 84 : 80,
-  };
-  const tabBarLabelStyle: TextStyle = {
-    fontSize: 11,
-    fontWeight: "600",
-    marginBottom: 4,
-  };
+  const tabBarStyles = StyleSheet.create({
+    container: {
+      position: "absolute",
+      backgroundColor: isIOS ? "transparent" : colors.tabBackground,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      elevation: 0,
+      height: isWeb ? 84 : 80,
+    },
+  });
 
   return (
     <Tabs
@@ -29,8 +26,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.tabActive,
         tabBarInactiveTintColor: colors.tabInactive,
         headerShown: false,
-        tabBarStyle,
-        tabBarLabelStyle,
+        tabBarStyle: tabBarStyles.container,
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />

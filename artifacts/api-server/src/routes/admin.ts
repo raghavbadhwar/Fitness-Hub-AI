@@ -1,16 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
-import { eq, gte, count, sum } from "drizzle-orm";
-import {
-  db,
-  gymClassesTable,
-  gymSettingsTable,
-  memberAiProfiles,
-  userProfiles,
-  userRoleEnum,
-  type UserRole,
-} from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, gymClassesTable, gymSettingsTable } from "@workspace/db";
 import {
   AdminCreateClassBody,
   AdminUpdateClassBody,
@@ -19,6 +11,12 @@ import {
   AdminUpdateSettingsBody,
 } from "@workspace/api-zod";
 import { resolveAdminAccess } from "../lib/admin-access.ts";
+import {
+  listAdminMembers,
+  setAdminMemberAccess,
+  updateAdminMemberRole,
+} from "../lib/admin-members.ts";
+import { isGrantableUserRole, normalizeEmail } from "../lib/user-access.ts";
 
 const CLASS_COLORS: Record<string, string> = {
   Yoga: "#22C55E",
@@ -37,23 +35,6 @@ const router = Router();
 
 router.use(requireAuth());
 
-function isUserRole(value: unknown): value is UserRole {
-  return userRoleEnum.includes(value as UserRole);
-}
-
-type AdminMemberPayload = {
-  id: string;
-  name: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-  role: UserRole;
-  createdAt: string;
-  aiMemorySummary: string | null;
-  aiLastUpdatedAt: string | null;
-  aiRecentMessageCount: number;
-};
-
 type ClerkUserSummary = {
   id: string;
   firstName: string | null;
@@ -62,63 +43,6 @@ type ClerkUserSummary = {
   publicMetadata?: Record<string, unknown>;
   createdAt: number;
 };
-
-async function listAllClerkUsers(secretKey: string): Promise<ClerkUserSummary[]> {
-  const clerkClient = createClerkClient({ secretKey });
-  const users: ClerkUserSummary[] = [];
-  const pageSize = 200;
-  let offset = 0;
-
-  while (true) {
-    const { data } = await clerkClient.users.getUserList({
-      limit: pageSize,
-      offset,
-    });
-
-    users.push(...(data as ClerkUserSummary[]));
-
-    if (data.length < pageSize) {
-      return users;
-    }
-
-    offset += data.length;
-  }
-}
-
-function buildAdminMemberPayload(
-  user: ClerkUserSummary,
-  profile?: { name: string; role: string } | undefined,
-  aiProfile?:
-    | {
-        memorySummary: string;
-        updatedAt: Date;
-        recentMessages: unknown;
-      }
-    | undefined,
-): AdminMemberPayload {
-  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-  const resolvedName = profile?.name?.trim() || fullName || null;
-  const metadataRole = user.publicMetadata?.role;
-  const recentMessageCount = Array.isArray(aiProfile?.recentMessages)
-    ? aiProfile.recentMessages.length
-    : 0;
-
-  return {
-    id: user.id,
-    name: resolvedName,
-    firstName: user.firstName ?? null,
-    lastName: user.lastName ?? null,
-    email: user.emailAddresses[0]?.emailAddress ?? "",
-    role:
-      (isUserRole(profile?.role) && profile.role) ||
-      (isUserRole(metadataRole) && metadataRole) ||
-      "member",
-    createdAt: new Date(user.createdAt).toISOString(),
-    aiMemorySummary: aiProfile?.memorySummary?.trim() || null,
-    aiLastUpdatedAt: aiProfile?.updatedAt?.toISOString() ?? null,
-    aiRecentMessageCount: recentMessageCount,
-  };
-}
 
 async function requireOwner(req: Request, res: Response): Promise<boolean> {
   try {
@@ -346,28 +270,62 @@ router.get("/members", async (req: Request, res: Response): Promise<void> => {
   if (!(await requireOwner(req, res))) return;
 
   try {
-    const users = await listAllClerkUsers(process.env.CLERK_SECRET_KEY!);
-    const [profiles, aiProfiles] = await Promise.all([
-      db.select().from(userProfiles),
-      db.select().from(memberAiProfiles),
-    ]);
-    const profileMap = new Map(profiles.map((profile) => [profile.clerkId, profile]));
-    const aiProfileMap = new Map(aiProfiles.map((profile) => [profile.memberClerkId, profile]));
-
-    const members = users
-      .map((user) =>
-        buildAdminMemberPayload(user, profileMap.get(user.id), aiProfileMap.get(user.id)),
-      )
-      .sort((left, right) => {
-        const leftName = (left.name || left.email).toLowerCase();
-        const rightName = (right.name || right.email).toLowerCase();
-        return leftName.localeCompare(rightName);
-      });
-
-    res.json(members);
+    res.json(await listAdminMembers(process.env.CLERK_SECRET_KEY!));
   } catch (err) {
     req.log.error({ err }, "Failed to fetch members from Clerk");
     res.status(500).json({ error: "Failed to fetch members" });
+  }
+});
+
+router.post("/member-access", async (req: Request, res: Response): Promise<void> => {
+  const access = await resolveAdminAccess(req);
+  if (!access.allowed) {
+    res.status(access.status).json({
+      error: access.reason,
+      email: access.email,
+      role: access.role,
+      allowlistConfigured: access.allowlistConfigured,
+    });
+    return;
+  }
+
+  const body = (req.body ?? {}) as {
+    email?: string;
+    role?: string;
+    accessStatus?: string;
+  };
+  const email = normalizeEmail(body.email);
+  const role = body.role ?? "member";
+  const accessStatus = body.accessStatus;
+
+  if (!email) {
+    res.status(400).json({ error: "A valid email is required" });
+    return;
+  }
+
+  if (!isGrantableUserRole(role)) {
+    res.status(400).json({ error: "role must be member or trainer" });
+    return;
+  }
+
+  if (accessStatus !== "approved" && accessStatus !== "revoked") {
+    res.status(400).json({ error: "accessStatus must be approved or revoked" });
+    return;
+  }
+
+  try {
+    const member = await setAdminMemberAccess({
+      email,
+      role,
+      accessStatus,
+      createdByClerkId: access.userId,
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
+    res.json(member);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update member access";
+    req.log.error({ err }, "Failed to update member access");
+    res.status(message.includes("Owner accounts") ? 400 : 500).json({ error: message });
   }
 });
 
@@ -389,89 +347,21 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-    const user = await clerkClient.users.getUser(userId);
-    const [existingProfile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.clerkId, userId))
-      .limit(1);
-
-    const currentRole =
-      (isUserRole(existingProfile?.role) && existingProfile.role) ||
-      (isUserRole(user.publicMetadata?.role) && user.publicMetadata.role) ||
-      "member";
-
-    if (currentRole === "owner") {
-      res.status(400).json({ error: "Owner accounts must be managed separately" });
-      return;
-    }
-
-    const nextName =
-      existingProfile?.name?.trim() ||
-      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-      user.emailAddresses[0]?.emailAddress?.split("@")[0]?.trim() ||
-      "User";
-
-    const previousPublicMetadata = { ...user.publicMetadata };
-    await clerkClient.users.updateUser(userId, {
-      publicMetadata: {
-        ...previousPublicMetadata,
+    res.json(
+      await updateAdminMemberRole({
+        userId,
         role: body.role,
-      },
-    });
-
-    let updatedProfile;
-    try {
-      [updatedProfile] = await db
-        .insert(userProfiles)
-        .values({
-          clerkId: userId,
-          name: nextName,
-          role: body.role,
-        })
-        .onConflictDoUpdate({
-          target: userProfiles.clerkId,
-          set: {
-            name: nextName,
-            role: body.role,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
-    } catch (dbError) {
-      try {
-        await clerkClient.users.updateUser(userId, {
-          publicMetadata: previousPublicMetadata,
-        });
-      } catch (rollbackError) {
-        req.log.error(
-          { rollbackError, userId },
-          "Failed to rollback Clerk role after database error",
-        );
-      }
-
-      throw dbError;
-    }
-
-    const [aiProfile] = await db
-      .select()
-      .from(memberAiProfiles)
-      .where(eq(memberAiProfiles.memberClerkId, userId))
-      .limit(1);
-
-    const updatedUser: ClerkUserSummary = {
-      ...user,
-      publicMetadata: {
-        ...previousPublicMetadata,
-        role: body.role,
-      },
-    };
-
-    res.json(buildAdminMemberPayload(updatedUser, updatedProfile, aiProfile));
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      }),
+    );
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update member role";
     req.log.error({ err }, "Failed to update member role");
-    res.status(500).json({ error: "Failed to update member role" });
+    res
+      .status(
+        message.includes("Owner accounts") || message.includes("valid primary email") ? 400 : 500,
+      )
+      .json({ error: message });
   }
 });
 

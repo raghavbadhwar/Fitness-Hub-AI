@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { getAuth, requireAuth } from "@clerk/express";
+import { requireAuth } from "@clerk/express";
 import { eq, gte } from "drizzle-orm";
 import { db, gymClassesTable, pool } from "@workspace/db";
+import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
 type PoolClient = {
@@ -195,12 +196,9 @@ router.get(
   "/classes/enrolled",
   requireAuth(),
   async (req: Request, res: Response): Promise<void> => {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const today = new Date().toISOString().split("T")[0];
     const classes = await db
@@ -226,12 +224,9 @@ router.post(
   "/classes/:id/enroll",
   requireAuth(),
   async (req: Request, res: Response): Promise<void> => {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const classId = parseInt(rawId, 10);
@@ -269,7 +264,7 @@ router.post(
         return;
       }
 
-      console.error("Error enrolling in class:", error);
+      req.log.error({ error }, "Error enrolling in class");
       res.status(500).json({ error: "Failed to enroll in class" });
     }
   },
@@ -279,12 +274,9 @@ router.delete(
   "/classes/:id/enroll",
   requireAuth(),
   async (req: Request, res: Response): Promise<void> => {
-    const auth = getAuth(req);
-    const callerUserId = auth.userId;
-    if (!callerUserId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
 
     const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const classId = parseInt(rawId, 10);
@@ -316,7 +308,7 @@ router.delete(
 
       res.json(serializeClass(updated));
     } catch (error) {
-      console.error("Error leaving class:", error);
+      req.log.error({ error }, "Error leaving class");
       res.status(500).json({ error: "Failed to leave class" });
     }
   },

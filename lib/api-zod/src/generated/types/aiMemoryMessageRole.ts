@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AiMemoryMessageRole =
-  (typeof AiMemoryMessageRole)[keyof typeof AiMemoryMessageRole];
+export type AiMemoryMessageRole = (typeof AiMemoryMessageRole)[keyof typeof AiMemoryMessageRole];
 
 export const AiMemoryMessageRole = {
   user: "user",

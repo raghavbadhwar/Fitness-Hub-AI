@@ -188,9 +188,7 @@ export const AdminCreateClassBody = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   room: zod.string(),
-  status: zod
-    .enum(["scheduled", "in_progress", "completed", "cancelled"])
-    .optional(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]).optional(),
 });
 
 /**
@@ -224,9 +222,7 @@ export const AdminUpdateClassBody = zod.object({
   duration: zod.number().optional(),
   maxParticipants: zod.number().optional(),
   room: zod.string().optional(),
-  status: zod
-    .enum(["scheduled", "in_progress", "completed", "cancelled"])
-    .optional(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]).optional(),
 });
 
 export const AdminUpdateClassResponse = zod.object({
@@ -273,14 +269,14 @@ export const AdminListClassEnrollmentsResponseItem = zod.object({
   lastName: zod.string().nullish(),
   email: zod.string(),
   role: zod.string(),
+  accessStatus: zod.enum(["pending", "approved", "revoked"]),
+  accessUpdatedAt: zod.string().nullable(),
   createdAt: zod.string(),
   aiMemorySummary: zod.string().nullish(),
   aiLastUpdatedAt: zod.string().nullish(),
   aiRecentMessageCount: zod.number(),
 });
-export const AdminListClassEnrollmentsResponse = zod.array(
-  AdminListClassEnrollmentsResponseItem,
-);
+export const AdminListClassEnrollmentsResponse = zod.array(AdminListClassEnrollmentsResponseItem);
 
 /**
  * Deletes a gym class (owner-only)
@@ -337,6 +333,8 @@ export const AdminListMembersResponseItem = zod.object({
   lastName: zod.string().nullish(),
   email: zod.string(),
   role: zod.string(),
+  accessStatus: zod.enum(["pending", "approved", "revoked"]),
+  accessUpdatedAt: zod.string().nullable(),
   createdAt: zod.string(),
   aiMemorySummary: zod.string().nullish(),
   aiLastUpdatedAt: zod.string().nullish(),
@@ -363,6 +361,33 @@ export const AdminUpdateMemberResponse = zod.object({
   lastName: zod.string().nullish(),
   email: zod.string(),
   role: zod.string(),
+  accessStatus: zod.enum(["pending", "approved", "revoked"]),
+  accessUpdatedAt: zod.string().nullable(),
+  createdAt: zod.string(),
+  aiMemorySummary: zod.string().nullish(),
+  aiLastUpdatedAt: zod.string().nullish(),
+  aiRecentMessageCount: zod.number(),
+});
+
+/**
+ * Creates or updates an email-based access rule for member app access (owner-only)
+ * @summary Grant or revoke app access by email
+ */
+export const AdminSetMemberAccessBody = zod.object({
+  email: zod.string(),
+  role: zod.enum(["member", "trainer"]),
+  accessStatus: zod.enum(["approved", "revoked"]),
+});
+
+export const AdminSetMemberAccessResponse = zod.object({
+  id: zod.string(),
+  name: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  email: zod.string(),
+  role: zod.string(),
+  accessStatus: zod.enum(["pending", "approved", "revoked"]),
+  accessUpdatedAt: zod.string().nullable(),
   createdAt: zod.string(),
   aiMemorySummary: zod.string().nullish(),
   aiLastUpdatedAt: zod.string().nullish(),
@@ -391,7 +416,9 @@ export const AdminGetDashboardResponse = zod.object({
  * @summary Check the caller profile access state
  */
 export const ProfilesAccessCheckResponse = zod.object({
-  status: zod.enum(["missing_profile", "ready"]),
+  status: zod.enum(["missing_profile", "ready", "pending_approval", "revoked"]),
+  email: zod.string().nullish(),
+  message: zod.string().nullish(),
   name: zod.string().nullish(),
   role: zod.string().nullish(),
 });
@@ -527,9 +554,7 @@ export const WorkoutsListMembersResponseItem = zod.object({
   name: zod.string(),
   email: zod.string(),
 });
-export const WorkoutsListMembersResponse = zod.array(
-  WorkoutsListMembersResponseItem,
-);
+export const WorkoutsListMembersResponse = zod.array(WorkoutsListMembersResponseItem);
 
 /**
  * Returns workout templates owned by the signed-in trainer or owner.
@@ -551,9 +576,7 @@ export const WorkoutsListTemplatesResponseItem = zod.object({
   ),
   createdAt: zod.string(),
 });
-export const WorkoutsListTemplatesResponse = zod.array(
-  WorkoutsListTemplatesResponseItem,
-);
+export const WorkoutsListTemplatesResponse = zod.array(WorkoutsListTemplatesResponseItem);
 
 /**
  * @summary Create a workout template
@@ -613,9 +636,7 @@ export const WorkoutsListMemberPlansResponseItem = zod.object({
   updatedAt: zod.string(),
   source: zod.enum(["member"]),
 });
-export const WorkoutsListMemberPlansResponse = zod.array(
-  WorkoutsListMemberPlansResponseItem,
-);
+export const WorkoutsListMemberPlansResponse = zod.array(WorkoutsListMemberPlansResponseItem);
 
 /**
  * @summary Create a member workout plan
@@ -720,9 +741,7 @@ export const WorkoutsListAssignedResponseItem = zod.object({
     }),
   ),
 });
-export const WorkoutsListAssignedResponse = zod.array(
-  WorkoutsListAssignedResponseItem,
-);
+export const WorkoutsListAssignedResponse = zod.array(WorkoutsListAssignedResponseItem);
 
 /**
  * @summary Mark an assigned workout complete

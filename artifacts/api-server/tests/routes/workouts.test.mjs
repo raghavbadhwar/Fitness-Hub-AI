@@ -118,6 +118,26 @@ mock.module("@workspace/db/schema", {
   },
 });
 
+mock.module("../../src/lib/user-access.ts", {
+  namedExports: {
+    async requireApprovedAccess(_req, res) {
+      if (!authState.userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return null;
+      }
+
+      return {
+        allowed: true,
+        userId: authState.userId,
+        email: "member@example.com",
+        role: "member",
+        profile: null,
+        control: null,
+      };
+    },
+  },
+});
+
 const { default: workoutsRouter } = await import("../../src/routes/workouts.ts");
 
 const app = express();

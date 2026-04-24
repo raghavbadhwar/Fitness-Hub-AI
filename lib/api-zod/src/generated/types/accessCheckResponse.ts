@@ -10,6 +10,10 @@ import type { AccessCheckResponseStatus } from "./accessCheckResponseStatus";
 export interface AccessCheckResponse {
   status: AccessCheckResponseStatus;
   /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
   name?: string | null;
   /** @nullable */
   role?: string | null;

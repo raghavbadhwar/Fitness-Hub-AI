@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UpdateMemberBodyRole = (typeof UpdateMemberBodyRole)[keyof typeof UpdateMemberBodyRole];
+export type SetMemberAccessBodyRole =
+  (typeof SetMemberAccessBodyRole)[keyof typeof SetMemberAccessBodyRole];
 
-export const UpdateMemberBodyRole = {
+export const SetMemberAccessBodyRole = {
   member: "member",
   trainer: "trainer",
 } as const;

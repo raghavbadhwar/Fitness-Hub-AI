@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GymClassCategory =
-  (typeof GymClassCategory)[keyof typeof GymClassCategory];
+export type GymClassCategory = (typeof GymClassCategory)[keyof typeof GymClassCategory];
 
 export const GymClassCategory = {
   Yoga: "Yoga",

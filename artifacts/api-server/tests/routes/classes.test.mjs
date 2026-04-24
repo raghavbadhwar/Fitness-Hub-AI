@@ -60,7 +60,7 @@ function seedClass(id, overrides = {}) {
     category: "strength",
     description: "Structured test class",
     trainer: "Coach Riley",
-    date: "2026-04-21",
+    date: "2026-04-25",
     startTime: "09:00:00",
     duration: 45,
     maxParticipants: 2,
@@ -226,6 +226,26 @@ mock.module("@workspace/db", {
   },
 });
 
+mock.module("../../src/lib/user-access.ts", {
+  namedExports: {
+    async requireApprovedAccess(_req, res) {
+      if (!authState.userId) {
+        res.status(401).json({ error: "Unauthorized" });
+        return null;
+      }
+
+      return {
+        allowed: true,
+        userId: authState.userId,
+        email: "member@example.com",
+        role: "member",
+        profile: null,
+        control: null,
+      };
+    },
+  },
+});
+
 const { default: classesRouter } = await import("../../src/routes/classes.ts");
 
 const app = express();
@@ -239,7 +259,7 @@ beforeEach(() => {
   classesById.set(
     2,
     seedClass(2, {
-      date: "2026-04-22",
+      date: "2026-04-26",
       startTime: "08:30:00",
       enrolledCount: 1,
       enrolledMemberIds: ["member_1"],

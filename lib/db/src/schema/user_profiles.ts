@@ -4,6 +4,8 @@ import { z } from "zod/v4";
 
 export const userRoleEnum = ["member", "trainer", "owner"] as const;
 export type UserRole = (typeof userRoleEnum)[number];
+export const userAccessStatusEnum = ["pending", "approved", "revoked"] as const;
+export type UserAccessStatus = (typeof userAccessStatusEnum)[number];
 
 export const userProfiles = pgTable("user_profiles", {
   clerkId: text("clerk_id").primaryKey(),
@@ -12,6 +14,19 @@ export const userProfiles = pgTable("user_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const userAccessControls = pgTable("user_access_controls", {
+  email: text("email").primaryKey(),
+  role: text("role").notNull().default("member"),
+  status: text("status").notNull().default("pending"),
+  note: text("note").notNull().default(""),
+  createdByClerkId: text("created_by_clerk_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const upsertUserProfileSchema = createInsertSchema(userProfiles);
+export const upsertUserAccessControlSchema = createInsertSchema(userAccessControls);
 export type UserProfile = typeof userProfiles.$inferSelect;
+export type UserAccessControl = typeof userAccessControls.$inferSelect;
 export type UpsertUserProfile = z.infer<typeof upsertUserProfileSchema>;
+export type UpsertUserAccessControl = z.infer<typeof upsertUserAccessControlSchema>;

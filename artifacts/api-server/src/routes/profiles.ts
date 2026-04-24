@@ -1,60 +1,69 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth, getAuth } from "@clerk/express";
-import { createClerkClient } from "@clerk/backend";
-import { db } from "@workspace/db";
-import { userProfiles, userRoleEnum, type UserRole } from "@workspace/db";
+import { requireAuth } from "@clerk/express";
+import { db, userProfiles } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getAuthenticatedClerkUser, getRequestUserId } from "../lib/clerk-request.ts";
+import {
+  displayNameForClerkUser,
+  getPrimaryEmail,
+  isUserRole,
+  resolveUserAccessForClerkUser,
+} from "../lib/user-access.ts";
 
 const router = Router();
 
 router.use(requireAuth());
 
-function isUserRole(value: unknown): value is UserRole {
-  return userRoleEnum.includes(value as UserRole);
-}
-
 router.get("/access-check", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const userId = auth.userId;
-    if (!userId) {
+    const identity = await getAuthenticatedClerkUser(req);
+    if (!identity) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const [profile] = await db
-      .select({
-        name: userProfiles.name,
-        role: userProfiles.role,
-      })
-      .from(userProfiles)
-      .where(eq(userProfiles.clerkId, userId))
-      .limit(1);
+    const clerkUser = identity.user;
+    const access = await resolveUserAccessForClerkUser(clerkUser);
 
-    if (!profile) {
-      res.json({ status: "missing_profile" as const });
+    if (!access.allowed) {
+      res.json({
+        status: access.status,
+        email: access.email,
+        role: access.role,
+        message: access.message,
+      });
+      return;
+    }
+
+    if (!access.profile) {
+      res.json({
+        status: "missing_profile" as const,
+        email: access.email,
+        role: access.role,
+      });
       return;
     }
 
     res.json({
       status: "ready" as const,
-      name: profile.name,
-      role: profile.role,
+      email: access.email,
+      name: access.profile.name,
+      role: access.role,
     });
   } catch (err) {
-    console.error("Error checking profile access:", err);
+    req.log.error({ err }, "Error checking profile access");
     res.status(500).json({ error: "Failed to check profile access" });
   }
 });
 
 router.post("/sync", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const userId = auth.userId;
-    if (!userId) {
+    const identity = await getAuthenticatedClerkUser(req);
+    if (!identity) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    const { userId, user: clerkUser } = identity;
 
     const [existingProfile] = await db
       .select()
@@ -62,24 +71,31 @@ router.post("/sync", async (req: Request, res: Response) => {
       .where(eq(userProfiles.clerkId, userId))
       .limit(1);
 
-    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-    const clerkUser = await clerkClient.users.getUser(userId);
+    const access = await resolveUserAccessForClerkUser(clerkUser, existingProfile ?? null);
+
+    if (!access.allowed) {
+      res.status(403).json({
+        error: access.message,
+        status: access.status,
+        email: access.email,
+        role: access.role,
+      });
+      return;
+    }
 
     const body = (req.body ?? {}) as { name?: string };
     const requestedName =
       typeof body.name === "string" && body.name.trim()
         ? body.name.trim().slice(0, 120)
         : undefined;
-    const fallbackName =
-      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
-      clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0]?.trim() ||
-      "User";
+    const fallbackName = displayNameForClerkUser(clerkUser);
     const safeName = requestedName || existingProfile?.name?.trim() || fallbackName;
 
     const clerkRole = clerkUser.publicMetadata?.role;
     const safeRole =
-      (isUserRole(clerkRole) && clerkRole) ||
+      access.role ||
       (isUserRole(existingProfile?.role) && existingProfile.role) ||
+      (isUserRole(clerkRole) && clerkRole) ||
       "member";
 
     const [profile] = await db
@@ -90,17 +106,16 @@ router.post("/sync", async (req: Request, res: Response) => {
         set: { name: safeName, role: safeRole, updatedAt: new Date() },
       })
       .returning();
-    res.json(profile);
+    res.json({ ...profile, email: getPrimaryEmail(clerkUser) });
   } catch (err) {
-    console.error("Error syncing profile:", err);
+    req.log.error({ err }, "Error syncing profile");
     res.status(500).json({ error: "Failed to sync profile" });
   }
 });
 
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    const userId = auth.userId;
+    const userId = getRequestUserId(req);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
@@ -116,7 +131,7 @@ router.get("/me", async (req: Request, res: Response) => {
     }
     res.json(profile);
   } catch (err) {
-    console.error("Error fetching profile:", err);
+    req.log.error({ err }, "Error fetching profile");
     res.status(500).json({ error: "Failed to fetch profile" });
   }
 });

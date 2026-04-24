@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { getApiBase } from "@/lib/api-base";
+import { refreshServerProfileAccess } from "@/lib/profile-access";
 
 export type UserRole = "member" | "trainer" | "owner";
 export type FitnessGoal = "lose_weight" | "build_muscle" | "maintain" | "improve_fitness";
@@ -20,6 +21,14 @@ export type Equipment = "commercial_gym" | "home_gym" | "outdoor" | "minimal" | 
 export type WorkoutTime = "morning" | "afternoon" | "evening" | "flexible";
 export type MealTiming = "3_meals" | "5_small_meals" | "intermittent_fasting" | "intuitive_eating";
 export type Injury = "knee" | "lower_back" | "shoulder" | "wrist" | "none";
+export type AccessStatus = "unknown" | "approved" | "pending_approval" | "revoked";
+
+export interface AccessState {
+  status: AccessStatus;
+  email?: string | null;
+  role?: UserRole | null;
+  message?: string;
+}
 
 export interface UserProfile {
   name: string;
@@ -119,9 +128,10 @@ function calculateTargets(profile: Partial<UserProfile>): Partial<UserProfile> {
 
 interface AppContextType {
   profile: UserProfile;
+  accessState: AccessState;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   completeOnboarding: (data: Partial<UserProfile>) => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<boolean>;
   isLoading: boolean;
   weightLog: WeightEntry[];
   logWeight: (weight: number) => Promise<void>;
@@ -134,6 +144,7 @@ const AppContext = createContext<AppContextType | null>(null);
 const PROFILE_STORAGE_KEY = "@gymapp_profile";
 const WEIGHT_LOG_KEY = "@gymapp_weight_log";
 const MEASUREMENTS_KEY = "@gymapp_measurements";
+const DEFAULT_ACCESS_STATE: AccessState = { status: "unknown" };
 
 function getScopedStorageKey(baseKey: string, userId?: string | null) {
   return userId ? `${baseKey}:${userId}` : baseKey;
@@ -156,14 +167,11 @@ async function readScopedValue(
   return AsyncStorage.getItem(legacyKey);
 }
 
-function hasNonEmptyValue(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded: authLoaded, isSignedIn, userId } = useAuth();
   const { user } = useUser();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [accessState, setAccessState] = useState<AccessState>(DEFAULT_ACCESS_STATE);
   const [isLoading, setIsLoading] = useState(true);
   const [weightLog, setWeightLog] = useState<WeightEntry[]>([]);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
@@ -200,6 +208,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!isSignedIn || !userId) {
       lastSyncedUserIdRef.current = null;
       setProfile(DEFAULT_PROFILE);
+      setAccessState(DEFAULT_ACCESS_STATE);
       setWeightLog([]);
       setBodyMeasurements([]);
       setIsLoading(false);
@@ -280,83 +289,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [persistProfile, profile],
   );
 
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = useCallback(async (): Promise<boolean> => {
     if (!isSignedIn || !userId) {
-      return;
+      return false;
     }
 
     try {
       const currentProfile = profileRef.current;
       const apiBase = getApiBase();
       if (!apiBase) {
-        return;
+        return false;
       }
 
       const token = await getToken();
       if (!token) {
-        return;
+        return false;
       }
 
       const fallbackName = currentProfile.name.trim() || clerkFallbackName || "User";
 
-      const authHeaders = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const accessCheckResponse = await fetch(`${apiBase}/api/profiles/access-check`, {
-        headers: authHeaders,
+      const refreshResult = await refreshServerProfileAccess({
+        apiBase,
+        token,
+        currentProfile,
+        fallbackName,
       });
-      if (accessCheckResponse.ok) {
-        const accessPayload = (await accessCheckResponse.json()) as {
-          status?: "ready" | "missing_profile";
-          name?: string;
-          role?: UserRole;
+      if (refreshResult.profileUpdates) {
+        const nextProfile: UserProfile = {
+          ...currentProfile,
+          ...refreshResult.profileUpdates,
         };
 
-        if (accessPayload.status === "ready") {
-          const nextProfile: UserProfile = {
-            ...currentProfile,
-            name: hasNonEmptyValue(accessPayload.name) ? accessPayload.name.trim() : fallbackName,
-            role: accessPayload.role ?? currentProfile.role,
-          };
-
-          if (
-            nextProfile.name !== currentProfile.name ||
-            nextProfile.role !== currentProfile.role
-          ) {
-            await persistProfile(nextProfile);
-          }
-          return;
+        if (nextProfile.name !== currentProfile.name || nextProfile.role !== currentProfile.role) {
+          await persistProfile(nextProfile);
         }
       }
-
-      const response = await fetch(`${apiBase}/api/profiles/sync`, {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ name: fallbackName }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to sync profile (${response.status})`);
-      }
-
-      const serverProfile = (await response.json()) as {
-        name: string;
-        role: UserRole;
-      };
-
-      const nextProfile: UserProfile = {
-        ...currentProfile,
-        name: serverProfile.name || fallbackName,
-        role: serverProfile.role,
-      };
-
-      if (nextProfile.name !== currentProfile.name || nextProfile.role !== currentProfile.role) {
-        await persistProfile(nextProfile);
-      }
+      setAccessState(refreshResult.accessState);
+      return true;
     } catch (error) {
       console.error("Failed to refresh profile", error);
+      return false;
     }
   }, [clerkFallbackName, getToken, isSignedIn, persistProfile, userId]);
 
@@ -370,8 +342,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     lastSyncedUserIdRef.current = userId;
-    void refreshProfile();
+    let cancelled = false;
+    let retryId: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+
+    const sync = async () => {
+      attempts += 1;
+      const didRefresh = await refreshProfile();
+      if (cancelled) {
+        return;
+      }
+
+      if (didRefresh) {
+        lastSyncedUserIdRef.current = userId;
+        return;
+      }
+
+      lastSyncedUserIdRef.current = null;
+      if (attempts < 5) {
+        retryId = setTimeout(sync, 1200);
+      }
+    };
+
+    void sync();
+
+    return () => {
+      cancelled = true;
+      if (retryId) {
+        clearTimeout(retryId);
+      }
+    };
   }, [authLoaded, isLoading, isSignedIn, refreshProfile, userId]);
+
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn || !userId) {
+      return;
+    }
+
+    const refreshAccess = () => {
+      void refreshProfile();
+    };
+
+    const intervalId = setInterval(refreshAccess, 60_000);
+
+    if (typeof window === "undefined") {
+      return () => clearInterval(intervalId);
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshAccess();
+      }
+    };
+
+    window.addEventListener("focus", refreshAccess);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", refreshAccess);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [authLoaded, isSignedIn, refreshProfile, userId]);
 
   const logWeight = useCallback(
     async (weight: number) => {
@@ -405,6 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         profile,
+        accessState,
         updateProfile,
         completeOnboarding,
         refreshProfile,
