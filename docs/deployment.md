@@ -22,6 +22,8 @@ Set these in the Vercel project before production deploys:
 
 Development Clerk keys (`pk_test_...` / `sk_test_...`) are only suitable for local testing. The deployed Vercel app needs production Clerk keys and the production domain configured in Clerk.
 
+Production builds fail fast when Clerk live keys are missing or when development keys are used. Local `.env` files are also excluded from Vercel uploads, so production deploys must be driven by Vercel-managed environment variables rather than a developer machine.
+
 ## Clerk Production Setup
 
 In Clerk, configure the production app for:
