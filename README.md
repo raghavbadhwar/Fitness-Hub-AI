@@ -121,7 +121,7 @@ Run `pnpm run format` before large documentation or config changes, and `pnpm ru
 - [Security policy](./SECURITY.md)
 - [Architecture diagrams](./docs/fitness-hub-diagrams.md)
 - [Internal beta secret rotation runbook](./docs/internal-beta/secret-rotation-runbook.md)
-- [Workspace notes](./replit.md)
+- [Deployment guide](./docs/deployment.md)
 
 ## License
 

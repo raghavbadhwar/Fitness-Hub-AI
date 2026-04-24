@@ -15,7 +15,8 @@ mock.module("http-proxy-middleware", {
   },
 });
 
-const { clerkProxyMiddleware, CLERK_PROXY_PATH } = await import("../../src/middlewares/clerkProxyMiddleware.ts");
+const { clerkProxyMiddleware, CLERK_PROXY_PATH } =
+  await import("../../src/middlewares/clerkProxyMiddleware.ts");
 
 describe("clerkProxyMiddleware", () => {
   let originalEnv;
@@ -41,7 +42,11 @@ describe("clerkProxyMiddleware", () => {
     });
 
     assert.equal(nextCalled, true, "next() should be called");
-    assert.equal(mockCreateProxyMiddlewareConfig, null, "createProxyMiddleware should not be called");
+    assert.equal(
+      mockCreateProxyMiddlewareConfig,
+      null,
+      "createProxyMiddleware should not be called",
+    );
   });
 
   it("skips proxy when CLERK_SECRET_KEY is missing", () => {
@@ -56,7 +61,11 @@ describe("clerkProxyMiddleware", () => {
     });
 
     assert.equal(nextCalled, true, "next() should be called");
-    assert.equal(mockCreateProxyMiddlewareConfig, null, "createProxyMiddleware should not be called");
+    assert.equal(
+      mockCreateProxyMiddlewareConfig,
+      null,
+      "createProxyMiddleware should not be called",
+    );
   });
 
   it("configures proxy correctly in production", () => {
@@ -71,7 +80,9 @@ describe("clerkProxyMiddleware", () => {
     assert.equal(typeof mockCreateProxyMiddlewareConfig.pathRewrite, "function");
 
     // Test pathRewrite logic
-    const rewrittenPath = mockCreateProxyMiddlewareConfig.pathRewrite(`${CLERK_PROXY_PATH}/some/path`);
+    const rewrittenPath = mockCreateProxyMiddlewareConfig.pathRewrite(
+      `${CLERK_PROXY_PATH}/some/path`,
+    );
     assert.equal(rewrittenPath, "/some/path", "pathRewrite should strip CLERK_PROXY_PATH");
   });
 
@@ -86,15 +97,15 @@ describe("clerkProxyMiddleware", () => {
     const mockProxyReq = {
       setHeader(key, value) {
         setHeaders.set(key, value);
-      }
+      },
     };
 
     const mockReq = {
       headers: {
         "x-forwarded-proto": "https",
         host: "example.com",
-        "x-forwarded-for": "192.168.1.1, 10.0.0.1"
-      }
+        "x-forwarded-for": "192.168.1.1, 10.0.0.1",
+      },
     };
 
     onProxyReq(mockProxyReq, mockReq);
@@ -115,14 +126,14 @@ describe("clerkProxyMiddleware", () => {
     const mockProxyReq = {
       setHeader(key, value) {
         setHeaders.set(key, value);
-      }
+      },
     };
 
     const mockReq = {
       headers: {},
       socket: {
-        remoteAddress: "127.0.0.1"
-      }
+        remoteAddress: "127.0.0.1",
+      },
     };
 
     onProxyReq(mockProxyReq, mockReq);

@@ -10,7 +10,7 @@ export const ai = new GoogleGenAI({
 
 /**
  * Generate an image and return as base64 data URL.
- * Uses gemini-2.5-flash-image model via Replit AI Integrations.
+ * Uses the Gemini image model through the configured Gemini API endpoint.
  */
 export async function generateImage(prompt: string): Promise<string> {
   const response = await ai.models.generateContent({

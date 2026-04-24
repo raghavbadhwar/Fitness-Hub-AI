@@ -15,18 +15,13 @@ import {
   isUserRole,
   type GrantableUserRole,
 } from "./user-access.ts";
-import type { ClerkUserAccessIdentity } from "./clerk-request.ts";
+import {
+  listAllClerkUsers,
+  type ClerkUserAccessIdentity,
+  type ClerkUserSummary,
+} from "./clerk-request.ts";
 
 type ClerkClient = ReturnType<typeof createClerkClient>;
-
-type ClerkUserSummary = {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  emailAddresses: Array<{ emailAddress: string }>;
-  publicMetadata?: Record<string, unknown>;
-  createdAt: number;
-};
 
 type AccessControlSummary = {
   email: string;
@@ -57,26 +52,11 @@ export type AdminMemberPayload = {
   aiRecentMessageCount: number;
 };
 
-async function listAllClerkUsers(secretKey: string): Promise<ClerkUserSummary[]> {
-  const clerkClient = createClerkClient({ secretKey });
-  const users: ClerkUserSummary[] = [];
-  const pageSize = 200;
-  let offset = 0;
-
-  while (true) {
-    const { data } = await clerkClient.users.getUserList({
-      limit: pageSize,
-      offset,
-    });
-
-    users.push(...(data as ClerkUserSummary[]));
-
-    if (data.length < pageSize) {
-      return users;
-    }
-
-    offset += data.length;
-  }
+function isOwnerAccount(
+  profile: { role?: string | null } | undefined,
+  user: { publicMetadata?: Record<string, unknown> },
+) {
+  return profile?.role === "owner" || user.publicMetadata?.role === "owner";
 }
 
 function buildAdminMemberPayload(
@@ -88,13 +68,14 @@ function buildAdminMemberPayload(
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const resolvedName = profile?.name?.trim() || fullName || null;
   const metadataRole = user.publicMetadata?.role;
-  const role =
-    (isUserRole(profile?.role) && profile.role) ||
-    (accessControl?.status === "approved" &&
-      isUserRole(accessControl.role) &&
-      accessControl.role) ||
-    (isUserRole(metadataRole) && metadataRole) ||
-    "member";
+  const role = isOwnerAccount(profile, user)
+    ? "owner"
+    : (isUserRole(profile?.role) && profile.role) ||
+      (accessControl?.status === "approved" &&
+        isUserRole(accessControl.role) &&
+        accessControl.role) ||
+      (isUserRole(metadataRole) && metadataRole) ||
+      "member";
   const accessStatus =
     role === "owner"
       ? "approved"
@@ -238,12 +219,7 @@ async function syncExistingUserAccess({
     .where(eq(userProfiles.clerkId, user.id))
     .limit(1);
 
-  const currentRole =
-    (isUserRole(existingProfile?.role) && existingProfile.role) ||
-    (isUserRole(user.publicMetadata?.role) && user.publicMetadata.role) ||
-    "member";
-
-  if (currentRole === "owner") {
+  if (isOwnerAccount(existingProfile, user)) {
     throw new Error("Owner accounts must be managed separately");
   }
 
@@ -350,12 +326,7 @@ export async function updateAdminMemberRole({
     .from(userProfiles)
     .where(eq(userProfiles.clerkId, userId))
     .limit(1);
-  const currentRole =
-    (isUserRole(existingProfile?.role) && existingProfile.role) ||
-    (isUserRole(user.publicMetadata?.role) && user.publicMetadata.role) ||
-    "member";
-
-  if (currentRole === "owner") {
+  if (isOwnerAccount(existingProfile, user)) {
     throw new Error("Owner accounts must be managed separately");
   }
 

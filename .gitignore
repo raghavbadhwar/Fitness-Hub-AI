@@ -44,9 +44,10 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# Local platform caches
 .cache/
 .local/
+test-results/
 
 # Local duplicate repo snapshots
 /Fitness-Hub-AI
@@ -58,3 +59,4 @@ Thumbs.db
 # Local Codex and automation runtime state
 .codex/
 .playwright-cli/
+.vercel

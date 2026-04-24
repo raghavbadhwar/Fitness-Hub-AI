@@ -11,6 +11,15 @@ export type ClerkUserAccessIdentity = {
   createdAt?: number;
 };
 
+export type ClerkUserSummary = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  emailAddresses: Array<{ emailAddress: string }>;
+  publicMetadata?: Record<string, unknown>;
+  createdAt: number;
+};
+
 export function createServerClerkClient(secretKey = process.env.CLERK_SECRET_KEY) {
   return createClerkClient({ secretKey });
 }
@@ -22,6 +31,30 @@ export function getRequestUserId(req: Request) {
 export async function getClerkUserById(userId: string) {
   const clerkClient = createServerClerkClient();
   return (await clerkClient.users.getUser(userId)) as ClerkUserAccessIdentity;
+}
+
+export async function listAllClerkUsers(
+  secretKey: string,
+  pageSize = 200,
+): Promise<ClerkUserSummary[]> {
+  const clerkClient = createServerClerkClient(secretKey);
+  const users: ClerkUserSummary[] = [];
+  let offset = 0;
+
+  while (true) {
+    const { data } = await clerkClient.users.getUserList({
+      limit: pageSize,
+      offset,
+    });
+
+    users.push(...(data as ClerkUserSummary[]));
+
+    if (data.length < pageSize) {
+      return users;
+    }
+
+    offset += data.length;
+  }
 }
 
 export async function getAuthenticatedClerkUser(req: Request) {

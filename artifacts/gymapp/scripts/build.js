@@ -25,6 +25,7 @@ const downloadTimeoutMS = Number.parseInt(
   process.env.EXPO_BUILD_DOWNLOAD_TIMEOUT_MS || "900000",
   10,
 );
+const downloadRetries = Number.parseInt(process.env.EXPO_BUILD_DOWNLOAD_RETRIES || "3", 10);
 
 function formatTimeout(timeoutMS) {
   return `${Math.round(timeoutMS / 60_000)}m`;
@@ -36,6 +37,34 @@ function exitWithError(message) {
     metroProcess.kill();
   }
   process.exit(1);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorMessage(error) {
+  if (error instanceof Error) {
+    const cause = error.cause instanceof Error ? ` ${error.cause.message}` : "";
+    return `${error.message}${cause}`;
+  }
+
+  return String(error);
+}
+
+function isRetryableDownloadError(error) {
+  if (error?.name === "AbortError") {
+    return false;
+  }
+
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("socket") ||
+    message.includes("econnreset") ||
+    message.includes("terminated") ||
+    message.includes("und_err")
+  );
 }
 
 function setupSignalHandlers() {
@@ -64,16 +93,16 @@ function normalizeOrigin(value) {
 }
 
 function getDeploymentOrigin() {
-  if (process.env.REPLIT_INTERNAL_APP_DOMAIN) {
-    return normalizeOrigin(process.env.REPLIT_INTERNAL_APP_DOMAIN);
-  }
-
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return normalizeOrigin(process.env.REPLIT_DEV_DOMAIN);
+  if (process.env.DEPLOYMENT_ORIGIN) {
+    return normalizeOrigin(process.env.DEPLOYMENT_ORIGIN);
   }
 
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return normalizeOrigin(process.env.EXPO_PUBLIC_DOMAIN);
+  }
+
+  if (process.env.VERCEL_URL) {
+    return normalizeOrigin(process.env.VERCEL_URL);
   }
 
   const fallbackPort = process.env.STATIC_PORT || process.env.PORT || "3000";
@@ -134,11 +163,7 @@ async function checkMetroHealth() {
   }
 }
 
-function getExpoPublicReplId() {
-  return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
-}
-
-async function startMetro(expoPublicDomain, expoPublicReplId) {
+async function startMetro(expoPublicDomain) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
     console.log("Metro already running");
@@ -156,15 +181,10 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
-    EXPO_PUBLIC_REPL_ID: expoPublicReplId,
     EXPO_PUBLIC_API_BASE_URL: expoPublicApiBaseUrl,
     EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || "",
     EXPO_PUBLIC_CLERK_PROXY_URL: clerkProxyUrl,
   };
-
-  if (expoPublicReplId) {
-    console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
-  }
 
   metroProcess = spawn("pnpm", ["exec", "expo", "start", "--no-dev", "--minify", "--localhost"], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -200,7 +220,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   process.exit(1);
 }
 
-async function downloadFile(url, outputPath) {
+async function downloadFileOnce(url, outputPath) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), downloadTimeoutMS);
 
@@ -232,6 +252,28 @@ async function downloadFile(url, outputPath) {
     throw error;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+async function downloadFile(url, outputPath) {
+  for (let attempt = 1; attempt <= downloadRetries + 1; attempt++) {
+    try {
+      await downloadFileOnce(url, outputPath);
+      return;
+    } catch (error) {
+      const canRetry = attempt <= downloadRetries && isRetryableDownloadError(error);
+      if (!canRetry) {
+        throw error;
+      }
+
+      const retryDelay = Math.min(30_000, 2_000 * attempt);
+      console.warn(
+        `Download attempt ${attempt} failed (${getErrorMessage(error)}). Retrying in ${Math.round(
+          retryDelay / 1000,
+        )}s...`,
+      );
+      await sleep(retryDelay);
+    }
   }
 }
 
@@ -509,14 +551,13 @@ async function main() {
 
   const deploymentOrigin = getDeploymentOrigin();
   const domain = new URL(deploymentOrigin).host;
-  const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = deploymentOrigin;
   const timestamp = `${Date.now()}-${process.pid}`;
 
   prepareDirectories(timestamp);
   clearMetroCache();
 
-  await startMetro(domain, expoPublicReplId);
+  await startMetro(domain);
 
   const downloadTimeout = downloadTimeoutMS * 2;
   const downloadPromise = downloadBundlesAndManifests(timestamp);

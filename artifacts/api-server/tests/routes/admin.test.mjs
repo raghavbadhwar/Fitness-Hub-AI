@@ -175,9 +175,7 @@ mock.module("@workspace/db", {
 
                     if (table === userAccessControls) {
                       const accessControl =
-                        condition?.op === "eq"
-                          ? accessControlsByEmail.get(condition.value)
-                          : null;
+                        condition?.op === "eq" ? accessControlsByEmail.get(condition.value) : null;
                       const rows = accessControl ? [accessControl] : [];
                       return Promise.resolve(
                         rows.slice(0, count).map((row) => ({
@@ -359,31 +357,59 @@ beforeEach(() => {
 
 describe("admin routes", () => {
   it("updates a member role and returns the normalized member payload", async () => {
-    const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const response = await request(app).patch("/admin/members/member_2").send({ role: "trainer" });
 
     assert.equal(response.status, 200);
     assert.match(response.body.accessUpdatedAt, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(
       { ...response.body, accessUpdatedAt: null },
       {
-      id: "member_1",
-      name: "Morgan Hill",
-      firstName: "Morgan",
-      lastName: "Hill",
-      email: "morgan@example.com",
-      role: "trainer",
-      accessStatus: "approved",
-      accessUpdatedAt: null,
-      createdAt: "2026-04-10T12:00:00.000Z",
-      aiMemorySummary: "Prefers strength sessions and 45-minute workouts.",
-      aiLastUpdatedAt: "2026-04-19T10:00:00.000Z",
-      aiRecentMessageCount: 1,
+        id: "member_2",
+        name: "Alex Lane",
+        firstName: "Alex",
+        lastName: "Lane",
+        email: "alex@example.com",
+        role: "trainer",
+        accessStatus: "approved",
+        accessUpdatedAt: null,
+        createdAt: "2026-04-10T12:00:00.000Z",
+        aiMemorySummary: null,
+        aiLastUpdatedAt: null,
+        aiRecentMessageCount: 0,
       },
     );
-    assert.equal(clerkUsers.get("member_1").publicMetadata.role, "trainer");
-    assert.equal(userProfilesByClerkId.get("member_1").role, "trainer");
-    assert.equal(accessControlsByEmail.get("morgan@example.com").status, "approved");
-    assert.equal(accessControlsByEmail.get("morgan@example.com").role, "trainer");
+    assert.equal(clerkUsers.get("member_2").publicMetadata.role, "trainer");
+    assert.equal(userProfilesByClerkId.get("member_2").role, "trainer");
+    assert.equal(accessControlsByEmail.get("alex@example.com").status, "approved");
+    assert.equal(accessControlsByEmail.get("alex@example.com").role, "trainer");
+  });
+
+  it("does not mutate owner accounts when Clerk metadata marks them as owner", async () => {
+    const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "Owner accounts must be managed separately" });
+    assert.equal(clerkUsers.get("member_1").publicMetadata.role, "owner");
+    assert.equal(userProfilesByClerkId.get("member_1").role, "member");
+    assert.equal(accessControlsByEmail.has("morgan@example.com"), false);
   });
 
   it("grants access to an email that has not signed up yet", async () => {

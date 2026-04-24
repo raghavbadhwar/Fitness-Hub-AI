@@ -35,6 +35,10 @@ const router = Router();
 
 router.use(requireAuth());
 
+function logRouteError(req: Request, err: unknown, message: string) {
+  req.log?.error?.({ err }, message);
+}
+
 type ClerkUserSummary = {
   id: string;
   firstName: string | null;
@@ -324,7 +328,7 @@ router.post("/member-access", async (req: Request, res: Response): Promise<void>
     res.json(member);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update member access";
-    req.log.error({ err }, "Failed to update member access");
+    logRouteError(req, err, "Failed to update member access");
     res.status(message.includes("Owner accounts") ? 400 : 500).json({ error: message });
   }
 });
@@ -356,7 +360,7 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update member role";
-    req.log.error({ err }, "Failed to update member role");
+    logRouteError(req, err, "Failed to update member role");
     res
       .status(
         message.includes("Owner accounts") || message.includes("valid primary email") ? 400 : 500,

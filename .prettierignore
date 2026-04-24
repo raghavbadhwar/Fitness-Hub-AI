@@ -14,6 +14,8 @@ artifacts/**/dist
 artifacts/**/.expo
 artifacts/**/.expo-shared
 artifacts/gymapp/static-build
+artifacts/gymapp/expo-env.d.ts
+test-results
 
 # generated artifacts
 lib/api-client-react/src/generated

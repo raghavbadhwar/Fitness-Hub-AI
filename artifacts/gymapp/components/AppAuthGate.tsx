@@ -42,7 +42,9 @@ export function AppAuthGate({ children }: { children: React.ReactNode }) {
     const isE2EPreviewRoute = currentPath.startsWith("/__e2e");
     const onOnboardingScreen = currentPath === "/onboarding";
     const accessBlocked =
-      accessState.status === "pending_approval" || accessState.status === "revoked";
+      accessState.status === "unknown" ||
+      accessState.status === "pending_approval" ||
+      accessState.status === "revoked";
     let nextPath: string | null = null;
 
     if (isE2EPreviewRoute) {

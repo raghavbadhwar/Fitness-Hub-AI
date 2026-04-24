@@ -11,13 +11,20 @@ export default function ApprovalRequired() {
   const { accessState, refreshProfile } = useApp();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const isChecking = accessState.status === "unknown";
   const isRevoked = accessState.status === "revoked";
-  const title = isRevoked ? "This email is blocked" : "Waiting for approval";
+  const title = isChecking
+    ? "Checking access"
+    : isRevoked
+      ? "This email is blocked"
+      : "Waiting for approval";
   const message =
     accessState.message ||
-    (isRevoked
-      ? "Your gym team has turned off member app access for this email."
-      : "Your gym team needs to allow this email before you can enter the member app.");
+    (isChecking
+      ? "We are verifying that your gym team has enabled this email for the member app."
+      : isRevoked
+        ? "Your gym team has turned off member app access for this email."
+        : "Your gym team needs to allow this email before you can enter the member app.");
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -42,7 +49,7 @@ export default function ApprovalRequired() {
           <Text
             style={[styles.iconText, { color: isRevoked ? colors.destructive : colors.primary }]}
           >
-            {isRevoked ? "!" : "i"}
+            {isRevoked ? "!" : isChecking ? "..." : "i"}
           </Text>
         </View>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
@@ -59,7 +66,9 @@ export default function ApprovalRequired() {
             {isRefreshing ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryButtonText}>I have been approved</Text>
+              <Text style={styles.primaryButtonText}>
+                {isChecking ? "Check again" : "I have been approved"}
+              </Text>
             )}
           </Pressable>
           <Pressable

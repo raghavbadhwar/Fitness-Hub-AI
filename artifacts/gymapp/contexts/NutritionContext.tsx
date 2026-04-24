@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
@@ -55,30 +56,52 @@ interface NutritionContextType {
 }
 
 const NutritionContext = createContext<NutritionContextType | null>(null);
+const NUTRITION_STORAGE_KEY = "@gymapp_nutrition";
 
 export function NutritionProvider({ children }: { children: React.ReactNode }) {
+  const { isLoaded: authLoaded, userId } = useAuth();
   const [logs, setLogs] = useState<Record<string, DailyLog>>({});
   const [isLoading, setIsLoading] = useState(true);
   const today = getDateKey();
+  const storageKey = `${NUTRITION_STORAGE_KEY}:${userId ?? "guest"}`;
 
   useEffect(() => {
+    if (!authLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+
     const load = async () => {
+      setIsLoading(true);
       try {
-        const stored = await AsyncStorage.getItem("@gymapp_nutrition");
-        if (stored) setLogs(JSON.parse(stored));
+        const stored = await AsyncStorage.getItem(storageKey);
+        if (!cancelled) {
+          setLogs(stored ? JSON.parse(stored) : {});
+        }
       } catch (e) {
         console.error("Failed to load nutrition", e);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
-    load();
-  }, []);
 
-  const saveLogs = useCallback(async (newLogs: Record<string, DailyLog>) => {
-    setLogs(newLogs);
-    await AsyncStorage.setItem("@gymapp_nutrition", JSON.stringify(newLogs));
-  }, []);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoaded, storageKey]);
+
+  const saveLogs = useCallback(
+    async (newLogs: Record<string, DailyLog>) => {
+      setLogs(newLogs);
+      await AsyncStorage.setItem(storageKey, JSON.stringify(newLogs));
+    },
+    [storageKey],
+  );
 
   const getLogForDate = useCallback(
     (date: string): DailyLog => logs[date] || { date, entries: [], waterIntake: 0 },

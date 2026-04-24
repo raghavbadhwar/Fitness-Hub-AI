@@ -262,6 +262,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: adminDeleteClass
+      tags: [admin]
+      summary: Delete a class
+      description: Deletes a gym class (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Class deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/classes/{id}/enrollments:
     get:
@@ -283,45 +315,13 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Member"
+                  $ref: "#/components/schemas/ClassEnrollmentMember"
         "400":
           description: Invalid class id
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Class not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    delete:
-      operationId: adminDeleteClass
-      tags: [admin]
-      summary: Delete a class
-      description: Deletes a gym class (owner-only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Class deleted
         "401":
           description: Unauthorized
           content:
@@ -1542,6 +1542,26 @@ components:
           type: string
         description:
           type: string
+
+    ClassEnrollmentMember:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        email:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - role
 
     Member:
       type: object

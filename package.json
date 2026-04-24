@@ -2,9 +2,13 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "sh -c 'set -a; [ -f ./.env.local ] && . ./.env.local; set +a; pnpm run typecheck && pnpm -r --if-present run build'",
+    "build:vercel": "sh -c 'set -a; [ -f ./.env.local ] && . ./.env.local; set +a; node scripts/vercel-build.mjs'",
     "format": "prettier --cache --write .",
     "format:check": "prettier --cache --check .",
     "preflight:beta-secrets": "pnpm --filter @workspace/scripts run beta-secrets-preflight",

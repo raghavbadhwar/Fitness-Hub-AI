@@ -206,6 +206,16 @@ export interface UpdateGymSettingsBody {
   description?: string;
 }
 
+export interface ClassEnrollmentMember {
+  id: string;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  email: string;
+  role: string;
+}
+
 export type MemberAccessStatus = (typeof MemberAccessStatus)[keyof typeof MemberAccessStatus];
 
 export const MemberAccessStatus = {

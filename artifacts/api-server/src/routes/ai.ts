@@ -1,8 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { getAuth, requireAuth } from "@clerk/express";
+import { requireAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
+import { requireApprovedAccess } from "../lib/user-access.ts";
 import {
   appendRecentMessages,
   buildSystemInstruction,
@@ -43,13 +44,37 @@ function rateLimit(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+async function requireApprovedAiAccess(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const access = await requireApprovedAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    res.locals.aiUserId = access.userId;
+    next();
+  } catch (err) {
+    req.log.error({ err }, "Failed to verify AI access");
+    res.status(500).json({ error: "Failed to verify access" });
+  }
+}
+
+function getAiUserId(res: Response): string | null {
+  return typeof res.locals.aiUserId === "string" ? res.locals.aiUserId : null;
+}
+
 router.use(requireAuth());
 router.use(rateLimit);
+router.use(requireApprovedAiAccess);
 
 router.get("/history", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    if (!auth.userId) {
+    const userId = getAiUserId(res);
+    if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -57,7 +82,7 @@ router.get("/history", async (req: Request, res: Response) => {
     const [profile] = await db
       .select()
       .from(memberAiProfiles)
-      .where(eq(memberAiProfiles.memberClerkId, auth.userId))
+      .where(eq(memberAiProfiles.memberClerkId, userId))
       .limit(1);
 
     const recentMessages = normalizeStoredMessages(profile?.recentMessages ?? []);
@@ -69,16 +94,15 @@ router.get("/history", async (req: Request, res: Response) => {
       lastConversationAt: profile?.lastConversationAt?.toISOString() ?? null,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("AI history load error:", err);
-    res.status(500).json({ error: "Failed to load AI history", details: message });
+    req.log.error({ err }, "AI history load error");
+    res.status(500).json({ error: "Failed to load AI history" });
   }
 });
 
 router.delete("/history", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    if (!auth.userId) {
+    const userId = getAiUserId(res);
+    if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -86,7 +110,7 @@ router.delete("/history", async (req: Request, res: Response) => {
     await db
       .insert(memberAiProfiles)
       .values({
-        memberClerkId: auth.userId,
+        memberClerkId: userId,
         recentMessages: [],
         memorySummary: "",
         goals: [],
@@ -113,9 +137,8 @@ router.delete("/history", async (req: Request, res: Response) => {
 
     res.json({ ok: true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("AI history clear error:", err);
-    res.status(500).json({ error: "Failed to clear AI history", details: message });
+    req.log.error({ err }, "AI history clear error");
+    res.status(500).json({ error: "Failed to clear AI history" });
   }
 });
 
@@ -188,16 +211,15 @@ Return only the JSON, no other text.`;
       });
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Food analysis error:", err);
-    res.status(500).json({ error: "Failed to analyze food", details: message });
+    req.log.error({ err }, "Food analysis error");
+    res.status(500).json({ error: "Failed to analyze food" });
   }
 });
 
 router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const auth = getAuth(req);
-    if (!auth.userId) {
+    const userId = getAiUserId(res);
+    if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -225,7 +247,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     const [memoryProfile] = await db
       .select()
       .from(memberAiProfiles)
-      .where(eq(memberAiProfiles.memberClerkId, auth.userId))
+      .where(eq(memberAiProfiles.memberClerkId, userId))
       .limit(1);
 
     const storedMessages = normalizeStoredMessages(memoryProfile?.recentMessages ?? []);
@@ -339,13 +361,13 @@ ${JSON.stringify({
         parseMemoryExtraction(memoryUpdateResponse.text),
       );
     } catch (memoryErr) {
-      console.error("AI memory extraction error:", memoryErr);
+      req.log.error({ err: memoryErr }, "AI memory extraction error");
     }
 
     await db
       .insert(memberAiProfiles)
       .values({
-        memberClerkId: auth.userId,
+        memberClerkId: userId,
         memorySummary: mergedMemory.memorySummary,
         goals: mergedMemory.goals,
         preferences: mergedMemory.preferences,
@@ -373,12 +395,11 @@ ${JSON.stringify({
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("AI chat error:", err);
+    req.log.error({ err }, "AI chat error");
     if (!res.headersSent) {
-      res.status(500).json({ error: "AI chat failed", details: message });
+      res.status(500).json({ error: "AI chat failed" });
     } else {
-      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: "AI chat failed" })}\n\n`);
       res.end();
     }
   }
@@ -444,9 +465,8 @@ Return ONLY this JSON (no markdown):
       res.status(500).json({ error: "Failed to parse workout suggestion" });
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Workout suggestion error:", err);
-    res.status(500).json({ error: "Failed to generate workout", details: message });
+    req.log.error({ err }, "Workout suggestion error");
+    res.status(500).json({ error: "Failed to generate workout" });
   }
 });
 

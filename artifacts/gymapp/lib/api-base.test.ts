@@ -7,7 +7,10 @@ const ORIGINAL_API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
 const ORIGINAL_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 const ORIGINAL_WINDOW = (globalThis as { window?: unknown }).window;
 
-function restoreProcessEnv(key: "EXPO_PUBLIC_API_BASE_URL" | "EXPO_PUBLIC_DOMAIN", value: string | undefined) {
+function restoreProcessEnv(
+  key: "EXPO_PUBLIC_API_BASE_URL" | "EXPO_PUBLIC_DOMAIN",
+  value: string | undefined,
+) {
   if (value === undefined) {
     delete process.env[key];
     return;
@@ -21,9 +24,12 @@ function clearConfiguredEnv() {
   delete process.env.EXPO_PUBLIC_DOMAIN;
 }
 
-function setWindowLocation(protocol: string, hostname: string) {
-  (globalThis as { window?: { location: { protocol: string; hostname: string } } }).window = {
-    location: { protocol, hostname },
+function setWindowLocation(protocol: string, hostname: string, port = "") {
+  const origin = `${protocol}//${hostname}${port ? `:${port}` : ""}`;
+  (
+    globalThis as { window?: { location: { protocol: string; hostname: string; origin: string } } }
+  ).window = {
+    location: { protocol, hostname, origin },
   };
 }
 
@@ -34,7 +40,10 @@ async function loadGetApiBase(platformOs: PlatformOs) {
     },
   });
 
-  const moduleUrl = new URL(`./api-base.ts?platform=${platformOs}&nonce=${Date.now()}-${Math.random()}`, import.meta.url);
+  const moduleUrl = new URL(
+    `./api-base.ts?platform=${platformOs}&nonce=${Date.now()}-${Math.random()}`,
+    import.meta.url,
+  );
   const imported = (await import(moduleUrl.href)) as { getApiBase: () => string };
   return imported.getApiBase;
 }
@@ -112,12 +121,12 @@ test("EXPO_PUBLIC_API_BASE_URL takes precedence over EXPO_PUBLIC_DOMAIN", async 
   assert.equal(getApiBase(), "https://primary.example.com");
 });
 
-test("uses web fallback when no env variables are configured", async () => {
+test("uses same-origin web fallback on deployed hosts", async () => {
   clearConfiguredEnv();
   setWindowLocation("https:", "fit.example.com");
 
   const getApiBase = await loadGetApiBase("web");
-  assert.equal(getApiBase(), "https://fit.example.com:4000");
+  assert.equal(getApiBase(), "https://fit.example.com");
 });
 
 test("web fallback uses hostname and fixed :4000 port", async () => {
@@ -126,6 +135,14 @@ test("web fallback uses hostname and fixed :4000 port", async () => {
 
   const getApiBase = await loadGetApiBase("web");
   assert.equal(getApiBase(), "http://localhost:4000");
+});
+
+test("local web fallback preserves the browser protocol", async () => {
+  clearConfiguredEnv();
+  setWindowLocation("https:", "127.0.0.1");
+
+  const getApiBase = await loadGetApiBase("web");
+  assert.equal(getApiBase(), "https://127.0.0.1:4000");
 });
 
 test("returns empty string when running on web without window", async () => {

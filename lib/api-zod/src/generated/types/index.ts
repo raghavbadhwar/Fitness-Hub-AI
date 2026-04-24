@@ -21,6 +21,7 @@ export * from "./aiWorkoutSuggestion";
 export * from "./aiWorkoutSuggestionExercise";
 export * from "./aiWorkoutSuggestionRequest";
 export * from "./assignedWorkout";
+export * from "./classEnrollmentMember";
 export * from "./createGymClassBody";
 export * from "./createGymClassBodyCategory";
 export * from "./createGymClassBodyStatus";

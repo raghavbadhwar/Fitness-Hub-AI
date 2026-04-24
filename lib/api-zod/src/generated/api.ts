@@ -255,6 +255,14 @@ export const AdminUpdateClassResponse = zod.object({
 });
 
 /**
+ * Deletes a gym class (owner-only)
+ * @summary Delete a class
+ */
+export const AdminDeleteClassParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * Returns enrolled member identity data for a class (owner-only)
  * @summary List enrolled members for a class
  */
@@ -264,27 +272,12 @@ export const AdminListClassEnrollmentsParams = zod.object({
 
 export const AdminListClassEnrollmentsResponseItem = zod.object({
   id: zod.string(),
-  name: zod.string().nullish(),
-  firstName: zod.string().nullish(),
-  lastName: zod.string().nullish(),
+  firstName: zod.string().nullable(),
+  lastName: zod.string().nullable(),
   email: zod.string(),
   role: zod.string(),
-  accessStatus: zod.enum(["pending", "approved", "revoked"]),
-  accessUpdatedAt: zod.string().nullable(),
-  createdAt: zod.string(),
-  aiMemorySummary: zod.string().nullish(),
-  aiLastUpdatedAt: zod.string().nullish(),
-  aiRecentMessageCount: zod.number(),
 });
 export const AdminListClassEnrollmentsResponse = zod.array(AdminListClassEnrollmentsResponseItem);
-
-/**
- * Deletes a gym class (owner-only)
- * @summary Delete a class
- */
-export const AdminDeleteClassParams = zod.object({
-  id: zod.coerce.number(),
-});
 
 /**
  * Returns the gym settings (owner-only)

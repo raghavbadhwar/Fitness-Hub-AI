@@ -25,6 +25,7 @@ import type {
   AiWorkoutSuggestion,
   AiWorkoutSuggestionRequest,
   AssignedWorkout,
+  ClassEnrollmentMember,
   CreateGymClassBody,
   CreateWorkoutTemplateBody,
   DashboardStats,
@@ -622,84 +623,11 @@ export const useAdminUpdateClass = <
 };
 
 /**
- * Returns enrolled member identity data for a class (owner-only)
- * @summary List enrolled members for a class
- */
-export const getAdminListClassEnrollmentsUrl = (id: number) => {
-  return `/api/admin/classes/${id}/enrollments`;
-};
-
-export const adminListClassEnrollments = async (
-  id: number,
-  options?: RequestInit,
-): Promise<Member[]> => {
-  return customFetch<Member[]>(getAdminListClassEnrollmentsUrl(id), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getAdminListClassEnrollmentsQueryKey = (id: number) => {
-  return [`/api/admin/classes/${id}/enrollments`] as const;
-};
-
-export const getAdminListClassEnrollmentsQueryOptions = <
-  TData = Awaited<ReturnType<typeof adminListClassEnrollments>>,
-  TError = ErrorType<ErrorResponse>,
->(
-  id: number,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListClassEnrollments>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  },
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getAdminListClassEnrollmentsQueryKey(id);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListClassEnrollments>>> = ({
-    signal,
-  }) => adminListClassEnrollments(id, { signal, ...requestOptions });
-
-  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof adminListClassEnrollments>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export type AdminListClassEnrollmentsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof adminListClassEnrollments>>
->;
-export type AdminListClassEnrollmentsQueryError = ErrorType<ErrorResponse>;
-
-/**
- * @summary List enrolled members for a class
- */
-
-export function useAdminListClassEnrollments<
-  TData = Awaited<ReturnType<typeof adminListClassEnrollments>>,
-  TError = ErrorType<ErrorResponse>,
->(
-  id: number,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListClassEnrollments>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getAdminListClassEnrollmentsQueryOptions(id, options);
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
  * Deletes a gym class (owner-only)
  * @summary Delete a class
  */
 export const getAdminDeleteClassUrl = (id: number) => {
-  return `/api/admin/classes/${id}/enrollments`;
+  return `/api/admin/classes/${id}`;
 };
 
 export const adminDeleteClass = async (id: number, options?: RequestInit): Promise<void> => {
@@ -773,6 +701,79 @@ export const useAdminDeleteClass = <
 > => {
   return useMutation(getAdminDeleteClassMutationOptions(options));
 };
+
+/**
+ * Returns enrolled member identity data for a class (owner-only)
+ * @summary List enrolled members for a class
+ */
+export const getAdminListClassEnrollmentsUrl = (id: number) => {
+  return `/api/admin/classes/${id}/enrollments`;
+};
+
+export const adminListClassEnrollments = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ClassEnrollmentMember[]> => {
+  return customFetch<ClassEnrollmentMember[]>(getAdminListClassEnrollmentsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListClassEnrollmentsQueryKey = (id: number) => {
+  return [`/api/admin/classes/${id}/enrollments`] as const;
+};
+
+export const getAdminListClassEnrollmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListClassEnrollments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListClassEnrollments>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListClassEnrollmentsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListClassEnrollments>>> = ({
+    signal,
+  }) => adminListClassEnrollments(id, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListClassEnrollments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListClassEnrollmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListClassEnrollments>>
+>;
+export type AdminListClassEnrollmentsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List enrolled members for a class
+ */
+
+export function useAdminListClassEnrollments<
+  TData = Awaited<ReturnType<typeof adminListClassEnrollments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListClassEnrollments>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListClassEnrollmentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns the gym settings (owner-only)

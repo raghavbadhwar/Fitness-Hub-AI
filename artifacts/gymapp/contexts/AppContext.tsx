@@ -281,7 +281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...profile,
         ...data,
         ...targets,
-        role: "member",
+        role: profile.role,
         onboardingComplete: true,
       };
       await persistProfile(newProfile);

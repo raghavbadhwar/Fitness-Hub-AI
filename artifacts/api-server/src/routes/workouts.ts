@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { requireAuth } from "@clerk/express";
-import { createClerkClient } from "@clerk/backend";
 import { db } from "@workspace/db";
 import {
   memberWorkoutPlans,
@@ -12,6 +11,7 @@ import {
 import { userProfiles, type TemplateExercise } from "@workspace/db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireApprovedAccess } from "../lib/user-access.ts";
+import { listAllClerkUsers } from "../lib/clerk-request.ts";
 
 const router = Router();
 
@@ -54,35 +54,6 @@ function serializeMemberWorkoutPlan(plan: typeof memberWorkoutPlans.$inferSelect
     ...plan,
     source: "member" as const,
   };
-}
-
-type ClerkWorkoutUserSummary = {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  emailAddresses: Array<{ emailAddress: string }>;
-};
-
-async function listAllClerkUsers(secretKey: string) {
-  const clerkClient = createClerkClient({ secretKey });
-  const users: ClerkWorkoutUserSummary[] = [];
-  const pageSize = 200;
-  let offset = 0;
-
-  while (true) {
-    const { data } = await clerkClient.users.getUserList({
-      limit: pageSize,
-      offset,
-    });
-
-    users.push(...(data as ClerkWorkoutUserSummary[]));
-
-    if (data.length < pageSize) {
-      return users;
-    }
-
-    offset += data.length;
-  }
 }
 
 async function requireTrainerOrOwner(req: Request, res: Response): Promise<string | null> {

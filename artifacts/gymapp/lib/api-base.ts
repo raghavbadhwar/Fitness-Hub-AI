@@ -17,6 +17,10 @@ function normalizeConfiguredBase(value: string) {
   return `https://${trimmed}`;
 }
 
+function isLocalWebHost(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 export function getApiBase() {
   const directBase = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (typeof directBase === "string" && directBase.trim()) {
@@ -29,7 +33,11 @@ export function getApiBase() {
   }
 
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
+    const { protocol, hostname, origin } = window.location;
+    if (!isLocalWebHost(hostname)) {
+      return origin;
+    }
+
     return `${protocol}//${hostname}:4000`;
   }
 

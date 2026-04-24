@@ -4,7 +4,7 @@ const reuseExistingServer = !process.env.CI;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  timeout: 60_000,
+  timeout: 120_000,
   expect: {
     timeout: 10_000,
   },

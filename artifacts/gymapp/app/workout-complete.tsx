@@ -48,26 +48,44 @@ export default function WorkoutCompleteScreen() {
   const prScaleAnim = useRef(new Animated.Value(0)).current;
 
   const [prVisible, setPrVisible] = useState(false);
+  const [assignmentSyncError, setAssignmentSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    if (params.assignedWorkoutId) {
+    const assignedWorkoutId =
+      typeof params.assignedWorkoutId === "string" ? params.assignedWorkoutId.trim() : "";
+
+    if (assignedWorkoutId) {
       const markComplete = async () => {
         try {
           const token = await getToken();
-          await fetch(
-            `${getApiBase()}/api/workouts/assigned/${params.assignedWorkoutId}/complete`,
+          if (!token) {
+            throw new Error("Missing auth token");
+          }
+
+          const response = await fetch(
+            `${getApiBase()}/api/workouts/assigned/${encodeURIComponent(assignedWorkoutId)}/complete`,
             {
               method: "PATCH",
               headers: { Authorization: `Bearer ${token}` },
             },
           );
+
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(payload?.error || `Server returned ${response.status}`);
+          }
+
+          setAssignmentSyncError(null);
         } catch (err) {
           console.error("Failed to mark assigned workout complete", err);
+          setAssignmentSyncError(
+            "This workout is saved here, but server completion did not sync. Check your assigned workouts and retry if it still appears open.",
+          );
         }
       };
-      markComplete();
+      void markComplete();
     }
 
     Animated.parallel([
@@ -161,6 +179,15 @@ export default function WorkoutCompleteScreen() {
             {session.name}
           </Text>
         </Animated.View>
+
+        {assignmentSyncError ? (
+          <View style={[styles.syncWarning, { backgroundColor: colors.warning + "16" }]}>
+            <Feather name="alert-circle" size={18} color={colors.warning} />
+            <Text style={[styles.syncWarningText, { color: colors.text }]}>
+              {assignmentSyncError}
+            </Text>
+          </View>
+        ) : null}
 
         <Animated.View style={[styles.statsGrid, { opacity: opacityAnim }]}>
           <View
@@ -298,6 +325,15 @@ const styles = StyleSheet.create({
   trophyEmoji: { fontSize: 52 },
   completeTitle: { fontSize: 32, fontWeight: "800", textAlign: "center" },
   sessionName: { fontSize: 16, textAlign: "center" },
+  syncWarning: {
+    alignItems: "flex-start",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+    padding: 14,
+  },
+  syncWarningText: { flex: 1, fontSize: 13, lineHeight: 19 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   statCard: {
     width: "47%",
