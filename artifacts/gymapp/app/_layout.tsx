@@ -13,6 +13,7 @@ import { AppProvider } from "@/contexts/AppContext";
 import { NutritionProvider } from "@/contexts/NutritionContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
 import { ScheduleProvider } from "@/contexts/ScheduleContext";
+import { getClerkProxyUrl } from "@/lib/clerk-config";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -82,6 +83,7 @@ function RootLayoutNav() {
 }
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+const clerkProxyUrl = getClerkProxyUrl();
 
 if (!publishableKey) {
   throw new Error("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required. Add it to .env.local.");
@@ -91,7 +93,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+        <ClerkProvider
+          publishableKey={publishableKey}
+          proxyUrl={clerkProxyUrl}
+          tokenCache={tokenCache}
+        >
           <ClerkLoaded>
             <QueryClientProvider client={queryClient}>
               <AppProvider>

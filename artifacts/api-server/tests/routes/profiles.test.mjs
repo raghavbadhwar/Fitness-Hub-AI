@@ -355,6 +355,35 @@ describe("profiles routes", () => {
     });
   });
 
+  it("blocks profile reads when the caller email has been revoked", async () => {
+    profilesByClerkId.set("member_1", {
+      id: 11,
+      clerkId: "member_1",
+      name: "Morgan",
+      role: "member",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+    accessControlsByEmail.set("morgan@example.com", {
+      email: "morgan@example.com",
+      role: "member",
+      status: "revoked",
+      note: "",
+      createdByClerkId: "owner_1",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+      createdAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+
+    const response = await request(app).get("/profiles/me");
+
+    assert.equal(response.status, 403);
+    assert.deepEqual(response.body, {
+      error: "Your gym team has turned off member app access for this email.",
+      status: "revoked",
+      email: "morgan@example.com",
+      role: "member",
+    });
+  });
+
   it("returns unauthorized when auth resolution does not provide a user id", async () => {
     authState.userId = null;
 

@@ -12,6 +12,7 @@ import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wo
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { buildApiUrl, getApiBaseUrl } from "./lib/api-base";
+import { getClerkProxyUrl } from "./lib/clerk-config";
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 import { Layout } from "./components/layout";
 import { ThemeProvider } from "./components/theme-provider";
@@ -25,7 +26,7 @@ const Members = lazy(() => import("./pages/members"));
 const Settings = lazy(() => import("./pages/settings"));
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const clerkProxyUrl = getClerkProxyUrl();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {

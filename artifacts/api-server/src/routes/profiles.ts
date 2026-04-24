@@ -2,11 +2,12 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { db, userProfiles } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getAuthenticatedClerkUser, getRequestUserId } from "../lib/clerk-request.ts";
+import { getAuthenticatedClerkUser } from "../lib/clerk-request.ts";
 import {
   displayNameForClerkUser,
   getPrimaryEmail,
   isUserRole,
+  requireApprovedAccess,
   resolveUserAccessForClerkUser,
 } from "../lib/user-access.ts";
 
@@ -115,15 +116,13 @@ router.post("/sync", async (req: Request, res: Response) => {
 
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    const userId = getRequestUserId(req);
-    if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+
     const [profile] = await db
       .select()
       .from(userProfiles)
-      .where(eq(userProfiles.clerkId, userId))
+      .where(eq(userProfiles.clerkId, access.userId))
       .limit(1);
     if (!profile) {
       res.status(404).json({ error: "Profile not found" });
