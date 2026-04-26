@@ -16,6 +16,7 @@ import { SafeAreaView } from "@/components/native-compat";
 import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition, MealType, FoodEntry } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
@@ -126,6 +127,7 @@ export default function NutritionScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [servings, setServings] = useState("1");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const totals = useMemo(() => {
     return todayLog.entries.reduce(
@@ -141,8 +143,10 @@ export default function NutritionScreen() {
   }, [todayLog.entries]);
 
   const searchResults = useMemo(() => {
-    return searchQuery.length > 0 ? searchFoods(searchQuery) : INDIAN_FOODS.slice(0, 30);
-  }, [searchQuery]);
+    return debouncedSearchQuery.length > 0
+      ? searchFoods(debouncedSearchQuery)
+      : INDIAN_FOODS.slice(0, 30);
+  }, [debouncedSearchQuery]);
 
   const handleAddFood = async () => {
     if (!selectedFood || !activeMeal) return;
