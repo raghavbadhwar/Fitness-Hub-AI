@@ -29,6 +29,20 @@ const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "post_workout", label: "Post-Workout" },
 ];
 
+interface FoodAnalysisResult {
+  dishName: string;
+  cuisine: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  confidence: "high" | "medium" | "low";
+  ingredients: string[];
+  healthTip: string;
+}
+
 export default function AddMealScreen() {
   const router = useRouter();
   const { mealType: initialMealType } = useLocalSearchParams<{ mealType?: string }>();
@@ -38,7 +52,7 @@ export default function AddMealScreen() {
   const [mealType, setMealType] = useState<MealType>((initialMealType as MealType) || "lunch");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
   const [servings, setServings] = useState("1");
   const [mode, setMode] = useState<"photo" | "manual">("photo");
 
