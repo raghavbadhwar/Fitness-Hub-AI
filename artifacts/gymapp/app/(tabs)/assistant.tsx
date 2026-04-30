@@ -21,6 +21,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { getApiBase } from "@/lib/api-base";
+import { generateId } from "@/lib/id";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
@@ -52,10 +53,6 @@ const QUICK_PROMPTS = [
   "Is paneer good for weight loss?",
   "What's a good pre-workout snack?",
 ];
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 function getScopedStorageKey(baseKey: string, userId?: string | null) {
   return userId ? `${baseKey}:${userId}` : baseKey;

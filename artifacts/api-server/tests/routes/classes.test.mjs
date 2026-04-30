@@ -256,10 +256,14 @@ beforeEach(() => {
   authState.userId = "member_1";
   classesById.clear();
   classesById.set(1, seedClass(1));
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
   classesById.set(
     2,
     seedClass(2, {
-      date: "2026-04-26",
+      date: tomorrowStr,
       startTime: "08:30:00",
       enrolledCount: 1,
       enrolledMemberIds: ["member_1"],
