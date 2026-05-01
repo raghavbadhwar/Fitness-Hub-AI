@@ -1,0 +1,4 @@
+## 2025-02-14 - Insecure Randomness in ID Generation
+**Vulnerability:** The codebase was using `Math.random().toString(36)` coupled with `Date.now()` to generate unique IDs across multiple files (`workout-session.tsx`, `assistant.tsx`, `NutritionContext.tsx`, `WorkoutContext.tsx`). This is cryptographically insecure and predictable, creating a risk of ID collisions or predictability.
+**Learning:** `Math.random()` should never be used for generating IDs or any security-sensitive randomness. Even for client-side IDs, using a proper cryptographically secure PRNG (like UUIDs) is standard practice and avoids potential edge-case collisions or unintended predictability.
+**Prevention:** Always use a proper crypto library for unique identifiers. In Expo/React Native projects, utilize `expo-crypto.randomUUID()` to generate robust UUIDs. Centralize ID generation logic into a single utility module (`@/lib/id.ts`) to avoid duplicating potentially flawed implementations.
