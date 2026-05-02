@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { generateId } from "@/lib/id";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
 
@@ -38,10 +39,6 @@ export interface NutritionSummary {
 
 function getDateKey(date: Date = new Date()): string {
   return date.toISOString().split("T")[0];
-}
-
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
 interface NutritionContextType {
