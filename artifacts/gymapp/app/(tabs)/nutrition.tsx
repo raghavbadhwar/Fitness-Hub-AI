@@ -1,3 +1,4 @@
+import { useDebounce } from "@/hooks/useDebounce";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
@@ -124,6 +125,7 @@ export default function NutritionScreen() {
   const [activeMeal, setActiveMeal] = useState<MealType | null>(null);
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [servings, setServings] = useState("1");
 
@@ -141,8 +143,13 @@ export default function NutritionScreen() {
   }, [todayLog.entries]);
 
   const searchResults = useMemo(() => {
-    return searchQuery.length > 0 ? searchFoods(searchQuery) : INDIAN_FOODS.slice(0, 30);
-  }, [searchQuery]);
+    // ⚡ Bolt Optimization: Use debounced value for heavy search operations
+    // This prevents blocking the main thread and reduces computation
+    // while the user is rapidly typing
+    return debouncedSearchQuery.length > 0
+      ? searchFoods(debouncedSearchQuery)
+      : INDIAN_FOODS.slice(0, 30);
+  }, [debouncedSearchQuery]);
 
   const handleAddFood = async () => {
     if (!selectedFood || !activeMeal) return;
