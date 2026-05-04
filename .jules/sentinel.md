@@ -1,0 +1,4 @@
+## 2026-05-04 - Rate limiting by IP Address on Authenticated Endpoints
+**Vulnerability:** Rate limiting was being enforced by IP address, including parsing the `x-forwarded-for` header, which can be spoofed by an attacker, allowing them to bypass the rate limit. Additionally, legitimate users sharing an IP could be affected by others' usage.
+**Learning:** Using IP-based rate limiting on authenticated endpoints is insecure as it relies on easily spoofable headers or unreliable client IP information. Furthermore, shared IPs could cause false positives for innocent users. Rate limiting on authenticated endpoints should utilize the authenticated user ID for proper scope.
+**Prevention:** Always use the authenticated user's ID (`getAuth(req).userId`) rather than relying on IP addresses or `x-forwarded-for` headers when rate limiting authenticated API routes.

@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { requireAuth } from "@clerk/express";
+import { requireAuth, getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
@@ -22,15 +22,19 @@ const RATE_LIMIT_MAX_PER_WINDOW = 20;
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
-    req.socket.remoteAddress ??
-    "unknown";
+  const auth = getAuth(req);
+  const identifier = auth?.userId;
+
+  if (!identifier) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const now = Date.now();
-  const entry = ipRequestCounts.get(ip);
+  const entry = ipRequestCounts.get(identifier);
 
   if (!entry || now > entry.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    ipRequestCounts.set(identifier, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     next();
     return;
   }
