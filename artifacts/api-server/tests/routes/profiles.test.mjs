@@ -11,12 +11,14 @@ const accessControlsByEmail = new Map();
 const userProfiles = {
   id: Symbol("id"),
   clerkId: Symbol("clerkId"),
+  gymId: Symbol("gymId"),
   name: Symbol("name"),
   role: Symbol("role"),
   updatedAt: Symbol("updatedAt"),
 };
 
 const userAccessControls = {
+  gymId: Symbol("gymId"),
   email: Symbol("email"),
   role: Symbol("role"),
   status: Symbol("status"),
@@ -29,12 +31,14 @@ const userAccessControls = {
 const profileFieldMap = new Map([
   [userProfiles.id, "id"],
   [userProfiles.clerkId, "clerkId"],
+  [userProfiles.gymId, "gymId"],
   [userProfiles.name, "name"],
   [userProfiles.role, "role"],
   [userProfiles.updatedAt, "updatedAt"],
 ]);
 
 const accessControlFieldMap = new Map([
+  [userAccessControls.gymId, "gymId"],
   [userAccessControls.email, "email"],
   [userAccessControls.role, "role"],
   [userAccessControls.status, "status"],
@@ -57,6 +61,7 @@ function defaultClerkUser(overrides = {}) {
 
 function cloneProfile(profile) {
   return {
+    gymId: "gymos-main",
     ...profile,
     updatedAt: new Date(profile.updatedAt),
   };
@@ -64,6 +69,7 @@ function cloneProfile(profile) {
 
 function cloneAccessControl(accessControl) {
   return {
+    gymId: "gymos-main",
     ...accessControl,
     updatedAt: new Date(accessControl.updatedAt),
     createdAt: new Date(accessControl.createdAt),
@@ -93,22 +99,41 @@ function projectAccessControl(accessControl, selection) {
   );
 }
 
+function matchesCondition(row, condition, fieldMap) {
+  if (!condition) return true;
+  if (condition.op === "and") {
+    return condition.conditions.every((child) => matchesCondition(row, child, fieldMap));
+  }
+  if (condition.op !== "eq") return true;
+  const fieldName = fieldMap.get(condition.field);
+  return fieldName ? row[fieldName] === condition.value : true;
+}
+
 function listProfilesForCondition(condition) {
-  if (condition?.op === "eq") {
+  if (condition?.op === "eq" && condition.field === userProfiles.clerkId) {
     const profile = profilesByClerkId.get(condition.value);
-    return profile ? [cloneProfile(profile)] : [];
+    return profile && matchesCondition(cloneProfile(profile), condition, profileFieldMap)
+      ? [cloneProfile(profile)]
+      : [];
   }
 
-  return [...profilesByClerkId.values()].map(cloneProfile);
+  return [...profilesByClerkId.values()]
+    .map(cloneProfile)
+    .filter((profile) => matchesCondition(profile, condition, profileFieldMap));
 }
 
 function listAccessControlsForCondition(condition) {
-  if (condition?.op === "eq") {
+  if (condition?.op === "eq" && condition.field === userAccessControls.email) {
     const accessControl = accessControlsByEmail.get(condition.value);
-    return accessControl ? [cloneAccessControl(accessControl)] : [];
+    return accessControl &&
+      matchesCondition(cloneAccessControl(accessControl), condition, accessControlFieldMap)
+      ? [cloneAccessControl(accessControl)]
+      : [];
   }
 
-  return [...accessControlsByEmail.values()].map(cloneAccessControl);
+  return [...accessControlsByEmail.values()]
+    .map(cloneAccessControl)
+    .filter((accessControl) => matchesCondition(accessControl, condition, accessControlFieldMap));
 }
 
 const db = {
@@ -146,6 +171,7 @@ const db = {
                 const nextProfile = {
                   id: existing?.id ?? profilesByClerkId.size + 1,
                   clerkId: values.clerkId,
+                  gymId: set?.gymId ?? values.gymId ?? existing?.gymId ?? "gymos-main",
                   name: set?.name ?? values.name,
                   role: set?.role ?? values.role,
                   updatedAt: set?.updatedAt ?? existing?.updatedAt ?? new Date(),
@@ -165,6 +191,9 @@ mock.module("drizzle-orm", {
   namedExports: {
     eq(field, value) {
       return { op: "eq", field, value };
+    },
+    and(...conditions) {
+      return { op: "and", conditions };
     },
   },
 });
@@ -226,6 +255,7 @@ describe("profiles routes", () => {
     assert.deepEqual(response.body, {
       status: "pending_approval",
       email: "morgan@example.com",
+      gymId: "gymos-main",
       role: "member",
       message: "Your gym team needs to allow this email before you can enter the member app.",
     });
@@ -248,6 +278,7 @@ describe("profiles routes", () => {
     assert.deepEqual(response.body, {
       status: "missing_profile",
       email: "morgan@example.com",
+      gymId: "gymos-main",
       role: "member",
     });
   });
@@ -267,6 +298,7 @@ describe("profiles routes", () => {
     assert.deepEqual(response.body, {
       status: "ready",
       email: "morgan@example.com",
+      gymId: "gymos-main",
       name: "Asha",
       role: "member",
     });
@@ -297,11 +329,13 @@ describe("profiles routes", () => {
     assert.equal(response.body.clerkId, "member_1");
     assert.equal(response.body.name, "Priya S.");
     assert.equal(response.body.role, "trainer");
+    assert.equal(response.body.gymId, "gymos-main");
     assert.equal(response.body.email, "morgan@example.com");
 
     assert.deepEqual(profilesByClerkId.get("member_1"), {
       id: 1,
       clerkId: "member_1",
+      gymId: "gymos-main",
       name: "Priya S.",
       role: "trainer",
       updatedAt: profilesByClerkId.get("member_1").updatedAt,
@@ -351,6 +385,7 @@ describe("profiles routes", () => {
       error: "Your gym team has turned off member app access for this email.",
       status: "revoked",
       email: "morgan@example.com",
+      gymId: "gymos-main",
       role: "member",
     });
   });
@@ -380,6 +415,7 @@ describe("profiles routes", () => {
       error: "Your gym team has turned off member app access for this email.",
       status: "revoked",
       email: "morgan@example.com",
+      gymId: "gymos-main",
       role: "member",
     });
   });

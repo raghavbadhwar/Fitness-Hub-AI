@@ -1,6 +1,16 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -118,52 +128,77 @@ export function MemberAccessActions({
   onSetAccess,
 }: MemberAccessActionsProps) {
   const approveLabel = hasRoleChange ? "Save access" : "Allow";
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
 
   return (
-    <div className="flex justify-end gap-2">
-      {hasRoleChange || accessStatus !== "approved" ? (
-        <Button
-          size="sm"
-          variant="default"
-          disabled={isSaving}
-          onClick={() => onSetAccess({ email, role, accessStatus: "approved" })}
-          data-testid={`button-approve-member-${testIdSuffix}`}
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <ShieldCheck className="mr-2 h-4 w-4" />
-          )}
-          {approveLabel}
-        </Button>
-      ) : null}
-      {accessStatus !== "revoked" ? (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isSaving}
-          onClick={() => onSetAccess({ email, role, accessStatus: "revoked" })}
-          data-testid={`button-revoke-member-${testIdSuffix}`}
-        >
-          <ShieldOff className="mr-2 h-4 w-4" />
-          Block
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={isSaving}
-          onClick={() => onSetAccess({ email, role, accessStatus: "approved" })}
-          data-testid={`button-restore-member-${testIdSuffix}`}
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <ShieldCheck className="mr-2 h-4 w-4" />
-          )}
-          Allow again
-        </Button>
-      )}
-    </div>
+    <>
+      <div className="flex flex-wrap justify-end gap-2">
+        {hasRoleChange || accessStatus !== "approved" ? (
+          <Button
+            size="sm"
+            variant="default"
+            disabled={isSaving}
+            onClick={() => onSetAccess({ email, role, accessStatus: "approved" })}
+            data-testid={`button-approve-member-${testIdSuffix}`}
+          >
+            {isSaving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="mr-2 h-4 w-4" />
+            )}
+            {approveLabel}
+          </Button>
+        ) : null}
+        {accessStatus !== "revoked" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isSaving}
+            onClick={() => setConfirmBlockOpen(true)}
+            data-testid={`button-revoke-member-${testIdSuffix}`}
+          >
+            <ShieldOff className="mr-2 h-4 w-4" />
+            Block
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={isSaving}
+            onClick={() => onSetAccess({ email, role, accessStatus: "approved" })}
+            data-testid={`button-restore-member-${testIdSuffix}`}
+          >
+            {isSaving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="mr-2 h-4 w-4" />
+            )}
+            Allow again
+          </Button>
+        )}
+      </div>
+
+      <AlertDialog open={confirmBlockOpen} onOpenChange={setConfirmBlockOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block member access?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {email} will lose access to the member app until an owner or trainer allows them
+              again. Existing data is preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep access</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => onSetAccess({ email, role, accessStatus: "revoked" })}
+              data-testid={`button-confirm-revoke-member-${testIdSuffix}`}
+            >
+              Block access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

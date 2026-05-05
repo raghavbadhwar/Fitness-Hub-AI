@@ -8,10 +8,12 @@ const clerkUsers = new Map();
 const userProfilesByClerkId = new Map();
 const memberAiProfilesByClerkId = new Map();
 const accessControlsByEmail = new Map();
+const adminClassesById = new Map();
 
 const userProfiles = {
   id: Symbol("id"),
   clerkId: Symbol("clerkId"),
+  gymId: Symbol("gymId"),
   name: Symbol("name"),
   role: Symbol("role"),
   updatedAt: Symbol("updatedAt"),
@@ -25,6 +27,7 @@ const memberAiProfiles = {
 };
 
 const userAccessControls = {
+  gymId: Symbol("gymId"),
   email: Symbol("email"),
   role: Symbol("role"),
   status: Symbol("status"),
@@ -34,13 +37,88 @@ const userAccessControls = {
   createdAt: Symbol("createdAt"),
 };
 
-const gymClassesTable = { id: Symbol("id"), enrolledMemberIds: Symbol("enrolledMemberIds") };
+const gymClassesTable = {
+  id: Symbol("id"),
+  gymId: Symbol("gymId"),
+  enrolledMemberIds: Symbol("enrolledMemberIds"),
+  waitlistedMemberIds: Symbol("waitlistedMemberIds"),
+  attendanceRecords: Symbol("attendanceRecords"),
+  updatedAt: Symbol("updatedAt"),
+};
 const gymSettingsTable = { id: Symbol("id") };
+
+const profileFieldMap = new Map([
+  [userProfiles.id, "id"],
+  [userProfiles.clerkId, "clerkId"],
+  [userProfiles.gymId, "gymId"],
+  [userProfiles.name, "name"],
+  [userProfiles.role, "role"],
+  [userProfiles.updatedAt, "updatedAt"],
+]);
+
+const accessControlFieldMap = new Map([
+  [userAccessControls.gymId, "gymId"],
+  [userAccessControls.email, "email"],
+  [userAccessControls.role, "role"],
+  [userAccessControls.status, "status"],
+  [userAccessControls.note, "note"],
+  [userAccessControls.createdByClerkId, "createdByClerkId"],
+  [userAccessControls.updatedAt, "updatedAt"],
+  [userAccessControls.createdAt, "createdAt"],
+]);
+
+const gymClassFieldMap = new Map([
+  [gymClassesTable.id, "id"],
+  [gymClassesTable.gymId, "gymId"],
+  [gymClassesTable.enrolledMemberIds, "enrolledMemberIds"],
+  [gymClassesTable.waitlistedMemberIds, "waitlistedMemberIds"],
+  [gymClassesTable.attendanceRecords, "attendanceRecords"],
+  [gymClassesTable.updatedAt, "updatedAt"],
+]);
+
+function withDefaultGym(row) {
+  return { gymId: "gymos-main", ...row };
+}
+
+function seedAdminClass(overrides = {}) {
+  return {
+    id: 1,
+    gymId: "gymos-main",
+    enrolledMemberIds: ["member_1", "missing_user"],
+    waitlistedMemberIds: [],
+    attendanceRecords: [],
+    updatedAt: new Date("2026-04-20T10:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function cloneAdminClass(row) {
+  return {
+    ...row,
+    enrolledMemberIds: [...(row.enrolledMemberIds ?? [])],
+    waitlistedMemberIds: [...(row.waitlistedMemberIds ?? [])],
+    attendanceRecords: (row.attendanceRecords ?? []).map((record) => ({ ...record })),
+    updatedAt: new Date(row.updatedAt),
+  };
+}
+
+function matchesCondition(row, condition, fieldMap) {
+  if (!condition) return true;
+  if (condition.op === "and") {
+    return condition.conditions.every((child) => matchesCondition(row, child, fieldMap));
+  }
+  if (condition.op !== "eq") return true;
+  const fieldName = fieldMap.get(condition.field);
+  return fieldName ? row[fieldName] === condition.value : true;
+}
 
 mock.module("drizzle-orm", {
   namedExports: {
     eq(field, value) {
       return { op: "eq", field, value };
+    },
+    and(...conditions) {
+      return { op: "and", conditions };
     },
     gte(field, value) {
       return { op: "gte", field, value };
@@ -138,23 +216,23 @@ mock.module("@workspace/db", {
                 return {
                   limit(count) {
                     if (table === userProfiles) {
-                      const profile =
-                        condition?.op === "eq" ? userProfilesByClerkId.get(condition.value) : null;
-                      const rows = profile ? [profile] : [];
+                      const rows = [...userProfilesByClerkId.values()]
+                        .map(withDefaultGym)
+                        .filter((row) => matchesCondition(row, condition, profileFieldMap));
                       return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
                     }
 
                     if (table === gymClassesTable) {
-                      if (condition?.value === 1) {
-                        return Promise.resolve([
-                          { id: 1, enrolledMemberIds: ["member_1", "missing_user"] },
-                        ]);
-                      }
-                      if (condition?.value === 2) {
+                      const rows = [...adminClassesById.values()]
+                        .map(cloneAdminClass)
+                        .filter((row) => matchesCondition(row, condition, gymClassFieldMap));
+
+                      if (rows.some((row) => row.id === 2)) {
                         const ids = Array.from({ length: 101 }, (_, i) => `u_${i}`);
                         ids.forEach((id) => clerkUsers.set(id, defaultClerkUser({ id })));
-                        return Promise.resolve([{ id: 2, enrolledMemberIds: ids }]);
                       }
+
+                      return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
                     }
 
                     if (table === memberAiProfiles) {
@@ -174,9 +252,9 @@ mock.module("@workspace/db", {
                     }
 
                     if (table === userAccessControls) {
-                      const accessControl =
-                        condition?.op === "eq" ? accessControlsByEmail.get(condition.value) : null;
-                      const rows = accessControl ? [accessControl] : [];
+                      const rows = [...accessControlsByEmail.values()]
+                        .map(withDefaultGym)
+                        .filter((row) => matchesCondition(row, condition, accessControlFieldMap));
                       return Promise.resolve(
                         rows.slice(0, count).map((row) => ({
                           ...row,
@@ -206,6 +284,7 @@ mock.module("@workspace/db", {
                       const nextProfile = {
                         id: existing?.id ?? userProfilesByClerkId.size + 1,
                         clerkId: values.clerkId,
+                        gymId: set?.gymId ?? values.gymId ?? existing?.gymId ?? "gymos-main",
                         name: set?.name ?? values.name,
                         role: set?.role ?? values.role,
                         updatedAt:
@@ -220,6 +299,7 @@ mock.module("@workspace/db", {
                     if (table === userAccessControls) {
                       const existing = accessControlsByEmail.get(values.email);
                       const nextAccessControl = {
+                        gymId: set?.gymId ?? values.gymId ?? existing?.gymId ?? "gymos-main",
                         email: values.email,
                         role: set?.role ?? values.role,
                         status: set?.status ?? values.status,
@@ -240,6 +320,39 @@ mock.module("@workspace/db", {
                       };
                       accessControlsByEmail.set(values.email, { ...nextAccessControl });
                       return Promise.resolve([{ ...nextAccessControl }]);
+                    }
+
+                    return Promise.resolve([]);
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+      update(table) {
+        return {
+          set(values) {
+            return {
+              where(condition) {
+                return {
+                  returning() {
+                    if (table === gymClassesTable) {
+                      const rows = [...adminClassesById.values()]
+                        .filter((row) => matchesCondition(row, condition, gymClassFieldMap))
+                        .map((row) => {
+                          const nextClass = {
+                            ...row,
+                            ...values,
+                            attendanceRecords: (
+                              values.attendanceRecords ?? row.attendanceRecords
+                            ).map((record) => ({ ...record })),
+                            updatedAt: values.updatedAt ?? row.updatedAt,
+                          };
+                          adminClassesById.set(row.id, cloneAdminClass(nextClass));
+                          return cloneAdminClass(nextClass);
+                        });
+                      return Promise.resolve(rows);
                     }
 
                     return Promise.resolve([]);
@@ -292,6 +405,7 @@ mock.module("../../src/lib/admin-access.ts", {
           status: 401,
           userId: null,
           email: null,
+          gymId: null,
           role: null,
           allowlistConfigured: false,
           reason: "Unauthorized",
@@ -308,6 +422,7 @@ mock.module("../../src/lib/admin-access.ts", {
           status: 403,
           userId,
           email,
+          gymId: "gymos-main",
           role,
           allowlistConfigured: false,
           reason: "Forbidden: owner access required",
@@ -318,6 +433,7 @@ mock.module("../../src/lib/admin-access.ts", {
         allowed: true,
         userId,
         email,
+        gymId: "gymos-main",
         role,
         allowlistConfigured: false,
         reason: null,
@@ -338,6 +454,7 @@ beforeEach(() => {
   userProfilesByClerkId.clear();
   memberAiProfilesByClerkId.clear();
   accessControlsByEmail.clear();
+  adminClassesById.clear();
 
   clerkUsers.set("member_1", defaultClerkUser());
   userProfilesByClerkId.set("member_1", {
@@ -353,6 +470,14 @@ beforeEach(() => {
     updatedAt: new Date("2026-04-19T10:00:00.000Z"),
     recentMessages: [{ role: "user", content: "keep the plan simple" }],
   });
+  adminClassesById.set(1, seedAdminClass());
+  adminClassesById.set(
+    2,
+    seedAdminClass({
+      id: 2,
+      enrolledMemberIds: Array.from({ length: 101 }, (_, i) => `u_${i}`),
+    }),
+  );
 });
 
 describe("admin routes", () => {
@@ -387,6 +512,7 @@ describe("admin routes", () => {
         firstName: "Alex",
         lastName: "Lane",
         email: "alex@example.com",
+        gymId: "gymos-main",
         role: "trainer",
         accessStatus: "approved",
         accessUpdatedAt: null,
@@ -428,6 +554,7 @@ describe("admin routes", () => {
         firstName: null,
         lastName: null,
         email: "new.member@example.com",
+        gymId: "gymos-main",
         role: "trainer",
         accessStatus: "approved",
         accessUpdatedAt: null,
@@ -518,6 +645,7 @@ describe("admin routes", () => {
       lastName: "Hill",
       email: "morgan@example.com",
       role: "owner",
+      attendanceStatus: "booked",
     });
     assert.deepEqual(response.body[1], {
       id: "missing_user",
@@ -525,7 +653,19 @@ describe("admin routes", () => {
       lastName: null,
       email: "",
       role: "member",
+      attendanceStatus: "booked",
     });
+  });
+
+  it("updates enrolled member attendance status", async () => {
+    const response = await request(app)
+      .patch("/admin/classes/1/enrollments/member_1")
+      .send({ attendanceStatus: "checked_in" });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.memberId, "member_1");
+    assert.equal(response.body.attendanceStatus, "checked_in");
+    assert.equal(adminClassesById.get(1).attendanceRecords[0].status, "checked_in");
   });
 
   it("batches getUserList correctly for large classes", async () => {

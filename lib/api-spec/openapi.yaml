@@ -20,6 +20,8 @@ tags:
     description: AI coaching and analysis operations
   - name: workouts
     description: Workout templates, assignments, and saved plan operations
+  - name: monthly-reviews
+    description: Saved member monthly progress review operations
 paths:
   /healthz:
     get:
@@ -64,6 +66,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EnrolledClassIdsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /classes/waitlisted:
+    get:
+      operationId: listWaitlistedClassIds
+      tags: [classes]
+      summary: List the caller's waitlisted class ids
+      description: Returns upcoming class ids that the authenticated member has waitlisted
+      responses:
+        "200":
+          description: Waitlisted class ids
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistedClassIdsResponse"
         "401":
           description: Unauthorized
           content:
@@ -126,6 +148,84 @@ paths:
       responses:
         "200":
           description: Class enrollment state after leaving
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Invalid class id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /classes/{id}/waitlist:
+    post:
+      operationId: joinClassWaitlist
+      tags: [classes]
+      summary: Join the waitlist for a full class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class waitlist state after joining
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GymClass"
+        "400":
+          description: Invalid class id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Class cannot be waitlisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: leaveClassWaitlist
+      tags: [classes]
+      summary: Leave the waitlist for a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class waitlist state after leaving
           content:
             application/json:
               schema:
@@ -336,6 +436,61 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/classes/{id}/enrollments/{memberId}:
+    patch:
+      operationId: adminUpdateClassEnrollmentAttendance
+      tags: [admin]
+      summary: Update class attendance for an enrolled member
+      description: Marks an enrolled member as booked, checked in, or no-show (owner-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClassEnrollmentAttendanceBody"
+      responses:
+        "200":
+          description: Updated attendance state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassEnrollmentAttendanceUpdateResponse"
+        "400":
+          description: Invalid class id or attendance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Class or enrolled member not found
           content:
             application/json:
               schema:
@@ -785,6 +940,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai/activity-snapshot:
+    post:
+      operationId: aiUpdateActivitySnapshot
+      tags: [ai]
+      summary: Update AI memory from daily activity
+      description: Accepts a bounded daily nutrition/workout snapshot and updates durable member AI memory server-side.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiActivitySnapshotRequest"
+      responses:
+        "200":
+          description: Activity memory updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiActivitySnapshotResponse"
+        "400":
+          description: Missing or invalid activity snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update activity memory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai/workout-suggestion:
     post:
       operationId: aiWorkoutSuggestion
@@ -824,6 +1023,162 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Failed to generate workout suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /monthly-reviews:
+    get:
+      operationId: monthlyReviewsGet
+      tags: [monthly-reviews]
+      summary: Fetch a saved monthly review
+      description: Returns a saved member monthly review for the requested calendar month. Members can read their own review; trainers and owners can read member reviews in their gym.
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+      responses:
+        "200":
+          description: Saved monthly review, if one exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReviewResponse"
+        "400":
+          description: Missing or invalid month/member parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch monthly review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /monthly-reviews/generate:
+    post:
+      operationId: monthlyReviewsGenerate
+      tags: [monthly-reviews]
+      summary: Generate or refresh a monthly review
+      description: Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonthlyReviewGenerateBody"
+      responses:
+        "200":
+          description: Existing monthly review refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReviewResponse"
+        "201":
+          description: Monthly review generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReviewResponse"
+        "400":
+          description: Missing or invalid review aggregate payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to generate monthly review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /monthly-reviews/{id}/review:
+    patch:
+      operationId: monthlyReviewsMarkReviewed
+      tags: [monthly-reviews]
+      summary: Update monthly review state
+      description: Marks a saved monthly review as reviewed by the member, trainer, or owner.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonthlyReviewReviewBody"
+      responses:
+        "200":
+          description: Updated monthly review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReviewResponse"
+        "400":
+          description: Invalid monthly review id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monthly review not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update monthly review state
           content:
             application/json:
               schema:
@@ -1390,6 +1745,16 @@ components:
       required:
         - classIds
 
+    WaitlistedClassIdsResponse:
+      type: object
+      properties:
+        classIds:
+          type: array
+          items:
+            type: string
+      required:
+        - classIds
+
     GymClass:
       type: object
       properties:
@@ -1414,6 +1779,8 @@ components:
           type: integer
         enrolledCount:
           type: integer
+        waitlistedCount:
+          type: integer
         room:
           type: string
         status:
@@ -1436,6 +1803,7 @@ components:
         - duration
         - maxParticipants
         - enrolledCount
+        - waitlistedCount
         - room
         - status
         - color
@@ -1556,12 +1924,40 @@ components:
           type: string
         role:
           type: string
+        attendanceStatus:
+          type: string
+          enum: [booked, checked_in, no_show]
       required:
         - id
         - firstName
         - lastName
         - email
         - role
+        - attendanceStatus
+
+    UpdateClassEnrollmentAttendanceBody:
+      type: object
+      properties:
+        attendanceStatus:
+          type: string
+          enum: [booked, checked_in, no_show]
+      required:
+        - attendanceStatus
+
+    ClassEnrollmentAttendanceUpdateResponse:
+      type: object
+      properties:
+        memberId:
+          type: string
+        attendanceStatus:
+          type: string
+          enum: [booked, checked_in, no_show]
+        updatedAt:
+          type: string
+      required:
+        - memberId
+        - attendanceStatus
+        - updatedAt
 
     Member:
       type: object
@@ -1779,6 +2175,44 @@ components:
       required:
         - messages
 
+    AiActivitySnapshotRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        timezone:
+          type: string
+        profile:
+          $ref: "#/components/schemas/JsonObject"
+        nutrition:
+          $ref: "#/components/schemas/JsonObject"
+        workout:
+          $ref: "#/components/schemas/JsonObject"
+        behaviorProfile:
+          $ref: "#/components/schemas/JsonObject"
+        savedPlans:
+          type: array
+          items:
+            $ref: "#/components/schemas/JsonObject"
+      required:
+        - date
+
+    AiActivitySnapshotResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        memorySummary:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - ok
+        - memorySummary
+        - updatedAt
+
     AiWorkoutSuggestionRequest:
       type: object
       properties:
@@ -1792,6 +2226,8 @@ components:
           type: string
         availableTime:
           type: integer
+        todayStats:
+          $ref: "#/components/schemas/JsonObject"
         behaviorProfile:
           $ref: "#/components/schemas/JsonObject"
         savedPlans:
@@ -1845,6 +2281,203 @@ components:
         - warmup
         - cooldown
         - motivationalTip
+
+    MonthlyReviewMetrics:
+      type: object
+      additionalProperties: true
+      properties:
+        monthLabel:
+          type: string
+        daysInMonth:
+          type: integer
+        elapsedDays:
+          type: integer
+        completedWorkouts:
+          type: integer
+        workoutDays:
+          type: integer
+        consistencyRate:
+          type: number
+        totalVolume:
+          type: number
+        totalDurationMinutes:
+          type: number
+        caloriesBurned:
+          type: number
+        prCount:
+          type: integer
+        bestLiftName:
+          type: ["string", "null"]
+        bestLiftWeight:
+          type: ["number", "null"]
+        nutritionLoggedDays:
+          type: integer
+        nutritionAdherenceRate:
+          type: number
+        avgCalories:
+          type: number
+        avgProtein:
+          type: number
+        proteinAdherenceRate:
+          type: number
+        waterLoggedDays:
+          type: integer
+        bodyWeightStart:
+          type: ["number", "null"]
+        bodyWeightEnd:
+          type: ["number", "null"]
+        weightDelta:
+          type: ["number", "null"]
+        bodyMeasurementsLogged:
+          type: integer
+        savedPlanCount:
+          type: integer
+        plansSavedThisMonth:
+          type: integer
+        risks:
+          type: array
+          items:
+            type: string
+        momentum:
+          type: string
+          enum: [starting, building, strong]
+
+    MonthlyReviewBadge:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        detail:
+          type: string
+        tone:
+          type: string
+          enum: [success, warning, info, neutral]
+      required:
+        - id
+        - label
+        - detail
+        - tone
+
+    MonthlyReviewSuggestedAdjustment:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [workout, nutrition, recovery, trainer, habit]
+        title:
+          type: string
+        detail:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high]
+        source:
+          type: string
+          enum: [deterministic, ai]
+      required:
+        - id
+        - category
+        - title
+        - detail
+        - priority
+        - source
+
+    MonthlyReview:
+      type: object
+      properties:
+        id:
+          type: string
+        gymId:
+          type: string
+        memberClerkId:
+          type: string
+        month:
+          type: string
+        metrics:
+          $ref: "#/components/schemas/MonthlyReviewMetrics"
+        badges:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyReviewBadge"
+        aiSummary:
+          type: string
+        coachNote:
+          type: string
+        suggestedAdjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyReviewSuggestedAdjustment"
+        status:
+          type: string
+          enum: [generated, reviewed]
+        generatedAt:
+          type: string
+        reviewedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - gymId
+        - memberClerkId
+        - month
+        - metrics
+        - badges
+        - aiSummary
+        - coachNote
+        - suggestedAdjustments
+        - status
+        - generatedAt
+        - reviewedAt
+        - createdAt
+        - updatedAt
+
+    MonthlyReviewResponse:
+      type: object
+      properties:
+        review:
+          oneOf:
+            - $ref: "#/components/schemas/MonthlyReview"
+            - type: "null"
+      required:
+        - review
+
+    MonthlyReviewGenerateBody:
+      type: object
+      properties:
+        memberId:
+          type: string
+        month:
+          type: string
+          pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+        metrics:
+          $ref: "#/components/schemas/MonthlyReviewMetrics"
+        badges:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyReviewBadge"
+        suggestedAdjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyReviewSuggestedAdjustment"
+      required:
+        - month
+        - metrics
+
+    MonthlyReviewReviewBody:
+      type: object
+      properties:
+        reviewed:
+          type: boolean
+        status:
+          type: string
+          enum: [generated, reviewed]
 
     WorkoutMember:
       type: object

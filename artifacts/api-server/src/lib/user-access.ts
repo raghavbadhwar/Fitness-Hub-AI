@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   userAccessControls,
@@ -13,11 +13,13 @@ import { getAuthenticatedClerkUser, type ClerkUserAccessIdentity } from "./clerk
 
 type ProfileAccessRecord = {
   clerkId: string;
+  gymId: string;
   name: string;
   role: string;
 };
 
 type EmailAccessRecord = {
+  gymId: string;
   email: string;
   role: string;
   status: string;
@@ -32,6 +34,7 @@ export type CallerAccess =
       allowed: true;
       userId: string;
       email: string | null;
+      gymId: string;
       role: UserRole;
       profile: ProfileAccessRecord | null;
       control: EmailAccessRecord | null;
@@ -41,6 +44,7 @@ export type CallerAccess =
       statusCode: 401 | 403;
       userId: string | null;
       email: string | null;
+      gymId: string | null;
       role: UserRole | null;
       status: "unauthorized" | "pending_approval" | "revoked";
       message: string;
@@ -88,6 +92,7 @@ export async function getProfileForClerkId(userId: string): Promise<ProfileAcces
   const [profile] = await db
     .select({
       clerkId: userProfiles.clerkId,
+      gymId: userProfiles.gymId,
       name: userProfiles.name,
       role: userProfiles.role,
     })
@@ -100,17 +105,18 @@ export async function getProfileForClerkId(userId: string): Promise<ProfileAcces
 
 export async function getAccessControlForEmail(
   email: string | null,
+  gymId?: string | null,
 ): Promise<EmailAccessRecord | null> {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) {
     return null;
   }
 
-  const [control] = await db
-    .select()
-    .from(userAccessControls)
-    .where(eq(userAccessControls.email, normalizedEmail))
-    .limit(1);
+  const condition = gymId
+    ? and(eq(userAccessControls.email, normalizedEmail), eq(userAccessControls.gymId, gymId))
+    : eq(userAccessControls.email, normalizedEmail);
+
+  const [control] = await db.select().from(userAccessControls).where(condition).limit(1);
 
   return control ?? null;
 }
@@ -144,16 +150,15 @@ export async function resolveUserAccessForClerkUser(
   providedProfile?: ProfileAccessRecord | null,
 ): Promise<CallerAccess> {
   const email = getPrimaryEmail(user);
-  const [profile, control] = await Promise.all([
-    providedProfile === undefined
-      ? getProfileForClerkId(user.id)
-      : Promise.resolve(providedProfile),
-    getAccessControlForEmail(email),
-  ]);
+  const profile =
+    providedProfile === undefined ? await getProfileForClerkId(user.id) : providedProfile;
+  const resolvedControl = await getAccessControlForEmail(email, profile?.gymId ?? null);
+  const control = resolvedControl ?? (profile ? null : await getAccessControlForEmail(email));
   const role = resolveApprovedRole(user, profile, control);
+  const gymId = profile?.gymId ?? control?.gymId ?? "gymos-main";
 
   if (role === "owner") {
-    return { allowed: true, userId: user.id, email, role, profile, control };
+    return { allowed: true, userId: user.id, email, gymId, role, profile, control };
   }
 
   if (control?.status === "revoked") {
@@ -162,6 +167,7 @@ export async function resolveUserAccessForClerkUser(
       statusCode: 403,
       userId: user.id,
       email,
+      gymId,
       role,
       status: "revoked",
       message: "Your gym team has turned off member app access for this email.",
@@ -176,6 +182,7 @@ export async function resolveUserAccessForClerkUser(
       statusCode: 403,
       userId: user.id,
       email,
+      gymId,
       role,
       status: "pending_approval",
       message: "Your gym team needs to allow this email before you can enter the member app.",
@@ -185,7 +192,7 @@ export async function resolveUserAccessForClerkUser(
   }
 
   if (control?.status === "approved" || profile) {
-    return { allowed: true, userId: user.id, email, role, profile, control };
+    return { allowed: true, userId: user.id, email, gymId, role, profile, control };
   }
 
   return {
@@ -193,6 +200,7 @@ export async function resolveUserAccessForClerkUser(
     statusCode: 403,
     userId: user.id,
     email,
+    gymId,
     role,
     status: "pending_approval",
     message: "Your gym team needs to allow this email before you can enter the member app.",
@@ -209,6 +217,7 @@ export async function resolveCallerAccess(req: Request): Promise<CallerAccess> {
       statusCode: 401,
       userId: null,
       email: null,
+      gymId: null,
       role: null,
       status: "unauthorized",
       message: "Unauthorized",
@@ -232,6 +241,7 @@ export async function requireApprovedAccess(
       error: access.message,
       status: access.status,
       email: access.email,
+      gymId: access.gymId,
       role: access.role,
     });
     return null;

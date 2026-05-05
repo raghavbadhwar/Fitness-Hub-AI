@@ -8,6 +8,7 @@ const classesById = new Map();
 
 const gymClassesTable = {
   id: Symbol("id"),
+  gymId: Symbol("gymId"),
   name: Symbol("name"),
   category: Symbol("category"),
   description: Symbol("description"),
@@ -18,6 +19,8 @@ const gymClassesTable = {
   maxParticipants: Symbol("maxParticipants"),
   enrolledCount: Symbol("enrolledCount"),
   enrolledMemberIds: Symbol("enrolledMemberIds"),
+  waitlistedMemberIds: Symbol("waitlistedMemberIds"),
+  attendanceRecords: Symbol("attendanceRecords"),
   room: Symbol("room"),
   status: Symbol("status"),
   color: Symbol("color"),
@@ -27,6 +30,7 @@ const gymClassesTable = {
 
 const classFieldMap = new Map([
   [gymClassesTable.id, "id"],
+  [gymClassesTable.gymId, "gymId"],
   [gymClassesTable.name, "name"],
   [gymClassesTable.category, "category"],
   [gymClassesTable.description, "description"],
@@ -37,6 +41,8 @@ const classFieldMap = new Map([
   [gymClassesTable.maxParticipants, "maxParticipants"],
   [gymClassesTable.enrolledCount, "enrolledCount"],
   [gymClassesTable.enrolledMemberIds, "enrolledMemberIds"],
+  [gymClassesTable.waitlistedMemberIds, "waitlistedMemberIds"],
+  [gymClassesTable.attendanceRecords, "attendanceRecords"],
   [gymClassesTable.room, "room"],
   [gymClassesTable.status, "status"],
   [gymClassesTable.color, "color"],
@@ -48,6 +54,8 @@ function cloneClass(cls) {
   return {
     ...cls,
     enrolledMemberIds: [...cls.enrolledMemberIds],
+    waitlistedMemberIds: [...cls.waitlistedMemberIds],
+    attendanceRecords: cls.attendanceRecords.map((record) => ({ ...record })),
     createdAt: new Date(cls.createdAt),
     updatedAt: new Date(cls.updatedAt),
   };
@@ -56,16 +64,19 @@ function cloneClass(cls) {
 function seedClass(id, overrides = {}) {
   return {
     id,
+    gymId: "gymos-main",
     name: `Class ${id}`,
     category: "strength",
     description: "Structured test class",
     trainer: "Coach Riley",
-    date: "2026-04-25",
+    date: "2099-04-25",
     startTime: "09:00:00",
     duration: 45,
     maxParticipants: 2,
     enrolledCount: 0,
     enrolledMemberIds: [],
+    waitlistedMemberIds: [],
+    attendanceRecords: [],
     room: "Studio A",
     status: "scheduled",
     color: "#0f766e",
@@ -91,8 +102,19 @@ function projectClass(cls, selection) {
 function filterClasses(condition) {
   let rows = [...classesById.values()].map(cloneClass);
 
+  if (condition?.op === "and") {
+    for (const childCondition of condition.conditions) {
+      const matchingIds = new Set(filterClasses(childCondition).map((cls) => cls.id));
+      rows = rows.filter((cls) => matchingIds.has(cls.id));
+    }
+    return rows;
+  }
+
   if (condition?.op === "gte") {
     rows = rows.filter((cls) => cls.date >= condition.value);
+  }
+  if (condition?.op === "eq" && condition.field === gymClassesTable.gymId) {
+    rows = rows.filter((cls) => cls.gymId === condition.value);
   }
 
   return rows;
@@ -141,6 +163,7 @@ const db = {
 function toLockedRow(cls) {
   return {
     id: cls.id,
+    gym_id: cls.gymId,
     name: cls.name,
     category: cls.category,
     description: cls.description,
@@ -151,6 +174,8 @@ function toLockedRow(cls) {
     max_participants: cls.maxParticipants,
     enrolled_count: cls.enrolledCount,
     enrolled_member_ids: [...cls.enrolledMemberIds],
+    waitlisted_member_ids: [...cls.waitlistedMemberIds],
+    attendance_records: cls.attendanceRecords.map((record) => ({ ...record })),
     room: cls.room,
     status: cls.status,
     color: cls.color,
@@ -169,13 +194,14 @@ const pool = {
 
         if (queryText.includes("FROM gym_classes") && queryText.includes("FOR UPDATE")) {
           const cls = classesById.get(values[0]);
-          return { rows: cls ? [toLockedRow(cloneClass(cls))] : [] };
+          return { rows: cls && cls.gymId === values[1] ? [toLockedRow(cloneClass(cls))] : [] };
         }
 
         if (queryText.includes("UPDATE gym_classes")) {
-          const [classId, enrolledCount, enrolledMemberIdsJson] = values;
+          const [classId, enrolledCount, enrolledMemberIdsJson, waitlistedMemberIdsJson, gymId] =
+            values;
           const cls = classesById.get(classId);
-          if (!cls) {
+          if (!cls || cls.gymId !== gymId) {
             return { rows: [] };
           }
 
@@ -183,6 +209,7 @@ const pool = {
             ...cls,
             enrolledCount,
             enrolledMemberIds: JSON.parse(enrolledMemberIdsJson),
+            waitlistedMemberIds: JSON.parse(waitlistedMemberIdsJson),
             updatedAt: new Date("2026-04-20T10:00:00.000Z"),
           };
           classesById.set(classId, cloneClass(updated));
@@ -203,6 +230,9 @@ mock.module("drizzle-orm", {
     },
     eq(field, value) {
       return { op: "eq", field, value };
+    },
+    and(...conditions) {
+      return { op: "and", conditions };
     },
   },
 });
@@ -238,6 +268,7 @@ mock.module("../../src/lib/user-access.ts", {
         allowed: true,
         userId: authState.userId,
         email: "member@example.com",
+        gymId: "gymos-main",
         role: "member",
         profile: null,
         control: null,
@@ -259,7 +290,7 @@ beforeEach(() => {
   classesById.set(
     2,
     seedClass(2, {
-      date: "2026-04-26",
+      date: "2099-04-26",
       startTime: "08:30:00",
       enrolledCount: 1,
       enrolledMemberIds: ["member_1"],
@@ -273,6 +304,23 @@ describe("classes routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body, { classIds: ["2"] });
+  });
+
+  it("lists currently waitlisted class ids for the caller", async () => {
+    classesById.set(
+      1,
+      seedClass(1, {
+        enrolledCount: 2,
+        enrolledMemberIds: ["member_9", "member_8"],
+        maxParticipants: 2,
+        waitlistedMemberIds: ["member_1"],
+      }),
+    );
+
+    const response = await request(app).get("/classes/waitlisted");
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { classIds: ["1"] });
   });
 
   it("enrolls the caller into an available class", async () => {
@@ -309,6 +357,61 @@ describe("classes routes", () => {
     assert.equal(response.status, 409);
     assert.deepEqual(response.body, { error: "Class is full" });
     assert.equal(classesById.get(1).enrolledCount, 2);
+  });
+
+  it("adds the caller to a full class waitlist", async () => {
+    classesById.set(
+      1,
+      seedClass(1, {
+        enrolledCount: 2,
+        enrolledMemberIds: ["member_9", "member_8"],
+        maxParticipants: 2,
+      }),
+    );
+
+    const response = await request(app).post("/classes/1/waitlist");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.waitlistedCount, 1);
+    assert.deepEqual(classesById.get(1).waitlistedMemberIds, ["member_1"]);
+  });
+
+  it("removes the caller from a class waitlist", async () => {
+    classesById.set(
+      1,
+      seedClass(1, {
+        enrolledCount: 2,
+        enrolledMemberIds: ["member_9", "member_8"],
+        maxParticipants: 2,
+        waitlistedMemberIds: ["member_1", "member_7"],
+      }),
+    );
+
+    const response = await request(app).delete("/classes/1/waitlist");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.waitlistedCount, 1);
+    assert.deepEqual(classesById.get(1).waitlistedMemberIds, ["member_7"]);
+  });
+
+  it("removes the caller from the waitlist when enrollment succeeds", async () => {
+    classesById.set(
+      1,
+      seedClass(1, {
+        enrolledCount: 1,
+        enrolledMemberIds: ["member_9"],
+        maxParticipants: 2,
+        waitlistedMemberIds: ["member_1"],
+      }),
+    );
+
+    const response = await request(app).post("/classes/1/enroll");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.enrolledCount, 2);
+    assert.equal(response.body.waitlistedCount, 0);
+    assert.deepEqual(classesById.get(1).enrolledMemberIds, ["member_9", "member_1"]);
+    assert.deepEqual(classesById.get(1).waitlistedMemberIds, []);
   });
 
   it("removes the caller from an enrolled class", async () => {

@@ -32,7 +32,7 @@ import type {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
-const STEP_LABELS = ["Personal", "Experience", "Health", "Goals", "Diet", "Access", "Summary"];
+const STEP_LABELS = ["Profile", "Training", "Nutrition"];
 
 const GENDER_OPTIONS: { label: string; value: "male" | "female" | "other" }[] = [
   { label: "Male", value: "male" },
@@ -61,8 +61,6 @@ const DIET_TYPE_OPTIONS: { label: string; value: DietType }[] = [
   { label: "Vegan", value: "vegan" },
   { label: "Eggetarian", value: "eggetarian" },
 ];
-
-const ROLE_OPTIONS: { label: string; value: UserRole }[] = [{ label: "Member", value: "member" }];
 
 const EXPERIENCE_OPTIONS: { label: string; value: FitnessExperience }[] = [
   { label: "Beginner", value: "beginner" },
@@ -100,6 +98,12 @@ const INJURY_OPTIONS: { label: string; value: Injury }[] = [
   { label: "None", value: "none" },
 ];
 
+const STEP_SUBTITLES = [
+  "Identity, body metrics, and goals",
+  "Schedule, equipment, and limits",
+  "Food preferences and targets",
+];
+
 function calculateTargets(data: {
   weight: string;
   height: string;
@@ -131,22 +135,6 @@ function calculateTargets(data: {
     carbs: Math.round((tdee * 0.4) / 4),
     fat: Math.round((tdee * 0.3) / 9),
   };
-}
-
-function getMotivationalMessage(goal: FitnessGoal, name: string): string {
-  const firstName = name.split(" ")[0] || "Champion";
-  switch (goal) {
-    case "lose_weight":
-      return `Ready to transform, ${firstName}! Your personalised plan will guide you step by step toward your target weight.`;
-    case "build_muscle":
-      return `Let's build that physique, ${firstName}! Your nutrition and training plan is calibrated for maximum muscle growth.`;
-    case "maintain":
-      return `Consistency is key, ${firstName}! Your plan will help you maintain your current progress and feel great every day.`;
-    case "improve_fitness":
-      return `Time to level up, ${firstName}! Your AI coach will push you toward peak performance and better endurance.`;
-    default:
-      return `Your journey starts now, ${firstName}! GymOS has you covered every step of the way.`;
-  }
 }
 
 export default function Onboarding() {
@@ -306,16 +294,15 @@ export default function Onboarding() {
   };
 
   const summary = calculateTargets(data);
-  const motivationalMsg = getMotivationalMessage(data.fitnessGoal, data.name);
-
   const renderStep = () => {
     switch (step) {
       case 0:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>Let's get to know you</Text>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>Profile & Goals</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Tell us about yourself for personalised recommendations
+              Set the core details your coach needs before workouts, meals, and class
+              recommendations.
             </Text>
             <View style={styles.form}>
               <View style={styles.field}>
@@ -329,7 +316,7 @@ export default function Onboarding() {
                       color: colors.text,
                     },
                   ]}
-                  placeholder="Name"
+                  placeholder="Your name"
                   placeholderTextColor={colors.mutedForeground}
                   value={data.name}
                   onChangeText={(v) => update("name", v)}
@@ -360,6 +347,15 @@ export default function Onboarding() {
                   />
                 </View>
                 <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.mutedForeground }]}>Gender</Text>
+                  <View style={styles.compactOptionRow}>
+                    {renderOption(GENDER_OPTIONS, "gender", data.gender)}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.field, { flex: 1 }]}>
                   <Text style={[styles.label, { color: colors.mutedForeground }]}>Height (cm)</Text>
                   <TextInput
                     style={[
@@ -382,8 +378,6 @@ export default function Onboarding() {
                     </Text>
                   ) : null}
                 </View>
-              </View>
-              <View style={styles.row}>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={[styles.label, { color: colors.mutedForeground }]}>Weight (kg)</Text>
                   <TextInput
@@ -407,30 +401,29 @@ export default function Onboarding() {
                     </Text>
                   ) : null}
                 </View>
-                <View style={[styles.field, { flex: 1 }]}>
-                  <Text style={[styles.label, { color: colors.mutedForeground }]}>Target (kg)</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.card,
-                        borderColor: colors.border,
-                        color: colors.text,
-                      },
-                    ]}
-                    placeholder="65"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={data.targetWeight}
-                    onChangeText={(v) => update("targetWeight", v)}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
               </View>
-              <View style={styles.field}>
-                <Text style={[styles.label, { color: colors.mutedForeground }]}>Gender</Text>
-                <View style={styles.optionRow}>
-                  {renderOption(GENDER_OPTIONS, "gender", data.gender)}
-                </View>
+
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Fitness Goal</Text>
+              <View style={styles.optionGrid}>
+                {renderOption(FITNESS_GOAL_OPTIONS, "fitnessGoal", data.fitnessGoal)}
+              </View>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>Activity Level</Text>
+              <View style={styles.optionGrid}>
+                {renderOption(ACTIVITY_LEVEL_OPTIONS, "activityLevel", data.activityLevel)}
+              </View>
+              <View
+                style={[
+                  styles.accessNote,
+                  { backgroundColor: colors.primaryMuted, borderColor: colors.primary + "40" },
+                ]}
+              >
+                <Text style={[styles.accessNoteTitle, { color: colors.text }]}>
+                  Your gym controls app access for this email.
+                </Text>
+                <Text style={[styles.accessNoteBody, { color: colors.mutedForeground }]}>
+                  You will get full access to workouts, classes, and AI coaching once your gym
+                  approves your account.
+                </Text>
               </View>
             </View>
           </View>
@@ -439,9 +432,9 @@ export default function Onboarding() {
       case 1:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>Your Fitness Background</Text>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>Training Setup</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Help us tailor workouts to your experience and schedule
+              Choose the training style, equipment, and limitations that should shape every workout.
             </Text>
             <View style={styles.form}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>
@@ -462,20 +455,9 @@ export default function Onboarding() {
               <View style={styles.optionGrid}>
                 {renderOption(EQUIPMENT_OPTIONS, "equipment", data.equipment)}
               </View>
-            </View>
-          </View>
-        );
-
-      case 2:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>
-              Any Injuries or Limitations?
-            </Text>
-            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Select all that apply — your AI coach will avoid exercises that could aggravate them
-            </Text>
-            <View style={styles.form}>
+              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+                Injuries or Limitations
+              </Text>
               <View style={styles.optionGrid}>
                 {INJURY_OPTIONS.map(({ label, value }) => renderInjuryChip(value, label))}
               </View>
@@ -483,32 +465,12 @@ export default function Onboarding() {
           </View>
         );
 
-      case 3:
+      case 2:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>What are your goals?</Text>
+            <Text style={[styles.stepTitle, { color: colors.text }]}>Nutrition & Access</Text>
             <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Your AI coach will tailor everything to help you reach them
-            </Text>
-            <View style={styles.form}>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Fitness Goal</Text>
-              <View style={styles.optionGrid}>
-                {renderOption(FITNESS_GOAL_OPTIONS, "fitnessGoal", data.fitnessGoal)}
-              </View>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>Activity Level</Text>
-              <View style={styles.optionGrid}>
-                {renderOption(ACTIVITY_LEVEL_OPTIONS, "activityLevel", data.activityLevel)}
-              </View>
-            </View>
-          </View>
-        );
-
-      case 4:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>Your Diet Preference</Text>
-            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              We'll suggest Indian meals that fit your preferences
+              Finish with food preferences, daily targets, and the member access model.
             </Text>
             <View style={styles.form}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Diet Type</Text>
@@ -521,113 +483,75 @@ export default function Onboarding() {
               <View style={styles.optionGrid}>
                 {renderOption(MEAL_TIMING_OPTIONS, "mealTiming", data.mealTiming)}
               </View>
-            </View>
-          </View>
-        );
+              <View
+                style={[
+                  styles.accessNote,
+                  { backgroundColor: colors.primaryMuted, borderColor: colors.primary + "40" },
+                ]}
+              >
+                <Text style={[styles.accessNoteTitle, { color: colors.text }]}>
+                  Member app access
+                </Text>
+                <Text style={[styles.accessNoteBody, { color: colors.mutedForeground }]}>
+                  Your gym controls app access for this email. If approval is needed, you will see a
+                  clear waiting screen after sign-in.
+                </Text>
+              </View>
 
-      case 5:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>How will you use GymOS?</Text>
-            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              Your gym team controls which email can enter the app and which tools each person sees.
-            </Text>
-            <View style={styles.form}>
-              <View style={styles.optionGrid}>{renderOption(ROLE_OPTIONS, "role", data.role)}</View>
               <View
                 style={[
                   styles.summaryCard,
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
               >
-                <Text style={[styles.summaryCardTitle, { color: colors.text }]}>Access model</Text>
-                <Text style={[styles.summaryNote, { color: colors.mutedForeground }]}>
-                  This account starts with member app access. If you need trainer tools later, your
-                  gym team can turn them on for this email.
-                </Text>
-              </View>
-            </View>
-          </View>
-        );
-
-      case 6:
-        return (
-          <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>You're all set!</Text>
-            <Text style={[styles.stepSubtitle, { color: colors.mutedForeground }]}>
-              {motivationalMsg}
-            </Text>
-            <View
-              style={[
-                styles.summaryCard,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Text style={[styles.summaryCardTitle, { color: colors.text }]}>
-                Your Daily Targets
-              </Text>
-              <View style={styles.calorieRow}>
-                <Text style={[styles.calorieValue, { color: colors.primary }]}>
-                  {summary.calories}
-                </Text>
-                <Text style={[styles.calorieUnit, { color: colors.mutedForeground }]}>
-                  kcal / day
-                </Text>
-              </View>
-              <View style={styles.macroRow}>
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroDot, { backgroundColor: "#ef4444" }]} />
-                  <Text style={[styles.macroValue, { color: colors.text }]}>
-                    {summary.protein}g
+                <View style={styles.summaryHeaderRow}>
+                  <Text style={[styles.summaryCardTitle, { color: colors.text }]}>
+                    Daily Targets
                   </Text>
-                  <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
-                    Protein
+                  <Text
+                    style={[
+                      styles.summaryPill,
+                      { color: colors.primary, backgroundColor: colors.primaryMuted },
+                    ]}
+                  >
+                    {FITNESS_GOAL_OPTIONS.find((o) => o.value === data.fitnessGoal)?.label ||
+                      "Goal"}
                   </Text>
                 </View>
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroDot, { backgroundColor: "#f59e0b" }]} />
-                  <Text style={[styles.macroValue, { color: colors.text }]}>{summary.carbs}g</Text>
-                  <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>Carbs</Text>
+                <View style={styles.calorieRow}>
+                  <Text style={[styles.calorieValue, { color: colors.primary }]}>
+                    {summary.calories}
+                  </Text>
+                  <Text style={[styles.calorieUnit, { color: colors.mutedForeground }]}>
+                    kcal / day
+                  </Text>
                 </View>
-                <View style={styles.macroItem}>
-                  <View style={[styles.macroDot, { backgroundColor: "#3b82f6" }]} />
-                  <Text style={[styles.macroValue, { color: colors.text }]}>{summary.fat}g</Text>
-                  <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>Fat</Text>
+                <View style={styles.macroRow}>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroDot, { backgroundColor: colors.protein }]} />
+                    <Text style={[styles.macroValue, { color: colors.text }]}>
+                      {summary.protein}g
+                    </Text>
+                    <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
+                      Protein
+                    </Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroDot, { backgroundColor: colors.carbs }]} />
+                    <Text style={[styles.macroValue, { color: colors.text }]}>
+                      {summary.carbs}g
+                    </Text>
+                    <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
+                      Carbs
+                    </Text>
+                  </View>
+                  <View style={styles.macroItem}>
+                    <View style={[styles.macroDot, { backgroundColor: colors.fat }]} />
+                    <Text style={[styles.macroValue, { color: colors.text }]}>{summary.fat}g</Text>
+                    <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>Fat</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-            <View
-              style={[
-                styles.summaryDetails,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <SummaryRow
-                label="Goal"
-                value={FITNESS_GOAL_OPTIONS.find((o) => o.value === data.fitnessGoal)?.label || ""}
-                textColor={colors.text}
-                mutedColor={colors.mutedForeground}
-              />
-              <SummaryRow
-                label="Experience"
-                value={
-                  EXPERIENCE_OPTIONS.find((o) => o.value === data.fitnessExperience)?.label || ""
-                }
-                textColor={colors.text}
-                mutedColor={colors.mutedForeground}
-              />
-              <SummaryRow
-                label="Diet"
-                value={DIET_TYPE_OPTIONS.find((o) => o.value === data.dietType)?.label || ""}
-                textColor={colors.text}
-                mutedColor={colors.mutedForeground}
-              />
-              <SummaryRow
-                label="Equipment"
-                value={EQUIPMENT_OPTIONS.find((o) => o.value === data.equipment)?.label || ""}
-                textColor={colors.text}
-                mutedColor={colors.mutedForeground}
-              />
             </View>
           </View>
         );
@@ -649,8 +573,8 @@ export default function Onboarding() {
             Train Smarter. Live Better.
           </Text>
           <Text style={[styles.welcomeDesc, { color: colors.mutedForeground }]}>
-            AI-powered gym companion for Indian athletes. Get personalised workouts, nutrition
-            plans, and a coach that knows your goals.
+            Set up your member app in three quick steps, then use GymOS for workouts, nutrition,
+            classes, and AI coaching.
           </Text>
         </View>
         <Pressable
@@ -671,26 +595,54 @@ export default function Onboarding() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View style={styles.progressBar}>
-          {STEP_LABELS.map((_, i) => (
+        <View style={styles.setupTop}>
+          <View style={styles.setupBrandGroup}>
+            <View style={[styles.stepBrandMark, { backgroundColor: colors.primary }]}>
+              <Text style={styles.stepBrandMarkText}>G</Text>
+            </View>
+            <View>
+              <Text style={[styles.stepBrandText, { color: colors.text }]}>GymOS</Text>
+              <Text style={[styles.setupCaption, { color: colors.mutedForeground }]}>
+                Member profile builder
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.setupPill, { backgroundColor: colors.primaryMuted }]}>
+            <Text style={[styles.setupPillText, { color: colors.primary }]}>
+              Step {step + 1}/{STEP_LABELS.length}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.stageRail}>
+          {STEP_LABELS.map((label, i) => (
             <View
-              key={i}
+              key={label}
               style={[
-                styles.progressDot,
+                styles.stageCard,
                 {
-                  backgroundColor: i <= step ? colors.primary : colors.border,
-                  flex: 1,
-                  height: 4,
-                  borderRadius: 2,
-                  marginHorizontal: 2,
+                  backgroundColor: i === step ? colors.primary : colors.card,
+                  borderColor: i <= step ? colors.primary : colors.border,
                 },
               ]}
-            />
+            >
+              <Text style={[styles.stageNumber, { color: i === step ? "#fff" : colors.primary }]}>
+                0{i + 1}
+              </Text>
+              <Text style={[styles.stageLabel, { color: i === step ? "#fff" : colors.text }]}>
+                {label}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.stageHint,
+                  { color: i === step ? "rgba(255,255,255,0.78)" : colors.mutedForeground },
+                ]}
+              >
+                {STEP_SUBTITLES[i]}
+              </Text>
+            </View>
           ))}
         </View>
-        <Text style={[styles.stepIndicator, { color: colors.mutedForeground }]}>
-          Step {step + 1} of {STEP_LABELS.length}
-        </Text>
         <Animated.View style={[{ flex: 1 }, { transform: [{ translateX: slideAnim }] }]}>
           <ScrollView contentContainerStyle={styles.scroll}>{renderStep()}</ScrollView>
         </Animated.View>
@@ -721,25 +673,6 @@ export default function Onboarding() {
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  textColor,
-  mutedColor,
-}: {
-  label: string;
-  value: string;
-  textColor: string;
-  mutedColor: string;
-}) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={[styles.summaryRowLabel, { color: mutedColor }]}>{label}</Text>
-      <Text style={[styles.summaryRowValue, { color: textColor }]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   welcomeContainer: { flex: 1, padding: 32, justifyContent: "space-between" },
   welcomeContent: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16 },
@@ -758,37 +691,104 @@ const styles = StyleSheet.create({
   getStartedBtn: { borderRadius: 16, paddingVertical: 18, alignItems: "center", marginTop: 16 },
   getStartedText: { color: "#fff", fontSize: 18, fontWeight: "700" },
   container: { flex: 1 },
-  progressBar: { flexDirection: "row", paddingHorizontal: 24, paddingVertical: 12 },
-  progressDot: {},
-  stepIndicator: { fontSize: 12, fontWeight: "600", textAlign: "center", marginBottom: 4 },
-  scroll: { flexGrow: 1, padding: 24 },
-  stepContent: { flex: 1 },
-  stepTitle: { fontSize: 26, fontWeight: "700", marginBottom: 8 },
-  stepSubtitle: { fontSize: 15, marginBottom: 24, lineHeight: 22 },
+  setupTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 12,
+  },
+  setupBrandGroup: { flexDirection: "row", alignItems: "center", gap: 10 },
+  stepBrandMark: {
+    alignItems: "center",
+    borderRadius: 8,
+    height: 30,
+    justifyContent: "center",
+    width: 30,
+  },
+  stepBrandMarkText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  stepBrandText: { fontSize: 21, fontWeight: "900" },
+  setupCaption: { fontSize: 11, fontWeight: "700", marginTop: 1 },
+  setupPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  setupPillText: { fontSize: 12, fontWeight: "900" },
+  stageRail: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingBottom: 12,
+  },
+  stageCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    minHeight: 74,
+  },
+  stageNumber: { fontSize: 11, fontWeight: "900" },
+  stageLabel: { fontSize: 13, fontWeight: "900", marginTop: 3 },
+  stageHint: { fontSize: 10, fontWeight: "600", marginTop: 2 },
+  scroll: { flexGrow: 1, padding: 18, paddingTop: 8 },
+  stepContent: {
+    flex: 1,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    padding: 18,
+    ...Platform.select({
+      web: { boxShadow: "0 10px 24px rgba(0, 0, 0, 0.08)" },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+      },
+    }),
+  },
+  stepTitle: { fontSize: 28, fontWeight: "900", marginBottom: 8 },
+  stepSubtitle: { fontSize: 15, marginBottom: 22, lineHeight: 23 },
   form: { gap: 16 },
   field: { gap: 6 },
   row: { flexDirection: "row", gap: 12 },
   label: { fontSize: 14, fontWeight: "500", marginBottom: 4 },
   input: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
   },
   errorText: { fontSize: 12, marginTop: 2 },
-  optionRow: { flexDirection: "row", gap: 8 },
+  compactOptionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  option: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  optionText: { fontSize: 14, fontWeight: "500" },
-  footer: { flexDirection: "row", padding: 24, gap: 12, borderTopWidth: 1 },
-  backBtn: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 16, alignItems: "center" },
+  option: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1 },
+  optionText: { fontSize: 14, fontWeight: "800" },
+  footer: {
+    flexDirection: "row",
+    padding: 18,
+    gap: 12,
+    borderTopWidth: 1,
+    backgroundColor: "#fff",
+  },
+  backBtn: { flex: 1, borderWidth: 1, borderRadius: 16, paddingVertical: 16, alignItems: "center" },
   backText: { fontSize: 16, fontWeight: "600" },
-  nextBtn: { flex: 2, borderRadius: 12, paddingVertical: 16, alignItems: "center" },
-  nextText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  nextBtn: { flex: 2, borderRadius: 16, paddingVertical: 16, alignItems: "center" },
+  nextText: { color: "#fff", fontSize: 16, fontWeight: "900" },
   summaryCard: { borderRadius: 16, borderWidth: 1, padding: 20, gap: 16, marginBottom: 12 },
+  summaryHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   summaryCardTitle: { fontSize: 16, fontWeight: "700" },
+  summaryPill: {
+    borderRadius: 999,
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   summaryNote: { fontSize: 14, lineHeight: 20 },
+  accessNote: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 6 },
+  accessNoteTitle: { fontSize: 15, fontWeight: "800" },
+  accessNoteBody: { fontSize: 13, lineHeight: 19 },
   calorieRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   calorieValue: { fontSize: 48, fontWeight: "900" },
   calorieUnit: { fontSize: 16 },
@@ -797,8 +797,4 @@ const styles = StyleSheet.create({
   macroDot: { width: 10, height: 10, borderRadius: 5 },
   macroValue: { fontSize: 18, fontWeight: "700" },
   macroLabel: { fontSize: 12 },
-  summaryDetails: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  summaryRowLabel: { fontSize: 14 },
-  summaryRowValue: { fontSize: 14, fontWeight: "600" },
 });

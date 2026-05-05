@@ -70,6 +70,7 @@ export default function SchedulePreviewRoute() {
   const [selectedDate, setSelectedDate] = useState(PREVIEW_DATE);
   const [classes, setClasses] = useState<GymClass[]>(() => createPreviewClasses());
   const [enrolledClassIds, setEnrolledClassIds] = useState<string[]>(["preview-enrolled"]);
+  const [waitlistedClassIds, setWaitlistedClassIds] = useState<string[]>([]);
   const [actionClassId, setActionClassId] = useState<string | null>(null);
   const [confirmSheetClass, setConfirmSheetClass] = useState<GymClass | null>(null);
 
@@ -80,6 +81,10 @@ export default function SchedulePreviewRoute() {
   const isEnrolled = useCallback(
     (classId: string) => enrolledClassIds.includes(classId),
     [enrolledClassIds],
+  );
+  const isWaitlisted = useCallback(
+    (classId: string) => waitlistedClassIds.includes(classId),
+    [waitlistedClassIds],
   );
 
   const handlePressEnrollment = useCallback(
@@ -92,7 +97,16 @@ export default function SchedulePreviewRoute() {
           return;
         }
 
-        if (scenario === "error" || gymClass.enrolledCount >= gymClass.maxParticipants) {
+        if (scenario === "error") {
+          return;
+        }
+
+        if (gymClass.enrolledCount >= gymClass.maxParticipants) {
+          setWaitlistedClassIds((current) =>
+            current.includes(gymClass.id)
+              ? current.filter((classId) => classId !== gymClass.id)
+              : [...current, gymClass.id],
+          );
           return;
         }
 
@@ -151,9 +165,11 @@ export default function SchedulePreviewRoute() {
     <ScheduleScreenView
       actionClassId={actionClassId}
       bookingMessage={bookingMessage}
+      bookingMessageTone="error"
       classes={classes}
       confirmSheetClass={confirmSheetClass}
       isEnrolled={isEnrolled}
+      isWaitlisted={isWaitlisted}
       isLoading={isLoading}
       onCancelUnenroll={() => setConfirmSheetClass(null)}
       onConfirmUnenroll={handleConfirmUnenroll}

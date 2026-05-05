@@ -30,6 +30,7 @@ router.get("/access-check", async (req: Request, res: Response) => {
       res.json({
         status: access.status,
         email: access.email,
+        gymId: access.gymId,
         role: access.role,
         message: access.message,
       });
@@ -40,6 +41,7 @@ router.get("/access-check", async (req: Request, res: Response) => {
       res.json({
         status: "missing_profile" as const,
         email: access.email,
+        gymId: access.gymId,
         role: access.role,
       });
       return;
@@ -48,6 +50,7 @@ router.get("/access-check", async (req: Request, res: Response) => {
     res.json({
       status: "ready" as const,
       email: access.email,
+      gymId: access.gymId,
       name: access.profile.name,
       role: access.role,
     });
@@ -79,6 +82,7 @@ router.post("/sync", async (req: Request, res: Response) => {
         error: access.message,
         status: access.status,
         email: access.email,
+        gymId: access.gymId,
         role: access.role,
       });
       return;
@@ -101,10 +105,10 @@ router.post("/sync", async (req: Request, res: Response) => {
 
     const [profile] = await db
       .insert(userProfiles)
-      .values({ clerkId: userId, name: safeName, role: safeRole })
+      .values({ clerkId: userId, gymId: access.gymId, name: safeName, role: safeRole })
       .onConflictDoUpdate({
         target: userProfiles.clerkId,
-        set: { name: safeName, role: safeRole, updatedAt: new Date() },
+        set: { gymId: access.gymId, name: safeName, role: safeRole, updatedAt: new Date() },
       })
       .returning();
     res.json({ ...profile, email: getPrimaryEmail(clerkUser) });

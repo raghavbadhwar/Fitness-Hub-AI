@@ -56,15 +56,17 @@ function serializeMemberWorkoutPlan(plan: typeof memberWorkoutPlans.$inferSelect
   };
 }
 
-async function requireTrainerOrOwner(req: Request, res: Response): Promise<string | null> {
-  const access = await requireApprovedAccess(req, res, ["trainer", "owner"]);
-  return access?.userId ?? null;
+async function requireTrainerOrOwner(
+  req: Request,
+  res: Response,
+): Promise<Awaited<ReturnType<typeof requireApprovedAccess>> | null> {
+  return requireApprovedAccess(req, res, ["trainer", "owner"]);
 }
 
 router.get("/members", async (req: Request, res: Response) => {
   try {
-    const trainerId = await requireTrainerOrOwner(req, res);
-    if (!trainerId) return;
+    const access = await requireTrainerOrOwner(req, res);
+    if (!access) return;
 
     const profiles = await db
       .select({
@@ -72,7 +74,7 @@ router.get("/members", async (req: Request, res: Response) => {
         name: userProfiles.name,
       })
       .from(userProfiles)
-      .where(eq(userProfiles.role, "member"))
+      .where(and(eq(userProfiles.gymId, access.gymId), eq(userProfiles.role, "member")))
       .orderBy(userProfiles.name);
 
     const users = await listAllClerkUsers(process.env.CLERK_SECRET_KEY!);
@@ -107,12 +109,17 @@ router.get("/members", async (req: Request, res: Response) => {
 
 router.get("/templates", async (req: Request, res: Response) => {
   try {
-    const trainerId = await requireTrainerOrOwner(req, res);
-    if (!trainerId) return;
+    const access = await requireTrainerOrOwner(req, res);
+    if (!access) return;
     const templates = await db
       .select()
       .from(workoutTemplates)
-      .where(eq(workoutTemplates.trainerId, trainerId))
+      .where(
+        and(
+          eq(workoutTemplates.gymId, access.gymId),
+          eq(workoutTemplates.trainerId, access.userId),
+        ),
+      )
       .orderBy(workoutTemplates.createdAt);
     res.json(templates);
   } catch (err) {
@@ -123,8 +130,8 @@ router.get("/templates", async (req: Request, res: Response) => {
 
 router.post("/templates", async (req: Request, res: Response) => {
   try {
-    const trainerId = await requireTrainerOrOwner(req, res);
-    if (!trainerId) return;
+    const access = await requireTrainerOrOwner(req, res);
+    if (!access) return;
     const { name, exercises, trainerName } = (req.body ?? {}) as {
       name?: string;
       exercises?: unknown[];
@@ -151,7 +158,8 @@ router.post("/templates", async (req: Request, res: Response) => {
     const [template] = await db
       .insert(workoutTemplates)
       .values({
-        trainerId,
+        gymId: access.gymId,
+        trainerId: access.userId,
         trainerName:
           typeof trainerName === "string" && trainerName.trim() ? trainerName.trim() : "Trainer",
         name: name.trim(),
@@ -167,8 +175,8 @@ router.post("/templates", async (req: Request, res: Response) => {
 
 router.delete("/templates/:id", async (req: Request, res: Response) => {
   try {
-    const trainerId = await requireTrainerOrOwner(req, res);
-    if (!trainerId) return;
+    const access = await requireTrainerOrOwner(req, res);
+    if (!access) return;
     const rawTemplateId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const templateId = parseInt(rawTemplateId, 10);
     if (isNaN(templateId)) {
@@ -177,7 +185,13 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
     }
     await db
       .delete(workoutTemplates)
-      .where(and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.trainerId, trainerId)));
+      .where(
+        and(
+          eq(workoutTemplates.id, templateId),
+          eq(workoutTemplates.gymId, access.gymId),
+          eq(workoutTemplates.trainerId, access.userId),
+        ),
+      );
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error deleting template");
@@ -187,8 +201,8 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
 
 router.post("/assign", async (req: Request, res: Response) => {
   try {
-    const trainerId = await requireTrainerOrOwner(req, res);
-    if (!trainerId) return;
+    const access = await requireTrainerOrOwner(req, res);
+    if (!access) return;
     const { templateId, memberId } = (req.body ?? {}) as {
       templateId?: number;
       memberId?: string;
@@ -204,7 +218,13 @@ router.post("/assign", async (req: Request, res: Response) => {
     const template = await db
       .select()
       .from(workoutTemplates)
-      .where(and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.trainerId, trainerId)))
+      .where(
+        and(
+          eq(workoutTemplates.id, templateId),
+          eq(workoutTemplates.gymId, access.gymId),
+          eq(workoutTemplates.trainerId, access.userId),
+        ),
+      )
       .limit(1);
     if (!template.length) {
       res.status(404).json({ error: "Template not found or not owned by you" });
@@ -217,7 +237,13 @@ router.post("/assign", async (req: Request, res: Response) => {
         name: userProfiles.name,
       })
       .from(userProfiles)
-      .where(and(eq(userProfiles.clerkId, memberId.trim()), eq(userProfiles.role, "member")))
+      .where(
+        and(
+          eq(userProfiles.clerkId, memberId.trim()),
+          eq(userProfiles.gymId, access.gymId),
+          eq(userProfiles.role, "member"),
+        ),
+      )
       .limit(1);
 
     if (!memberProfile) {
@@ -228,8 +254,9 @@ router.post("/assign", async (req: Request, res: Response) => {
     const [assignment] = await db
       .insert(workoutAssignments)
       .values({
+        gymId: access.gymId,
         templateId,
-        trainerId,
+        trainerId: access.userId,
         memberName: memberProfile.name.trim() || memberProfile.clerkId,
         memberClerkId: memberProfile.clerkId,
       })
@@ -250,7 +277,12 @@ router.get("/member-plans", async (req: Request, res: Response) => {
     const plans = await db
       .select()
       .from(memberWorkoutPlans)
-      .where(eq(memberWorkoutPlans.memberClerkId, callerUserId))
+      .where(
+        and(
+          eq(memberWorkoutPlans.gymId, access.gymId),
+          eq(memberWorkoutPlans.memberClerkId, callerUserId),
+        ),
+      )
       .orderBy(desc(memberWorkoutPlans.updatedAt));
 
     res.json(plans.map(serializeMemberWorkoutPlan));
@@ -287,6 +319,7 @@ router.post("/member-plans", async (req: Request, res: Response) => {
       .insert(memberWorkoutPlans)
       .values({
         id: randomUUID(),
+        gymId: access.gymId,
         memberClerkId: callerUserId,
         name: name.trim(),
         focus: typeof focus === "string" && focus.trim() ? focus.trim() : null,
@@ -339,7 +372,11 @@ router.patch("/member-plans/:id", async (req: Request, res: Response) => {
         updatedAt: new Date(),
       })
       .where(
-        and(eq(memberWorkoutPlans.id, planId), eq(memberWorkoutPlans.memberClerkId, callerUserId)),
+        and(
+          eq(memberWorkoutPlans.id, planId),
+          eq(memberWorkoutPlans.gymId, access.gymId),
+          eq(memberWorkoutPlans.memberClerkId, callerUserId),
+        ),
       )
       .returning();
 
@@ -370,7 +407,11 @@ router.delete("/member-plans/:id", async (req: Request, res: Response) => {
     const deleted = await db
       .delete(memberWorkoutPlans)
       .where(
-        and(eq(memberWorkoutPlans.id, planId), eq(memberWorkoutPlans.memberClerkId, callerUserId)),
+        and(
+          eq(memberWorkoutPlans.id, planId),
+          eq(memberWorkoutPlans.gymId, access.gymId),
+          eq(memberWorkoutPlans.memberClerkId, callerUserId),
+        ),
       )
       .returning({ id: memberWorkoutPlans.id });
 
@@ -394,7 +435,7 @@ router.post("/assigned/bind", async (req: Request, res: Response) => {
     const [serverProfile] = await db
       .select({ name: userProfiles.name })
       .from(userProfiles)
-      .where(eq(userProfiles.clerkId, callerUserId))
+      .where(and(eq(userProfiles.clerkId, callerUserId), eq(userProfiles.gymId, access.gymId)))
       .limit(1);
     if (!serverProfile || !serverProfile.name) {
       res.status(400).json({ error: "Profile not found. Sync your profile first." });
@@ -406,6 +447,7 @@ router.post("/assigned/bind", async (req: Request, res: Response) => {
       .where(
         and(
           eq(workoutAssignments.memberName, serverProfile.name),
+          eq(workoutAssignments.gymId, access.gymId),
           isNull(workoutAssignments.memberClerkId),
         ),
       )
@@ -448,7 +490,12 @@ router.get("/assigned", async (req: Request, res: Response) => {
       })
       .from(workoutAssignments)
       .innerJoin(workoutTemplates, eq(workoutAssignments.templateId, workoutTemplates.id))
-      .where(eq(workoutAssignments.memberClerkId, callerUserId));
+      .where(
+        and(
+          eq(workoutAssignments.gymId, access.gymId),
+          eq(workoutAssignments.memberClerkId, callerUserId),
+        ),
+      );
     res.json(assignments);
   } catch (err) {
     req.log.error({ err }, "Error fetching assigned workouts");
@@ -473,6 +520,7 @@ router.patch("/assigned/:id/complete", async (req: Request, res: Response) => {
       .where(
         and(
           eq(workoutAssignments.id, assignmentId),
+          eq(workoutAssignments.gymId, access.gymId),
           eq(workoutAssignments.memberClerkId, callerUserId),
         ),
       )

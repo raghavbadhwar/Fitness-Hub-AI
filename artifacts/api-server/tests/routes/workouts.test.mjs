@@ -8,6 +8,7 @@ const plansByMemberClerkId = new Map();
 
 const memberWorkoutPlans = {
   id: Symbol("id"),
+  gymId: Symbol("gymId"),
   memberClerkId: Symbol("memberClerkId"),
   name: Symbol("name"),
   focus: Symbol("focus"),
@@ -18,7 +19,12 @@ const memberWorkoutPlans = {
 
 const workoutAssignments = { id: Symbol("id") };
 const workoutTemplates = { id: Symbol("id") };
-const userProfiles = { clerkId: Symbol("clerkId"), name: Symbol("name"), role: Symbol("role") };
+const userProfiles = {
+  clerkId: Symbol("clerkId"),
+  gymId: Symbol("gymId"),
+  name: Symbol("name"),
+  role: Symbol("role"),
+};
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -73,6 +79,21 @@ function clonePlan(plan) {
   };
 }
 
+function matchesCondition(row, condition) {
+  if (!condition) return true;
+  if (condition.op === "and") {
+    return condition.conditions.every((child) => matchesCondition(row, child));
+  }
+  if (condition.op !== "eq") return true;
+  if (condition.field === memberWorkoutPlans.memberClerkId) {
+    return row.memberClerkId === condition.value;
+  }
+  if (condition.field === memberWorkoutPlans.gymId) {
+    return row.gymId === condition.value;
+  }
+  return true;
+}
+
 mock.module("@workspace/db", {
   namedExports: {
     db: {
@@ -82,9 +103,9 @@ mock.module("@workspace/db", {
             return {
               where(condition) {
                 const rows =
-                  table === memberWorkoutPlans && condition?.op === "eq"
+                  table === memberWorkoutPlans
                     ? [...plansByMemberClerkId.values()]
-                        .filter((plan) => plan.memberClerkId === condition.value)
+                        .filter((plan) => matchesCondition(plan, condition))
                         .map(clonePlan)
                     : [];
 
@@ -130,6 +151,7 @@ mock.module("../../src/lib/user-access.ts", {
         allowed: true,
         userId: authState.userId,
         email: "member@example.com",
+        gymId: "gymos-main",
         role: "member",
         profile: null,
         control: null,
@@ -149,6 +171,7 @@ beforeEach(() => {
   plansByMemberClerkId.clear();
   plansByMemberClerkId.set("member_1", {
     id: "plan_1",
+    gymId: "gymos-main",
     memberClerkId: "member_1",
     name: "Upper Push",
     focus: "upper body",
@@ -168,6 +191,7 @@ describe("workouts routes", () => {
     assert.deepEqual(response.body, [
       {
         id: "plan_1",
+        gymId: "gymos-main",
         memberClerkId: "member_1",
         name: "Upper Push",
         focus: "upper body",

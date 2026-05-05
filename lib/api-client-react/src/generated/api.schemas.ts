@@ -68,6 +68,10 @@ export interface EnrolledClassIdsResponse {
   classIds: string[];
 }
 
+export interface WaitlistedClassIdsResponse {
+  classIds: string[];
+}
+
 export type GymClassCategory = (typeof GymClassCategory)[keyof typeof GymClassCategory];
 
 export const GymClassCategory = {
@@ -103,6 +107,7 @@ export interface GymClass {
   duration: number;
   maxParticipants: number;
   enrolledCount: number;
+  waitlistedCount: number;
   room: string;
   status: GymClassStatus;
   color: string;
@@ -206,6 +211,15 @@ export interface UpdateGymSettingsBody {
   description?: string;
 }
 
+export type ClassEnrollmentMemberAttendanceStatus =
+  (typeof ClassEnrollmentMemberAttendanceStatus)[keyof typeof ClassEnrollmentMemberAttendanceStatus];
+
+export const ClassEnrollmentMemberAttendanceStatus = {
+  booked: "booked",
+  checked_in: "checked_in",
+  no_show: "no_show",
+} as const;
+
 export interface ClassEnrollmentMember {
   id: string;
   /** @nullable */
@@ -214,6 +228,35 @@ export interface ClassEnrollmentMember {
   lastName: string | null;
   email: string;
   role: string;
+  attendanceStatus: ClassEnrollmentMemberAttendanceStatus;
+}
+
+export type UpdateClassEnrollmentAttendanceBodyAttendanceStatus =
+  (typeof UpdateClassEnrollmentAttendanceBodyAttendanceStatus)[keyof typeof UpdateClassEnrollmentAttendanceBodyAttendanceStatus];
+
+export const UpdateClassEnrollmentAttendanceBodyAttendanceStatus = {
+  booked: "booked",
+  checked_in: "checked_in",
+  no_show: "no_show",
+} as const;
+
+export interface UpdateClassEnrollmentAttendanceBody {
+  attendanceStatus: UpdateClassEnrollmentAttendanceBodyAttendanceStatus;
+}
+
+export type ClassEnrollmentAttendanceUpdateResponseAttendanceStatus =
+  (typeof ClassEnrollmentAttendanceUpdateResponseAttendanceStatus)[keyof typeof ClassEnrollmentAttendanceUpdateResponseAttendanceStatus];
+
+export const ClassEnrollmentAttendanceUpdateResponseAttendanceStatus = {
+  booked: "booked",
+  checked_in: "checked_in",
+  no_show: "no_show",
+} as const;
+
+export interface ClassEnrollmentAttendanceUpdateResponse {
+  memberId: string;
+  attendanceStatus: ClassEnrollmentAttendanceUpdateResponseAttendanceStatus;
+  updatedAt: string;
 }
 
 export type MemberAccessStatus = (typeof MemberAccessStatus)[keyof typeof MemberAccessStatus];
@@ -365,11 +408,30 @@ export interface AiChatRequest {
   savedPlans?: JsonObject[];
 }
 
+export interface AiActivitySnapshotRequest {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  timezone?: string;
+  profile?: JsonObject;
+  nutrition?: JsonObject;
+  workout?: JsonObject;
+  behaviorProfile?: JsonObject;
+  savedPlans?: JsonObject[];
+  [key: string]: unknown;
+}
+
+export interface AiActivitySnapshotResponse {
+  ok: boolean;
+  memorySummary: string;
+  updatedAt: string;
+}
+
 export interface AiWorkoutSuggestionRequest {
   recentWorkouts?: JsonObject[];
   goals?: string;
   fitnessLevel?: string;
   availableTime?: number;
+  todayStats?: JsonObject;
   behaviorProfile?: JsonObject;
   savedPlans?: JsonObject[];
 }
@@ -391,6 +453,155 @@ export interface AiWorkoutSuggestion {
   warmup: string;
   cooldown: string;
   motivationalTip: string;
+}
+
+export type MonthlyReviewMetricsMomentum =
+  (typeof MonthlyReviewMetricsMomentum)[keyof typeof MonthlyReviewMetricsMomentum];
+
+export const MonthlyReviewMetricsMomentum = {
+  starting: "starting",
+  building: "building",
+  strong: "strong",
+} as const;
+
+export interface MonthlyReviewMetrics {
+  monthLabel?: string;
+  daysInMonth?: number;
+  elapsedDays?: number;
+  completedWorkouts?: number;
+  workoutDays?: number;
+  consistencyRate?: number;
+  totalVolume?: number;
+  totalDurationMinutes?: number;
+  caloriesBurned?: number;
+  prCount?: number;
+  /** @nullable */
+  bestLiftName?: string | null;
+  /** @nullable */
+  bestLiftWeight?: number | null;
+  nutritionLoggedDays?: number;
+  nutritionAdherenceRate?: number;
+  avgCalories?: number;
+  avgProtein?: number;
+  proteinAdherenceRate?: number;
+  waterLoggedDays?: number;
+  /** @nullable */
+  bodyWeightStart?: number | null;
+  /** @nullable */
+  bodyWeightEnd?: number | null;
+  /** @nullable */
+  weightDelta?: number | null;
+  bodyMeasurementsLogged?: number;
+  savedPlanCount?: number;
+  plansSavedThisMonth?: number;
+  risks?: string[];
+  momentum?: MonthlyReviewMetricsMomentum;
+  [key: string]: unknown;
+}
+
+export type MonthlyReviewBadgeTone =
+  (typeof MonthlyReviewBadgeTone)[keyof typeof MonthlyReviewBadgeTone];
+
+export const MonthlyReviewBadgeTone = {
+  success: "success",
+  warning: "warning",
+  info: "info",
+  neutral: "neutral",
+} as const;
+
+export interface MonthlyReviewBadge {
+  id: string;
+  label: string;
+  detail: string;
+  tone: MonthlyReviewBadgeTone;
+}
+
+export type MonthlyReviewSuggestedAdjustmentCategory =
+  (typeof MonthlyReviewSuggestedAdjustmentCategory)[keyof typeof MonthlyReviewSuggestedAdjustmentCategory];
+
+export const MonthlyReviewSuggestedAdjustmentCategory = {
+  workout: "workout",
+  nutrition: "nutrition",
+  recovery: "recovery",
+  trainer: "trainer",
+  habit: "habit",
+} as const;
+
+export type MonthlyReviewSuggestedAdjustmentPriority =
+  (typeof MonthlyReviewSuggestedAdjustmentPriority)[keyof typeof MonthlyReviewSuggestedAdjustmentPriority];
+
+export const MonthlyReviewSuggestedAdjustmentPriority = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+export type MonthlyReviewSuggestedAdjustmentSource =
+  (typeof MonthlyReviewSuggestedAdjustmentSource)[keyof typeof MonthlyReviewSuggestedAdjustmentSource];
+
+export const MonthlyReviewSuggestedAdjustmentSource = {
+  deterministic: "deterministic",
+  ai: "ai",
+} as const;
+
+export interface MonthlyReviewSuggestedAdjustment {
+  id: string;
+  category: MonthlyReviewSuggestedAdjustmentCategory;
+  title: string;
+  detail: string;
+  priority: MonthlyReviewSuggestedAdjustmentPriority;
+  source: MonthlyReviewSuggestedAdjustmentSource;
+}
+
+export type MonthlyReviewStatus = (typeof MonthlyReviewStatus)[keyof typeof MonthlyReviewStatus];
+
+export const MonthlyReviewStatus = {
+  generated: "generated",
+  reviewed: "reviewed",
+} as const;
+
+export interface MonthlyReview {
+  id: string;
+  gymId: string;
+  memberClerkId: string;
+  month: string;
+  metrics: MonthlyReviewMetrics;
+  badges: MonthlyReviewBadge[];
+  aiSummary: string;
+  coachNote: string;
+  suggestedAdjustments: MonthlyReviewSuggestedAdjustment[];
+  status: MonthlyReviewStatus;
+  generatedAt: string;
+  /** @nullable */
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MonthlyReviewResponse {
+  review: MonthlyReview | null;
+}
+
+export interface MonthlyReviewGenerateBody {
+  memberId?: string;
+  /** @pattern ^\d{4}-(0[1-9]|1[0-2])$ */
+  month: string;
+  metrics: MonthlyReviewMetrics;
+  badges?: MonthlyReviewBadge[];
+  suggestedAdjustments?: MonthlyReviewSuggestedAdjustment[];
+}
+
+export type MonthlyReviewReviewBodyStatus =
+  (typeof MonthlyReviewReviewBodyStatus)[keyof typeof MonthlyReviewReviewBodyStatus];
+
+export const MonthlyReviewReviewBodyStatus = {
+  generated: "generated",
+  reviewed: "reviewed",
+} as const;
+
+export interface MonthlyReviewReviewBody {
+  reviewed?: boolean;
+  status?: MonthlyReviewReviewBodyStatus;
 }
 
 export interface WorkoutMember {
@@ -493,6 +704,14 @@ export interface AssignedWorkout {
   trainerName: string;
   exercises: WorkoutTemplateExercise[];
 }
+
+export type MonthlyReviewsGetParams = {
+  memberId?: string;
+  /**
+   * @pattern ^\d{4}-(0[1-9]|1[0-2])$
+   */
+  month: string;
+};
 
 export type WorkoutsListAssignedParams = {
   memberId: string;

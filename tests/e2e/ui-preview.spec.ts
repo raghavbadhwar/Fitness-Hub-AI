@@ -28,6 +28,31 @@ test("admin access-denied preview switch-account action also routes to sign-in",
   await expect(page.getByText("Admin Operations Hub")).toBeVisible();
 });
 
+test("admin members preview includes the real member timeline panel", async ({ page }) => {
+  await page.goto(`${ADMIN_BASE_URL}__e2e/members`);
+
+  await expect(page.getByText("Member timeline")).toBeVisible();
+  await expect(page.getByText("Latest AI context")).toBeVisible();
+});
+
+test("admin classes preview opens the check-in sheet without auth fetch noise", async ({
+  page,
+}) => {
+  const failedResponses: string[] = [];
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failedResponses.push(`${response.status()} ${response.url()}`);
+    }
+  });
+
+  await page.goto(`${ADMIN_BASE_URL}__e2e/classes`);
+  await page.getByTestId("enrollments-class-1").click();
+
+  await expect(page.getByText("Class Check-in")).toBeVisible();
+  await expect(page.getByTestId("enrollment-member-member-1")).toBeVisible();
+  expect(failedResponses.filter((entry) => entry.includes("/api/admin"))).toEqual([]);
+});
+
 test("member schedule preview shows the loading state banner", async ({ page }) => {
   await page.goto(`${MEMBER_BASE_URL}__e2e/schedule?state=loading`);
 
@@ -43,5 +68,31 @@ test("member schedule preview shows the booking error and full class state", asy
   await expect(
     page.getByText("This class is already full. Please pick another slot."),
   ).toBeVisible();
-  await expect(page.getByTestId("schedule-enroll-button-preview-full")).toContainText("Class Full");
+  await expect(page.getByTestId("schedule-enroll-button-preview-full")).toContainText(
+    "Join Waitlist",
+  );
+});
+
+test("member home preview routes first workout CTA into the preview workout screen", async ({
+  page,
+}) => {
+  await page.goto(`${MEMBER_BASE_URL}__e2e/home`);
+
+  await page.getByText("Log first workout").click();
+
+  await expect(page).toHaveURL(/\/__e2e\/workout/);
+  await expect(page.getByText("Training Floor")).toBeVisible();
+  await expect(page.getByText("Welcome back")).toHaveCount(0);
+});
+
+test("member workout preview scrolls the training header with the page", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${MEMBER_BASE_URL}__e2e/workout`);
+
+  const title = page.getByText("Training Floor");
+  await expect(title).toBeVisible();
+
+  await page.mouse.wheel(0, 900);
+
+  await expect(title).not.toBeInViewport();
 });

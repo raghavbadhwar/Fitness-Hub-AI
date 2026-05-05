@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, gymClassesTable, gymSettingsTable } from "@workspace/db";
 import {
   AdminCreateClassBody,
@@ -48,7 +48,32 @@ type ClerkUserSummary = {
   createdAt: number;
 };
 
-async function requireOwner(req: Request, res: Response): Promise<boolean> {
+type OwnerAccess = Extract<Awaited<ReturnType<typeof resolveAdminAccess>>, { allowed: true }>;
+type AttendanceStatus = "booked" | "checked_in" | "no_show";
+type AttendanceRecord = {
+  memberId: string;
+  status: AttendanceStatus;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+const attendanceStatuses = new Set<AttendanceStatus>(["booked", "checked_in", "no_show"]);
+
+function normalizeAttendanceRecords(value: unknown): AttendanceRecord[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((record): record is AttendanceRecord => {
+    if (!record || typeof record !== "object") return false;
+    const candidate = record as Partial<AttendanceRecord>;
+    return (
+      typeof candidate.memberId === "string" &&
+      attendanceStatuses.has(candidate.status as AttendanceStatus) &&
+      typeof candidate.updatedAt === "string"
+    );
+  });
+}
+
+async function requireOwner(req: Request, res: Response): Promise<OwnerAccess | null> {
   try {
     const access = await resolveAdminAccess(req);
     if (!access.allowed) {
@@ -58,14 +83,14 @@ async function requireOwner(req: Request, res: Response): Promise<boolean> {
         role: access.role,
         allowlistConfigured: access.allowlistConfigured,
       });
-      return false;
+      return null;
     }
 
-    return true;
+    return access;
   } catch (err) {
     req.log.error({ err }, "Failed to verify owner role");
     res.status(500).json({ error: "Failed to verify access" });
-    return false;
+    return null;
   }
 }
 
@@ -87,6 +112,7 @@ router.get("/access", async (req: Request, res: Response): Promise<void> => {
       ok: true,
       email: access.email,
       role: access.role,
+      gymId: access.gymId,
       allowlistConfigured: access.allowlistConfigured,
     });
   } catch (err) {
@@ -96,16 +122,19 @@ router.get("/access", async (req: Request, res: Response): Promise<void> => {
 });
 
 router.get("/classes", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
   const classes = await db
     .select()
     .from(gymClassesTable)
+    .where(eq(gymClassesTable.gymId, access.gymId))
     .orderBy(gymClassesTable.date, gymClassesTable.startTime);
   res.json(classes.map(formatClass));
 });
 
 router.post("/classes", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const parsed = AdminCreateClassBody.safeParse(req.body);
   if (!parsed.success) {
@@ -116,6 +145,7 @@ router.post("/classes", async (req: Request, res: Response): Promise<void> => {
   const data = parsed.data;
   const color = CLASS_COLORS[data.category] ?? CLASS_COLORS.Other;
   const newClassValues: typeof gymClassesTable.$inferInsert = {
+    gymId: access.gymId,
     name: data.name,
     category: data.category,
     description: data.description ?? "",
@@ -137,7 +167,8 @@ router.post("/classes", async (req: Request, res: Response): Promise<void> => {
 });
 
 router.put("/classes/:id", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = AdminUpdateClassParams.safeParse({ id: parseInt(rawId, 10) });
@@ -171,7 +202,7 @@ router.put("/classes/:id", async (req: Request, res: Response): Promise<void> =>
   const [updated] = await db
     .update(gymClassesTable)
     .set(updates)
-    .where(eq(gymClassesTable.id, params.data.id))
+    .where(and(eq(gymClassesTable.id, params.data.id), eq(gymClassesTable.gymId, access.gymId)))
     .returning();
 
   if (!updated) {
@@ -183,7 +214,8 @@ router.put("/classes/:id", async (req: Request, res: Response): Promise<void> =>
 });
 
 router.delete("/classes/:id", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = AdminDeleteClassParams.safeParse({ id: parseInt(rawId, 10) });
@@ -194,7 +226,7 @@ router.delete("/classes/:id", async (req: Request, res: Response): Promise<void>
 
   const [deleted] = await db
     .delete(gymClassesTable)
-    .where(eq(gymClassesTable.id, params.data.id))
+    .where(and(eq(gymClassesTable.id, params.data.id), eq(gymClassesTable.gymId, access.gymId)))
     .returning();
 
   if (!deleted) {
@@ -206,15 +238,21 @@ router.delete("/classes/:id", async (req: Request, res: Response): Promise<void>
 });
 
 router.get("/settings", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
-  const settings = await db.select().from(gymSettingsTable).limit(1);
+  const settings = await db
+    .select()
+    .from(gymSettingsTable)
+    .where(eq(gymSettingsTable.gymId, access.gymId))
+    .limit(1);
 
   if (settings.length === 0) {
     const [created] = await db
       .insert(gymSettingsTable)
       .values({
-        gymName: "GymOS",
+        gymId: access.gymId,
+        gymName: access.gymId === "raghav2-padwar" ? "Raghav2 Padwar Gym" : "GymOS",
         address: "",
         phone: "",
         workingHours: "Mon-Fri: 6am-10pm, Sat-Sun: 7am-8pm",
@@ -229,7 +267,8 @@ router.get("/settings", async (req: Request, res: Response): Promise<void> => {
 });
 
 router.put("/settings", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const parsed = AdminUpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -237,13 +276,18 @@ router.put("/settings", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const existing = await db.select().from(gymSettingsTable).limit(1);
+  const existing = await db
+    .select()
+    .from(gymSettingsTable)
+    .where(eq(gymSettingsTable.gymId, access.gymId))
+    .limit(1);
 
   let result;
   if (existing.length === 0) {
     const [created] = await db
       .insert(gymSettingsTable)
       .values({
+        gymId: access.gymId,
         gymName: parsed.data.gymName ?? "GymOS",
         address: parsed.data.address ?? "",
         phone: parsed.data.phone ?? "",
@@ -262,7 +306,7 @@ router.put("/settings", async (req: Request, res: Response): Promise<void> => {
         ...(parsed.data.workingHours !== undefined && { workingHours: parsed.data.workingHours }),
         ...(parsed.data.description !== undefined && { description: parsed.data.description }),
       })
-      .where(eq(gymSettingsTable.id, existing[0].id))
+      .where(and(eq(gymSettingsTable.id, existing[0].id), eq(gymSettingsTable.gymId, access.gymId)))
       .returning();
     result = updated;
   }
@@ -271,10 +315,11 @@ router.put("/settings", async (req: Request, res: Response): Promise<void> => {
 });
 
 router.get("/members", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   try {
-    res.json(await listAdminMembers(process.env.CLERK_SECRET_KEY!));
+    res.json(await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId));
   } catch (err) {
     req.log.error({ err }, "Failed to fetch members from Clerk");
     res.status(500).json({ error: "Failed to fetch members" });
@@ -319,6 +364,7 @@ router.post("/member-access", async (req: Request, res: Response): Promise<void>
 
   try {
     const member = await setAdminMemberAccess({
+      gymId: access.gymId,
       email,
       role,
       accessStatus,
@@ -334,7 +380,8 @@ router.post("/member-access", async (req: Request, res: Response): Promise<void>
 });
 
 router.patch("/members/:id", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const userId = typeof rawId === "string" ? rawId.trim() : "";
@@ -353,6 +400,7 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
   try {
     res.json(
       await updateAdminMemberRole({
+        gymId: access.gymId,
         userId,
         role: body.role,
         secretKey: process.env.CLERK_SECRET_KEY!,
@@ -370,7 +418,8 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
 });
 
 router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   try {
     const now = new Date();
@@ -383,7 +432,10 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     const weekEnd = endOfWeek.toISOString().split("T")[0];
 
-    const allClasses = await db.select().from(gymClassesTable);
+    const allClasses = await db
+      .select()
+      .from(gymClassesTable)
+      .where(eq(gymClassesTable.gymId, access.gymId));
     const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
     const totalClassesThisWeek = thisWeekClasses.length;
@@ -398,8 +450,9 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
-      const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-      totalActiveMembers = await clerkClient.users.getCount();
+      totalActiveMembers = (
+        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
+      ).filter((member) => member.accessStatus === "approved").length;
     } catch {
       totalActiveMembers = 0;
     }
@@ -427,7 +480,8 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 });
 
 router.get("/classes/:id/enrollments", async (req: Request, res: Response): Promise<void> => {
-  if (!(await requireOwner(req, res))) return;
+  const access = await requireOwner(req, res);
+  if (!access) return;
 
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId, 10);
@@ -436,13 +490,20 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
     return;
   }
 
-  const [cls] = await db.select().from(gymClassesTable).where(eq(gymClassesTable.id, id)).limit(1);
+  const [cls] = await db
+    .select()
+    .from(gymClassesTable)
+    .where(and(eq(gymClassesTable.id, id), eq(gymClassesTable.gymId, access.gymId)))
+    .limit(1);
   if (!cls) {
     res.status(404).json({ error: "Class not found" });
     return;
   }
 
   const memberIds: string[] = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+  const attendanceByMemberId = new Map(
+    normalizeAttendanceRecords(cls.attendanceRecords).map((record) => [record.memberId, record]),
+  );
   if (memberIds.length === 0) {
     res.json([]);
     return;
@@ -470,9 +531,17 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
           lastName: user.lastName ?? null,
           email: user.emailAddresses[0]?.emailAddress ?? "",
           role: (user.publicMetadata?.role as string) ?? "member",
+          attendanceStatus: attendanceByMemberId.get(userId)?.status ?? "booked",
         };
       }
-      return { id: userId, firstName: null, lastName: null, email: "", role: "member" };
+      return {
+        id: userId,
+        firstName: null,
+        lastName: null,
+        email: "",
+        role: "member",
+        attendanceStatus: attendanceByMemberId.get(userId)?.status ?? "booked",
+      };
     });
 
     res.json(responseMembers);
@@ -482,7 +551,74 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
   }
 });
 
+router.patch(
+  "/classes/:id/enrollments/:memberId",
+  async (req: Request, res: Response): Promise<void> => {
+    const access = await requireOwner(req, res);
+    if (!access) return;
+
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "Invalid class ID" });
+      return;
+    }
+
+    const memberId = Array.isArray(req.params.memberId)
+      ? req.params.memberId[0]
+      : req.params.memberId;
+    const attendanceStatus = req.body?.attendanceStatus as AttendanceStatus | undefined;
+    if (!memberId || !attendanceStatus || !attendanceStatuses.has(attendanceStatus)) {
+      res.status(400).json({ error: "Invalid attendance status" });
+      return;
+    }
+
+    const [cls] = await db
+      .select()
+      .from(gymClassesTable)
+      .where(and(eq(gymClassesTable.id, id), eq(gymClassesTable.gymId, access.gymId)))
+      .limit(1);
+    if (!cls) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
+
+    const memberIds: string[] = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+    if (!memberIds.includes(memberId)) {
+      res.status(404).json({ error: "Member is not enrolled in this class" });
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const nextAttendanceRecords = normalizeAttendanceRecords(cls.attendanceRecords).filter(
+      (record) => record.memberId !== memberId,
+    );
+    if (attendanceStatus !== "booked") {
+      nextAttendanceRecords.push({
+        memberId,
+        status: attendanceStatus,
+        updatedAt,
+        updatedBy: access.userId,
+      });
+    }
+
+    const [updatedClass] = await db
+      .update(gymClassesTable)
+      .set({ attendanceRecords: nextAttendanceRecords, updatedAt: new Date() })
+      .where(and(eq(gymClassesTable.id, id), eq(gymClassesTable.gymId, access.gymId)))
+      .returning();
+
+    if (!updatedClass) {
+      res.status(404).json({ error: "Class not found" });
+      return;
+    }
+
+    res.json({ memberId, attendanceStatus, updatedAt });
+  },
+);
+
 function formatClass(cls: typeof gymClassesTable.$inferSelect) {
+  const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds) ? cls.waitlistedMemberIds : [];
   return {
     id: cls.id,
     name: cls.name,
@@ -495,6 +631,7 @@ function formatClass(cls: typeof gymClassesTable.$inferSelect) {
     maxParticipants: cls.maxParticipants,
     enrolledCount: cls.enrolledCount,
     enrolledMemberIds: Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [],
+    waitlistedCount: waitlistedMemberIds.length,
     room: cls.room,
     status: cls.status,
     color: cls.color,

@@ -5,6 +5,7 @@ import { workoutTemplates } from "./workout_templates";
 
 export const workoutAssignments = pgTable("workout_assignments", {
   id: serial("id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   templateId: integer("template_id")
     .notNull()
     .references(() => workoutTemplates.id),

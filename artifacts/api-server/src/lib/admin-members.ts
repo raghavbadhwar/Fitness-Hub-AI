@@ -1,5 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   memberAiProfiles,
@@ -24,6 +24,7 @@ import {
 type ClerkClient = ReturnType<typeof createClerkClient>;
 
 type AccessControlSummary = {
+  gymId: string;
   email: string;
   role: string;
   status: string;
@@ -46,6 +47,7 @@ export type AdminMemberPayload = {
   role: UserRole;
   accessStatus: UserAccessStatus;
   accessUpdatedAt: string | null;
+  gymId: string;
   createdAt: string;
   aiMemorySummary: string | null;
   aiLastUpdatedAt: string | null;
@@ -61,7 +63,7 @@ function isOwnerAccount(
 
 function buildAdminMemberPayload(
   user: ClerkUserSummary,
-  profile?: { name: string; role: string },
+  profile?: { name: string; role: string; gymId?: string | null },
   aiProfile?: MemberAiProfileSummary,
   accessControl?: AccessControlSummary,
 ): AdminMemberPayload {
@@ -97,6 +99,7 @@ function buildAdminMemberPayload(
     role,
     accessStatus,
     accessUpdatedAt: accessControl?.updatedAt?.toISOString() ?? null,
+    gymId: profile?.gymId ?? accessControl?.gymId ?? "gymos-main",
     createdAt: new Date(user.createdAt).toISOString(),
     aiMemorySummary: aiProfile?.memorySummary?.trim() || null,
     aiLastUpdatedAt: aiProfile?.updatedAt?.toISOString() ?? null,
@@ -114,6 +117,7 @@ function buildEmailOnlyAccessPayload(accessControl: AccessControlSummary): Admin
     role: isUserRole(accessControl.role) ? accessControl.role : "member",
     accessStatus: isUserAccessStatus(accessControl.status) ? accessControl.status : "pending",
     accessUpdatedAt: accessControl.updatedAt.toISOString(),
+    gymId: accessControl.gymId,
     createdAt: accessControl.createdAt.toISOString(),
     aiMemorySummary: null,
     aiLastUpdatedAt: null,
@@ -121,12 +125,15 @@ function buildEmailOnlyAccessPayload(accessControl: AccessControlSummary): Admin
   };
 }
 
-export async function listAdminMembers(secretKey: string): Promise<AdminMemberPayload[]> {
+export async function listAdminMembers(
+  secretKey: string,
+  gymId = "gymos-main",
+): Promise<AdminMemberPayload[]> {
   const users = await listAllClerkUsers(secretKey);
   const [profiles, aiProfiles, accessControls] = await Promise.all([
-    db.select().from(userProfiles),
+    db.select().from(userProfiles).where(eq(userProfiles.gymId, gymId)),
     db.select().from(memberAiProfiles),
-    db.select().from(userAccessControls),
+    db.select().from(userAccessControls).where(eq(userAccessControls.gymId, gymId)),
   ]);
   const profileMap = new Map(profiles.map((profile) => [profile.clerkId, profile]));
   const aiProfileMap = new Map(aiProfiles.map((profile) => [profile.memberClerkId, profile]));
@@ -136,6 +143,10 @@ export async function listAdminMembers(secretKey: string): Promise<AdminMemberPa
   const listedEmails = new Set<string>();
 
   return users
+    .filter((user) => {
+      const email = getPrimaryEmail(user) ?? "";
+      return profileMap.has(user.id) || Boolean(email && accessControlMap.has(email));
+    })
     .map((user) => {
       const email = getPrimaryEmail(user) ?? "";
       if (email) {
@@ -170,11 +181,13 @@ async function findClerkUserByEmail(
 }
 
 async function upsertEmailAccessControl({
+  gymId,
   email,
   role,
   status,
   createdByClerkId,
 }: {
+  gymId: string;
   email: string;
   role: GrantableUserRole;
   status: "approved" | "revoked";
@@ -183,13 +196,14 @@ async function upsertEmailAccessControl({
   const [accessControl] = await db
     .insert(userAccessControls)
     .values({
+      gymId,
       email,
       role,
       status,
       createdByClerkId,
     })
     .onConflictDoUpdate({
-      target: userAccessControls.email,
+      target: [userAccessControls.gymId, userAccessControls.email],
       set: {
         role,
         status,
@@ -205,11 +219,13 @@ async function upsertEmailAccessControl({
 async function syncExistingUserAccess({
   clerkClient,
   user,
+  gymId,
   role,
   status,
 }: {
   clerkClient: ClerkClient;
   user: ClerkUserAccessIdentity;
+  gymId: string;
   role: GrantableUserRole;
   status: "approved" | "revoked";
 }) {
@@ -221,6 +237,10 @@ async function syncExistingUserAccess({
 
   if (isOwnerAccount(existingProfile, user)) {
     throw new Error("Owner accounts must be managed separately");
+  }
+
+  if (existingProfile?.gymId && existingProfile.gymId !== gymId) {
+    throw new Error("This account already belongs to another gym");
   }
 
   const previousPublicMetadata = { ...user.publicMetadata };
@@ -236,6 +256,7 @@ async function syncExistingUserAccess({
     .insert(userProfiles)
     .values({
       clerkId: user.id,
+      gymId,
       name: nextName,
       role: status === "approved" ? role : "member",
     })
@@ -243,6 +264,7 @@ async function syncExistingUserAccess({
       target: userProfiles.clerkId,
       set: {
         name: nextName,
+        gymId,
         role: status === "approved" ? role : "member",
         updatedAt: new Date(),
       },
@@ -253,12 +275,14 @@ async function syncExistingUserAccess({
 }
 
 export async function setAdminMemberAccess({
+  gymId,
   email,
   role,
   accessStatus,
   createdByClerkId,
   secretKey,
 }: {
+  gymId: string;
   email: string;
   role: GrantableUserRole;
   accessStatus: "approved" | "revoked";
@@ -268,6 +292,7 @@ export async function setAdminMemberAccess({
   const clerkClient = createClerkClient({ secretKey });
   const user = await findClerkUserByEmail(clerkClient, email);
   const accessControl = await upsertEmailAccessControl({
+    gymId,
     email,
     role,
     status: accessStatus,
@@ -281,6 +306,7 @@ export async function setAdminMemberAccess({
   const updatedProfile = await syncExistingUserAccess({
     clerkClient,
     user,
+    gymId,
     role,
     status: accessStatus,
   });
@@ -305,10 +331,12 @@ export async function setAdminMemberAccess({
 }
 
 export async function updateAdminMemberRole({
+  gymId,
   userId,
   role,
   secretKey,
 }: {
+  gymId: string;
   userId: string;
   role: GrantableUserRole;
   secretKey: string;
@@ -330,6 +358,10 @@ export async function updateAdminMemberRole({
     throw new Error("Owner accounts must be managed separately");
   }
 
+  if (existingProfile?.gymId && existingProfile.gymId !== gymId) {
+    throw new Error("This account belongs to another gym");
+  }
+
   const nextName = existingProfile?.name?.trim() || displayNameForClerkUser(user);
   const previousPublicMetadata = { ...user.publicMetadata };
 
@@ -348,6 +380,7 @@ export async function updateAdminMemberRole({
         .insert(userProfiles)
         .values({
           clerkId: userId,
+          gymId,
           name: nextName,
           role,
         })
@@ -355,6 +388,7 @@ export async function updateAdminMemberRole({
           target: userProfiles.clerkId,
           set: {
             name: nextName,
+            gymId,
             role,
             updatedAt: new Date(),
           },
@@ -362,6 +396,7 @@ export async function updateAdminMemberRole({
         .returning()
         .then(([profile]) => profile),
       upsertEmailAccessControl({
+        gymId,
         email,
         role,
         status: "approved",

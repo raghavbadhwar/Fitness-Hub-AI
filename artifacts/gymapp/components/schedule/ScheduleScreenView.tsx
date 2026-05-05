@@ -20,25 +20,29 @@ import { useTypography } from "@/hooks/useTypography";
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const CATEGORY_EMOJI: Record<ClassCategory, string> = {
-  Yoga: "🧘",
-  Zumba: "💃",
-  CrossFit: "⚡",
-  HIIT: "🔥",
-  Spinning: "🚴",
-  Boxing: "🥊",
-  Pilates: "🤸",
-  Strength: "💪",
-  Cardio: "🏃",
-  Other: "🏋️",
+type FeatherIconName = React.ComponentProps<typeof Feather>["name"];
+
+const CATEGORY_ICON: Record<ClassCategory, FeatherIconName> = {
+  Yoga: "sun",
+  Zumba: "music",
+  CrossFit: "zap",
+  HIIT: "activity",
+  Spinning: "rotate-cw",
+  Boxing: "target",
+  Pilates: "circle",
+  Strength: "trending-up",
+  Cardio: "heart",
+  Other: "award",
 };
 
 type ScheduleScreenViewProps = {
   actionClassId: string | null;
   bookingMessage: string | null;
+  bookingMessageTone?: "error" | "success" | "info";
   classes: GymClass[];
   confirmSheetClass: GymClass | null;
   isEnrolled: (classId: string) => boolean;
+  isWaitlisted?: (classId: string) => boolean;
   isLoading: boolean;
   onCancelUnenroll: () => void;
   onConfirmUnenroll: () => void;
@@ -53,9 +57,11 @@ type ScheduleScreenViewProps = {
 export function ScheduleScreenView({
   actionClassId,
   bookingMessage,
+  bookingMessageTone = "error",
   classes,
   confirmSheetClass,
   isEnrolled,
+  isWaitlisted = () => false,
   isLoading,
   onCancelUnenroll,
   onConfirmUnenroll,
@@ -70,6 +76,18 @@ export function ScheduleScreenView({
   const typography = useTypography();
   const today = todayOverride ?? new Date();
   const todayKey = today.toISOString().split("T")[0];
+  const feedbackColor =
+    bookingMessageTone === "success"
+      ? colors.success
+      : bookingMessageTone === "info"
+        ? colors.info
+        : colors.error;
+  const feedbackIcon =
+    bookingMessageTone === "success"
+      ? "check-circle"
+      : bookingMessageTone === "info"
+        ? "clock"
+        : "alert-circle";
 
   const week = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);
@@ -79,7 +97,7 @@ export function ScheduleScreenView({
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, styles.webFrame]}>
         <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>
           Schedule
         </Text>
@@ -103,7 +121,7 @@ export function ScheduleScreenView({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.calendarRow}
-        style={styles.calendarScroll}
+        style={[styles.calendarScroll, styles.webFrame]}
       >
         {week.map((date) => {
           const dateKey = date.toISOString().split("T")[0];
@@ -145,7 +163,7 @@ export function ScheduleScreenView({
         })}
       </ScrollView>
 
-      <Text style={[styles.dateLabel, { color: colors.mutedForeground }]}>
+      <Text style={[styles.dateLabel, styles.webFrame, { color: colors.mutedForeground }]}>
         {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
           weekday: "long",
           day: "numeric",
@@ -154,7 +172,11 @@ export function ScheduleScreenView({
       </Text>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          styles.webFrame,
+          { paddingBottom: TAB_BAR_HEIGHT + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {bookingMessage ? (
@@ -162,14 +184,14 @@ export function ScheduleScreenView({
             style={[
               styles.feedbackBanner,
               {
-                backgroundColor: `${colors.error}18`,
-                borderColor: `${colors.error}44`,
+                backgroundColor: `${feedbackColor}18`,
+                borderColor: `${feedbackColor}44`,
               },
             ]}
             testID="schedule-booking-error"
           >
-            <Feather name="alert-circle" size={14} color={colors.error} />
-            <Text style={[styles.feedbackText, { color: colors.error }]}>{bookingMessage}</Text>
+            <Feather name={feedbackIcon} size={14} color={feedbackColor} />
+            <Text style={[styles.feedbackText, { color: feedbackColor }]}>{bookingMessage}</Text>
           </View>
         ) : null}
 
@@ -185,20 +207,23 @@ export function ScheduleScreenView({
         {selectedClasses.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="calendar" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No classes on this day</Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              No classes on this day
+              Pick another date or scan upcoming sessions below. Full classes now support a waitlist
+              instead of a dead end.
             </Text>
           </View>
         ) : (
           selectedClasses.map((gymClass) => {
             const enrolled = isEnrolled(gymClass.id);
+            const waitlisted = isWaitlisted(gymClass.id);
             const full = gymClass.enrolledCount >= gymClass.maxParticipants && !enrolled;
             const isUpdating = actionClassId === gymClass.id;
             const capacityPercent = Math.min(
               (gymClass.enrolledCount / gymClass.maxParticipants) * 100,
               100,
             );
-            const emoji = CATEGORY_EMOJI[gymClass.category] || "🏋️";
+            const iconName = CATEGORY_ICON[gymClass.category] || "award";
 
             return (
               <View
@@ -215,7 +240,9 @@ export function ScheduleScreenView({
                   style={styles.cardHeader}
                 >
                   <View style={styles.cardHeaderContent}>
-                    <Text style={styles.cardHeaderEmoji}>{emoji}</Text>
+                    <View style={styles.cardHeaderIcon}>
+                      <Feather name={iconName} size={22} color="#fff" />
+                    </View>
                     <View style={styles.cardHeaderText}>
                       <Text style={styles.cardHeaderName}>{gymClass.name}</Text>
                       <Text style={styles.cardHeaderTime}>
@@ -226,6 +253,10 @@ export function ScheduleScreenView({
                   {enrolled ? (
                     <View style={styles.enrolledBadge}>
                       <Feather name="check" size={12} color="#fff" />
+                    </View>
+                  ) : waitlisted ? (
+                    <View style={styles.enrolledBadge}>
+                      <Feather name="clock" size={12} color="#fff" />
                     </View>
                   ) : null}
                 </LinearGradient>
@@ -249,6 +280,21 @@ export function ScheduleScreenView({
                     </Text>
                   ) : null}
 
+                  <View style={styles.classUtilityRow}>
+                    <View style={[styles.utilityChip, { backgroundColor: colors.surface }]}>
+                      <Feather name="user-check" size={12} color={colors.primary} />
+                      <Text style={[styles.utilityChipText, { color: colors.mutedForeground }]}>
+                        Trainer profile
+                      </Text>
+                    </View>
+                    <View style={[styles.utilityChip, { backgroundColor: colors.surface }]}>
+                      <Feather name="navigation" size={12} color={colors.primary} />
+                      <Text style={[styles.utilityChipText, { color: colors.mutedForeground }]}>
+                        Room directions
+                      </Text>
+                    </View>
+                  </View>
+
                   <View style={styles.capacityRow}>
                     <Text
                       style={[
@@ -257,7 +303,7 @@ export function ScheduleScreenView({
                       ]}
                     >
                       {gymClass.enrolledCount}/{gymClass.maxParticipants} enrolled
-                      {full ? " · Full" : ""}
+                      {full ? (waitlisted ? " · Waitlisted" : " · Full") : ""}
                     </Text>
                   </View>
                   <View style={[styles.capacityBar, { backgroundColor: colors.border }]}>
@@ -287,16 +333,16 @@ export function ScheduleScreenView({
                               borderColor: colors.border,
                               borderWidth: 1,
                             }
-                          : full
+                          : full || waitlisted
                             ? {
-                                backgroundColor: colors.muted,
+                                backgroundColor: waitlisted ? colors.surface : colors.muted,
                                 borderColor: colors.border,
                                 borderWidth: 1,
                               }
                             : { backgroundColor: gymClass.color },
                       ]}
                       onPress={() => onPressEnrollment(gymClass)}
-                      disabled={isUpdating || (full && !enrolled)}
+                      disabled={isUpdating}
                       testID={`schedule-enroll-button-${gymClass.id}`}
                     >
                       {isUpdating ? (
@@ -307,12 +353,21 @@ export function ScheduleScreenView({
                         <View style={{ marginRight: 4 }}>
                           <Feather name="check" size={14} color={colors.text} />
                         </View>
+                      ) : waitlisted ? (
+                        <View style={{ marginRight: 4 }}>
+                          <Feather name="clock" size={14} color={colors.text} />
+                        </View>
                       ) : null}
                       <Text
                         style={[
                           styles.enrollBtnText,
                           {
-                            color: enrolled ? colors.text : full ? colors.mutedForeground : "#fff",
+                            color:
+                              enrolled || waitlisted
+                                ? colors.text
+                                : full
+                                  ? colors.mutedForeground
+                                  : "#fff",
                           },
                         ]}
                       >
@@ -320,12 +375,21 @@ export function ScheduleScreenView({
                           ? "Updating..."
                           : enrolled
                             ? "Enrolled"
-                            : full
-                              ? "Class Full"
-                              : "Enroll Now"}
+                            : waitlisted
+                              ? "Waitlisted"
+                              : full
+                                ? "Join Waitlist"
+                                : "Enroll Now"}
                       </Text>
                     </Pressable>
                   </View>
+                  {full && !enrolled ? (
+                    <Text style={[styles.waitlistHint, { color: colors.mutedForeground }]}>
+                      {waitlisted
+                        ? "Tap Waitlisted to leave the queue."
+                        : "Join the waitlist and keep your interest ready if a spot opens."}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             );
@@ -359,7 +423,13 @@ export function ScheduleScreenView({
                 testID={`schedule-mini-class-${gymClass.id}`}
               >
                 <View style={styles.miniClassLeft}>
-                  <Text style={styles.miniEmoji}>{CATEGORY_EMOJI[gymClass.category] || "🏋️"}</Text>
+                  <View style={[styles.miniIcon, { backgroundColor: `${gymClass.color}22` }]}>
+                    <Feather
+                      name={CATEGORY_ICON[gymClass.category] || "award"}
+                      size={14}
+                      color={gymClass.color}
+                    />
+                  </View>
                   <View>
                     <Text style={[styles.miniClassName, { color: colors.text }]}>
                       {gymClass.name}
@@ -402,6 +472,11 @@ export function ScheduleScreenView({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  webFrame: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -455,11 +530,21 @@ const styles = StyleSheet.create({
   },
   loadingText: { fontSize: 13, fontWeight: "600" },
   empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 15, textAlign: "center" },
+  emptyTitle: { fontSize: 17, fontWeight: "800", textAlign: "center" },
+  emptyText: { maxWidth: 320, fontSize: 14, lineHeight: 20, textAlign: "center" },
   classCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
   cardHeader: { padding: 16, position: "relative" },
   cardHeaderContent: { flexDirection: "row", alignItems: "center", gap: 10 },
-  cardHeaderEmoji: { fontSize: 28 },
+  cardHeaderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.38)",
+  },
   cardHeaderText: { flex: 1 },
   cardHeaderName: { fontSize: 18, fontWeight: "800", color: "#fff" },
   cardHeaderTime: {
@@ -485,6 +570,16 @@ const styles = StyleSheet.create({
   classMetaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   classMeta: { fontSize: 12 },
   classDesc: { fontSize: 13, lineHeight: 18 },
+  classUtilityRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  utilityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  utilityChipText: { fontSize: 11, fontWeight: "700" },
   capacityRow: { flexDirection: "row", alignItems: "center" },
   capacityText: { fontSize: 12, fontWeight: "500" },
   capacityBar: { height: 5, borderRadius: 3, overflow: "hidden" },
@@ -499,6 +594,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   enrollBtnText: { fontSize: 14, fontWeight: "600" },
+  waitlistHint: { fontSize: 12, lineHeight: 17 },
   allClassesSection: { paddingTop: 16, borderTopWidth: 1, gap: 0 },
   allClassesTitle: { marginBottom: 4 },
   miniClass: {
@@ -511,7 +607,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   miniClassLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  miniEmoji: { fontSize: 18 },
+  miniIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   miniClassName: { fontSize: 14, fontWeight: "600" },
   miniClassMeta: { fontSize: 12, marginTop: 2 },
   miniEnrolledBadge: {

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassEnrollmentMemberAttendanceStatus } from "./classEnrollmentMemberAttendanceStatus";
 
 export interface ClassEnrollmentMember {
   id: string;
@@ -14,4 +15,5 @@ export interface ClassEnrollmentMember {
   lastName: string | null;
   email: string;
   role: string;
+  attendanceStatus: ClassEnrollmentMemberAttendanceStatus;
 }

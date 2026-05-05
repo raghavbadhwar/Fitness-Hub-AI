@@ -41,6 +41,7 @@ export const ListClassesResponseItem = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -54,6 +55,14 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem);
  * @summary List the caller's enrolled class ids
  */
 export const ListEnrolledClassIdsResponse = zod.object({
+  classIds: zod.array(zod.string()),
+});
+
+/**
+ * Returns upcoming class ids that the authenticated member has waitlisted
+ * @summary List the caller's waitlisted class ids
+ */
+export const ListWaitlistedClassIdsResponse = zod.object({
   classIds: zod.array(zod.string()),
 });
 
@@ -86,6 +95,7 @@ export const EnrollInClassResponse = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -122,6 +132,81 @@ export const LeaveClassResponse = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Join the waitlist for a full class
+ */
+export const JoinClassWaitlistParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const JoinClassWaitlistResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
+  room: zod.string(),
+  status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+  color: zod.string(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Leave the waitlist for a class
+ */
+export const LeaveClassWaitlistParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const LeaveClassWaitlistResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  category: zod.enum([
+    "Yoga",
+    "Zumba",
+    "CrossFit",
+    "HIIT",
+    "Spinning",
+    "Boxing",
+    "Pilates",
+    "Strength",
+    "Cardio",
+    "Other",
+  ]),
+  description: zod.string(),
+  trainer: zod.string(),
+  date: zod.string(),
+  startTime: zod.string(),
+  duration: zod.number(),
+  maxParticipants: zod.number(),
+  enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -155,6 +240,7 @@ export const AdminListClassesResponseItem = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -247,6 +333,7 @@ export const AdminUpdateClassResponse = zod.object({
   duration: zod.number(),
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
+  waitlistedCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -276,8 +363,28 @@ export const AdminListClassEnrollmentsResponseItem = zod.object({
   lastName: zod.string().nullable(),
   email: zod.string(),
   role: zod.string(),
+  attendanceStatus: zod.enum(["booked", "checked_in", "no_show"]),
 });
 export const AdminListClassEnrollmentsResponse = zod.array(AdminListClassEnrollmentsResponseItem);
+
+/**
+ * Marks an enrolled member as booked, checked in, or no-show (owner-only)
+ * @summary Update class attendance for an enrolled member
+ */
+export const AdminUpdateClassEnrollmentAttendanceParams = zod.object({
+  id: zod.coerce.number(),
+  memberId: zod.coerce.string(),
+});
+
+export const AdminUpdateClassEnrollmentAttendanceBody = zod.object({
+  attendanceStatus: zod.enum(["booked", "checked_in", "no_show"]),
+});
+
+export const AdminUpdateClassEnrollmentAttendanceResponse = zod.object({
+  memberId: zod.string(),
+  attendanceStatus: zod.enum(["booked", "checked_in", "no_show"]),
+  updatedAt: zod.string(),
+});
 
 /**
  * Returns the gym settings (owner-only)
@@ -508,6 +615,28 @@ export const AiChatBody = zod.object({
 });
 
 /**
+ * Accepts a bounded daily nutrition/workout snapshot and updates durable member AI memory server-side.
+ * @summary Update AI memory from daily activity
+ */
+export const aiUpdateActivitySnapshotBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const AiUpdateActivitySnapshotBody = zod.object({
+  date: zod.string().regex(aiUpdateActivitySnapshotBodyDateRegExp),
+  timezone: zod.string().optional(),
+  profile: zod.record(zod.string(), zod.unknown()).optional(),
+  nutrition: zod.record(zod.string(), zod.unknown()).optional(),
+  workout: zod.record(zod.string(), zod.unknown()).optional(),
+  behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
+  savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+});
+
+export const AiUpdateActivitySnapshotResponse = zod.object({
+  ok: zod.boolean(),
+  memorySummary: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
  * Produces a personalized workout suggestion using recent activity, goals, and saved-plan context.
  * @summary Generate an AI workout suggestion
  */
@@ -516,6 +645,7 @@ export const AiWorkoutSuggestionBody = zod.object({
   goals: zod.string().optional(),
   fitnessLevel: zod.string().optional(),
   availableTime: zod.number().optional(),
+  todayStats: zod.record(zod.string(), zod.unknown()).optional(),
   behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
   savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
 });
@@ -536,6 +666,286 @@ export const AiWorkoutSuggestionResponse = zod.object({
   warmup: zod.string(),
   cooldown: zod.string(),
   motivationalTip: zod.string(),
+});
+
+/**
+ * Returns a saved member monthly review for the requested calendar month. Members can read their own review; trainers and owners can read member reviews in their gym.
+ * @summary Fetch a saved monthly review
+ */
+export const monthlyReviewsGetQueryMonthRegExp = new RegExp("^\\d{4}-(0[1-9]|1[0-2])$");
+
+export const MonthlyReviewsGetQueryParams = zod.object({
+  memberId: zod.coerce.string().optional(),
+  month: zod.coerce.string().regex(monthlyReviewsGetQueryMonthRegExp),
+});
+
+export const MonthlyReviewsGetResponse = zod.object({
+  review: zod.union([
+    zod.object({
+      id: zod.string(),
+      gymId: zod.string(),
+      memberClerkId: zod.string(),
+      month: zod.string(),
+      metrics: zod.object({
+        monthLabel: zod.string().optional(),
+        daysInMonth: zod.number().optional(),
+        elapsedDays: zod.number().optional(),
+        completedWorkouts: zod.number().optional(),
+        workoutDays: zod.number().optional(),
+        consistencyRate: zod.number().optional(),
+        totalVolume: zod.number().optional(),
+        totalDurationMinutes: zod.number().optional(),
+        caloriesBurned: zod.number().optional(),
+        prCount: zod.number().optional(),
+        bestLiftName: zod.string().nullish(),
+        bestLiftWeight: zod.number().nullish(),
+        nutritionLoggedDays: zod.number().optional(),
+        nutritionAdherenceRate: zod.number().optional(),
+        avgCalories: zod.number().optional(),
+        avgProtein: zod.number().optional(),
+        proteinAdherenceRate: zod.number().optional(),
+        waterLoggedDays: zod.number().optional(),
+        bodyWeightStart: zod.number().nullish(),
+        bodyWeightEnd: zod.number().nullish(),
+        weightDelta: zod.number().nullish(),
+        bodyMeasurementsLogged: zod.number().optional(),
+        savedPlanCount: zod.number().optional(),
+        plansSavedThisMonth: zod.number().optional(),
+        risks: zod.array(zod.string()).optional(),
+        momentum: zod.enum(["starting", "building", "strong"]).optional(),
+      }),
+      badges: zod.array(
+        zod.object({
+          id: zod.string(),
+          label: zod.string(),
+          detail: zod.string(),
+          tone: zod.enum(["success", "warning", "info", "neutral"]),
+        }),
+      ),
+      aiSummary: zod.string(),
+      coachNote: zod.string(),
+      suggestedAdjustments: zod.array(
+        zod.object({
+          id: zod.string(),
+          category: zod.enum(["workout", "nutrition", "recovery", "trainer", "habit"]),
+          title: zod.string(),
+          detail: zod.string(),
+          priority: zod.enum(["low", "medium", "high"]),
+          source: zod.enum(["deterministic", "ai"]),
+        }),
+      ),
+      status: zod.enum(["generated", "reviewed"]),
+      generatedAt: zod.string(),
+      reviewedAt: zod.string().nullable(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
+ * @summary Generate or refresh a monthly review
+ */
+export const monthlyReviewsGenerateBodyMonthRegExp = new RegExp("^\\d{4}-(0[1-9]|1[0-2])$");
+
+export const MonthlyReviewsGenerateBody = zod.object({
+  memberId: zod.string().optional(),
+  month: zod.string().regex(monthlyReviewsGenerateBodyMonthRegExp),
+  metrics: zod.object({
+    monthLabel: zod.string().optional(),
+    daysInMonth: zod.number().optional(),
+    elapsedDays: zod.number().optional(),
+    completedWorkouts: zod.number().optional(),
+    workoutDays: zod.number().optional(),
+    consistencyRate: zod.number().optional(),
+    totalVolume: zod.number().optional(),
+    totalDurationMinutes: zod.number().optional(),
+    caloriesBurned: zod.number().optional(),
+    prCount: zod.number().optional(),
+    bestLiftName: zod.string().nullish(),
+    bestLiftWeight: zod.number().nullish(),
+    nutritionLoggedDays: zod.number().optional(),
+    nutritionAdherenceRate: zod.number().optional(),
+    avgCalories: zod.number().optional(),
+    avgProtein: zod.number().optional(),
+    proteinAdherenceRate: zod.number().optional(),
+    waterLoggedDays: zod.number().optional(),
+    bodyWeightStart: zod.number().nullish(),
+    bodyWeightEnd: zod.number().nullish(),
+    weightDelta: zod.number().nullish(),
+    bodyMeasurementsLogged: zod.number().optional(),
+    savedPlanCount: zod.number().optional(),
+    plansSavedThisMonth: zod.number().optional(),
+    risks: zod.array(zod.string()).optional(),
+    momentum: zod.enum(["starting", "building", "strong"]).optional(),
+  }),
+  badges: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        label: zod.string(),
+        detail: zod.string(),
+        tone: zod.enum(["success", "warning", "info", "neutral"]),
+      }),
+    )
+    .optional(),
+  suggestedAdjustments: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        category: zod.enum(["workout", "nutrition", "recovery", "trainer", "habit"]),
+        title: zod.string(),
+        detail: zod.string(),
+        priority: zod.enum(["low", "medium", "high"]),
+        source: zod.enum(["deterministic", "ai"]),
+      }),
+    )
+    .optional(),
+});
+
+export const MonthlyReviewsGenerateResponse = zod.object({
+  review: zod.union([
+    zod.object({
+      id: zod.string(),
+      gymId: zod.string(),
+      memberClerkId: zod.string(),
+      month: zod.string(),
+      metrics: zod.object({
+        monthLabel: zod.string().optional(),
+        daysInMonth: zod.number().optional(),
+        elapsedDays: zod.number().optional(),
+        completedWorkouts: zod.number().optional(),
+        workoutDays: zod.number().optional(),
+        consistencyRate: zod.number().optional(),
+        totalVolume: zod.number().optional(),
+        totalDurationMinutes: zod.number().optional(),
+        caloriesBurned: zod.number().optional(),
+        prCount: zod.number().optional(),
+        bestLiftName: zod.string().nullish(),
+        bestLiftWeight: zod.number().nullish(),
+        nutritionLoggedDays: zod.number().optional(),
+        nutritionAdherenceRate: zod.number().optional(),
+        avgCalories: zod.number().optional(),
+        avgProtein: zod.number().optional(),
+        proteinAdherenceRate: zod.number().optional(),
+        waterLoggedDays: zod.number().optional(),
+        bodyWeightStart: zod.number().nullish(),
+        bodyWeightEnd: zod.number().nullish(),
+        weightDelta: zod.number().nullish(),
+        bodyMeasurementsLogged: zod.number().optional(),
+        savedPlanCount: zod.number().optional(),
+        plansSavedThisMonth: zod.number().optional(),
+        risks: zod.array(zod.string()).optional(),
+        momentum: zod.enum(["starting", "building", "strong"]).optional(),
+      }),
+      badges: zod.array(
+        zod.object({
+          id: zod.string(),
+          label: zod.string(),
+          detail: zod.string(),
+          tone: zod.enum(["success", "warning", "info", "neutral"]),
+        }),
+      ),
+      aiSummary: zod.string(),
+      coachNote: zod.string(),
+      suggestedAdjustments: zod.array(
+        zod.object({
+          id: zod.string(),
+          category: zod.enum(["workout", "nutrition", "recovery", "trainer", "habit"]),
+          title: zod.string(),
+          detail: zod.string(),
+          priority: zod.enum(["low", "medium", "high"]),
+          source: zod.enum(["deterministic", "ai"]),
+        }),
+      ),
+      status: zod.enum(["generated", "reviewed"]),
+      generatedAt: zod.string(),
+      reviewedAt: zod.string().nullable(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * Marks a saved monthly review as reviewed by the member, trainer, or owner.
+ * @summary Update monthly review state
+ */
+export const MonthlyReviewsMarkReviewedParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const MonthlyReviewsMarkReviewedBody = zod.object({
+  reviewed: zod.boolean().optional(),
+  status: zod.enum(["generated", "reviewed"]).optional(),
+});
+
+export const MonthlyReviewsMarkReviewedResponse = zod.object({
+  review: zod.union([
+    zod.object({
+      id: zod.string(),
+      gymId: zod.string(),
+      memberClerkId: zod.string(),
+      month: zod.string(),
+      metrics: zod.object({
+        monthLabel: zod.string().optional(),
+        daysInMonth: zod.number().optional(),
+        elapsedDays: zod.number().optional(),
+        completedWorkouts: zod.number().optional(),
+        workoutDays: zod.number().optional(),
+        consistencyRate: zod.number().optional(),
+        totalVolume: zod.number().optional(),
+        totalDurationMinutes: zod.number().optional(),
+        caloriesBurned: zod.number().optional(),
+        prCount: zod.number().optional(),
+        bestLiftName: zod.string().nullish(),
+        bestLiftWeight: zod.number().nullish(),
+        nutritionLoggedDays: zod.number().optional(),
+        nutritionAdherenceRate: zod.number().optional(),
+        avgCalories: zod.number().optional(),
+        avgProtein: zod.number().optional(),
+        proteinAdherenceRate: zod.number().optional(),
+        waterLoggedDays: zod.number().optional(),
+        bodyWeightStart: zod.number().nullish(),
+        bodyWeightEnd: zod.number().nullish(),
+        weightDelta: zod.number().nullish(),
+        bodyMeasurementsLogged: zod.number().optional(),
+        savedPlanCount: zod.number().optional(),
+        plansSavedThisMonth: zod.number().optional(),
+        risks: zod.array(zod.string()).optional(),
+        momentum: zod.enum(["starting", "building", "strong"]).optional(),
+      }),
+      badges: zod.array(
+        zod.object({
+          id: zod.string(),
+          label: zod.string(),
+          detail: zod.string(),
+          tone: zod.enum(["success", "warning", "info", "neutral"]),
+        }),
+      ),
+      aiSummary: zod.string(),
+      coachNote: zod.string(),
+      suggestedAdjustments: zod.array(
+        zod.object({
+          id: zod.string(),
+          category: zod.enum(["workout", "nutrition", "recovery", "trainer", "habit"]),
+          title: zod.string(),
+          detail: zod.string(),
+          priority: zod.enum(["low", "medium", "high"]),
+          source: zod.enum(["deterministic", "ai"]),
+        }),
+      ),
+      status: zod.enum(["generated", "reviewed"]),
+      generatedAt: zod.string(),
+      reviewedAt: zod.string().nullable(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+    zod.null(),
+  ]),
 });
 
 /**

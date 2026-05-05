@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/expo";
-import { useRouter } from "expo-router";
+import { type Href, usePathname, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -9,6 +9,8 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
+import { getLocalDateKey } from "@/lib/date-key";
+import { impact } from "@/lib/haptics";
 import { useSchedule } from "@/contexts/ScheduleContext";
 import { MacroRing } from "@/components/MacroRing";
 import { MacroBar } from "@/components/MacroBar";
@@ -17,6 +19,15 @@ import { StatCard } from "@/components/StatCard";
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const STAGGER_MS = 150;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
+type MemberTabRoute = "assistant" | "nutrition" | "schedule" | "workout";
+
+function getTabRoute(tab: MemberTabRoute, pathname: string): Href {
+  if (pathname.startsWith("/__e2e")) {
+    return `/__e2e/${tab}` as Href;
+  }
+
+  return `/(tabs)/${tab}` as Href;
+}
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -211,6 +222,7 @@ export default function HomeScreen() {
   const { sessions, getRecentSessions } = useWorkout();
   const { getTodayClasses, isEnrolled } = useSchedule();
   const router = useRouter();
+  const pathname = usePathname();
   const colors = useColors();
 
   const [aiTip, setAiTip] = useState<string>("Loading your personalised tip...");
@@ -234,6 +246,9 @@ export default function HomeScreen() {
 
   const todayClasses = getTodayClasses();
   const recentSessions = getRecentSessions(3);
+  const nextTodayClass = [...todayClasses].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  )[0];
 
   const streak = useMemo(() => {
     let count = 0;
@@ -241,7 +256,7 @@ export default function HomeScreen() {
     for (let i = 0; i < 30; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const dateKey = d.toISOString().split("T")[0];
+      const dateKey = getLocalDateKey(d);
       if (sessions.some((s) => s.date === dateKey && s.completed)) {
         count++;
       } else if (i > 0) break;
@@ -257,8 +272,35 @@ export default function HomeScreen() {
   };
 
   const firstName = profile.name?.split(" ")[0] || user?.firstName || "there";
+  const caloriesLeft = Math.max(0, profile.dailyCalorieTarget - todayNutrition.calories);
+
+  const openProfile = () => {
+    impact();
+    router.push("/profile");
+  };
+
+  const openSchedule = () => {
+    impact();
+    router.push(getTabRoute("schedule", pathname));
+  };
+
+  const openWorkout = () => {
+    impact();
+    router.push(getTabRoute("workout", pathname));
+  };
+
+  const openNutrition = () => {
+    impact();
+    router.push(getTabRoute("nutrition", pathname));
+  };
+
+  const openAssistant = () => {
+    impact();
+    router.push(getTabRoute("assistant", pathname));
+  };
 
   const handleAddWater = async (glasses: number) => {
+    impact();
     const newTotal = Math.min(todayLog.waterIntake + glasses, 20);
     await updateWaterIntake(newTotal);
   };
@@ -266,17 +308,21 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          styles.webFrame,
+          { paddingBottom: TAB_BAR_HEIGHT + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <AnimatedCard delay={0}>
           <View style={styles.header}>
             <View>
               <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{greeting()}</Text>
-              <Text style={[styles.name, { color: colors.text }]}>{firstName} 💪</Text>
+              <Text style={[styles.name, { color: colors.text }]}>{firstName}</Text>
             </View>
             <Pressable
-              onPress={() => router.push("/profile")}
+              onPress={openProfile}
               style={[
                 styles.avatar,
                 { backgroundColor: colors.primary + "20", borderColor: colors.primary },
@@ -290,6 +336,85 @@ export default function HomeScreen() {
         </AnimatedCard>
 
         <AnimatedCard delay={STAGGER_MS * 1}>
+          <View
+            style={[
+              styles.todayPlanCard,
+              { backgroundColor: colors.card, borderColor: colors.primary + "55" },
+            ]}
+          >
+            <View style={styles.todayPlanHeader}>
+              <View style={[styles.todayPlanIcon, { backgroundColor: colors.primaryMuted }]}>
+                <Feather name="compass" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.todayPlanEyebrow, { color: colors.primary }]}>Today Plan</Text>
+                <Text style={[styles.todayPlanTitle, { color: colors.text }]}>
+                  One screen for movement, classes, and fuel
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.todayPlanGrid}>
+              <Pressable
+                style={[styles.todayPlanItem, { backgroundColor: colors.surface }]}
+                onPress={openSchedule}
+              >
+                <Feather name="calendar" size={16} color={colors.primary} />
+                <Text style={[styles.todayPlanItemLabel, { color: colors.mutedForeground }]}>
+                  Next class
+                </Text>
+                <Text style={[styles.todayPlanItemValue, { color: colors.text }]}>
+                  {nextTodayClass
+                    ? `${nextTodayClass.startTime} · ${nextTodayClass.name}`
+                    : "No class today"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.todayPlanItem, { backgroundColor: colors.surface }]}
+                onPress={openWorkout}
+              >
+                <Feather name="activity" size={16} color={colors.primary} />
+                <Text style={[styles.todayPlanItemLabel, { color: colors.mutedForeground }]}>
+                  Training
+                </Text>
+                <Text style={[styles.todayPlanItemValue, { color: colors.text }]}>
+                  {recentSessions[0]?.name ?? "Start a workout"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.todayPlanItem, { backgroundColor: colors.surface }]}
+                onPress={openNutrition}
+              >
+                <Feather name="pie-chart" size={16} color={colors.primary} />
+                <Text style={[styles.todayPlanItemLabel, { color: colors.mutedForeground }]}>
+                  Fuel
+                </Text>
+                <Text style={[styles.todayPlanItemValue, { color: colors.text }]}>
+                  {caloriesLeft} cal left
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.todayPlanActions}>
+              <Pressable
+                style={[styles.todayPlanPrimary, { backgroundColor: colors.primary }]}
+                onPress={openWorkout}
+              >
+                <Text style={styles.todayPlanPrimaryText}>Start workout</Text>
+                <Feather name="arrow-right" size={15} color="#fff" />
+              </Pressable>
+              <Pressable
+                style={[styles.todayPlanSecondary, { borderColor: colors.border }]}
+                onPress={openAssistant}
+              >
+                <Feather name="cpu" size={14} color={colors.primary} />
+                <Text style={[styles.todayPlanSecondaryText, { color: colors.text }]}>Ask AI</Text>
+              </Pressable>
+            </View>
+          </View>
+        </AnimatedCard>
+
+        <AnimatedCard delay={STAGGER_MS * 2}>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Calories</Text>
             <View style={styles.calorieSection}>
@@ -404,7 +529,7 @@ export default function HomeScreen() {
             <View>
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Classes</Text>
-                <Pressable onPress={() => router.push("/(tabs)/schedule")}>
+                <Pressable onPress={openSchedule}>
                   <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
                 </Pressable>
               </View>
@@ -463,9 +588,9 @@ export default function HomeScreen() {
               </Text>
               <Pressable
                 style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-                onPress={() => router.push("/(tabs)/schedule")}
+                onPress={openSchedule}
               >
-                <Text style={styles.emptyBtnText}>Browse classes →</Text>
+                <Text style={styles.emptyBtnText}>Browse classes</Text>
               </Pressable>
             </View>
           )}
@@ -476,7 +601,7 @@ export default function HomeScreen() {
             <View>
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Workouts</Text>
-                <Pressable onPress={() => router.push("/(tabs)/workout")}>
+                <Pressable onPress={openWorkout}>
                   <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
                 </Pressable>
               </View>
@@ -520,9 +645,9 @@ export default function HomeScreen() {
               </Text>
               <Pressable
                 style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-                onPress={() => router.push("/(tabs)/workout")}
+                onPress={openWorkout}
               >
-                <Text style={styles.emptyBtnText}>Log your first workout →</Text>
+                <Text style={styles.emptyBtnText}>Log first workout</Text>
               </Pressable>
             </View>
           )}
@@ -543,9 +668,9 @@ export default function HomeScreen() {
               </Text>
             </View>
             <Text style={[styles.aiTipText, { color: colors.text }]}>{aiTip}</Text>
-            <Pressable onPress={() => router.push("/(tabs)/assistant")}>
+            <Pressable onPress={openAssistant}>
               <Text style={[styles.aiTipBtnText, { color: colors.primary }]}>
-                Ask your AI Coach →
+                Ask your AI Coach
               </Text>
             </Pressable>
           </View>
@@ -558,6 +683,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: 16, gap: 16 },
+  webFrame: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -575,6 +705,64 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   avatarText: { fontSize: 18, fontWeight: "700" },
+  todayPlanCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 14,
+  },
+  todayPlanHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  todayPlanIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayPlanEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  todayPlanTitle: { marginTop: 2, fontSize: 17, fontWeight: "800", lineHeight: 22 },
+  todayPlanGrid: { gap: 8 },
+  todayPlanItem: {
+    borderRadius: 12,
+    padding: 12,
+    gap: 5,
+  },
+  todayPlanItemLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  todayPlanItemValue: { fontSize: 14, fontWeight: "700", lineHeight: 19 },
+  todayPlanActions: { flexDirection: "row", gap: 10 },
+  todayPlanPrimary: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  todayPlanPrimaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  todayPlanSecondary: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  todayPlanSecondaryText: { fontSize: 14, fontWeight: "800" },
   card: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 16 },
   calorieSection: { flexDirection: "row", alignItems: "center", gap: 24 },
   calorieMeta: { flex: 1, gap: 16 },

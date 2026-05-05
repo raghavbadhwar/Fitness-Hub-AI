@@ -5,6 +5,12 @@ import request from "supertest";
 
 const authState = { userId: "member_1" };
 const accessState = { allowed: true };
+const dbState = {
+  selectedProfiles: [],
+  lastInsert: null,
+  lastUpdate: null,
+};
+const memoryExtractionState = { value: null };
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -35,20 +41,22 @@ mock.module("@workspace/db", {
               where() {
                 return {
                   limit() {
-                    return Promise.resolve([]);
+                    return Promise.resolve(dbState.selectedProfiles);
                   },
                 };
               },
             };
           },
-          insert() {
+        };
+      },
+      insert() {
+        return {
+          values(values) {
+            dbState.lastInsert = values;
             return {
-              values() {
-                return {
-                  onConflictDoUpdate() {
-                    return Promise.resolve();
-                  },
-                };
+              onConflictDoUpdate(update) {
+                dbState.lastUpdate = update?.set ?? null;
+                return Promise.resolve();
               },
             };
           },
@@ -70,21 +78,21 @@ mock.module("../../src/lib/member-ai-memory.ts", {
       return "test-system-instruction";
     },
     MAX_CLIENT_HISTORY_MESSAGES: 30,
-    mergeMemoryUpdate(existing) {
+    mergeMemoryUpdate(existing, update) {
       return {
-        memorySummary: existing?.memorySummary ?? "",
-        goals: existing?.goals ?? [],
-        preferences: existing?.preferences ?? [],
-        barriers: existing?.barriers ?? [],
-        motivators: existing?.motivators ?? [],
-        injuries: existing?.injuries ?? [],
+        memorySummary: update?.memorySummary ?? existing?.memorySummary ?? "",
+        goals: update?.goals ?? existing?.goals ?? [],
+        preferences: update?.preferences ?? existing?.preferences ?? [],
+        barriers: update?.barriers ?? existing?.barriers ?? [],
+        motivators: update?.motivators ?? existing?.motivators ?? [],
+        injuries: update?.injuries ?? existing?.injuries ?? [],
       };
     },
     normalizeStoredMessages(messages) {
       return Array.isArray(messages) ? messages : [];
     },
     parseMemoryExtraction() {
-      return null;
+      return memoryExtractionState.value;
     },
     sanitizeIncomingMessages(messages) {
       return Array.isArray(messages) ? messages : [];
@@ -173,6 +181,10 @@ app.use("/ai", aiRouter);
 beforeEach(() => {
   authState.userId = "member_1";
   accessState.allowed = true;
+  dbState.selectedProfiles = [];
+  dbState.lastInsert = null;
+  dbState.lastUpdate = null;
+  memoryExtractionState.value = null;
 });
 
 describe("ai routes", () => {
@@ -218,6 +230,65 @@ describe("ai routes", () => {
       status: "revoked",
       email: "member@example.com",
       role: "member",
+    });
+  });
+
+  it("updates durable memory from daily activity snapshots", async () => {
+    memoryExtractionState.value = {
+      memorySummary: "Prefers repeatable strength sessions and responds to morning training.",
+      goals: ["build strength"],
+      preferences: ["morning sessions", "repeatable plans"],
+      barriers: ["misses meals on busy days"],
+      motivators: ["visible progress"],
+      injuries: ["lower back limitation"],
+    };
+
+    const response = await request(app)
+      .post("/ai/activity-snapshot")
+      .send({
+        date: "2026-05-05",
+        timezone: "Asia/Kolkata",
+        nutrition: { calories: 1900, protein: 120, entriesCount: 4, waterIntake: 6 },
+        workout: { completedToday: 1, totalVolumeToday: 4200 },
+        behaviorProfile: { consistencyLabel: "building", preferredTrainingWindow: "morning" },
+      });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(
+      dbState.lastInsert.memorySummary,
+      "Prefers repeatable strength sessions and responds to morning training.",
+    );
+    assert.deepEqual(dbState.lastUpdate.goals, ["build strength"]);
+    assert.deepEqual(dbState.lastUpdate.preferences, ["morning sessions", "repeatable plans"]);
+  });
+
+  it("rate limits by authenticated user instead of spoofed forwarded IP", async () => {
+    authState.userId = "rate_limited_member";
+
+    for (let i = 0; i < 20; i += 1) {
+      const response = await request(app)
+        .post("/ai/workout-suggestion")
+        .set("x-forwarded-for", `203.0.113.${i}`)
+        .send({
+          recentWorkouts: [],
+          goals: "build strength",
+        });
+
+      assert.equal(response.status, 200);
+    }
+
+    const response = await request(app)
+      .post("/ai/workout-suggestion")
+      .set("x-forwarded-for", "198.51.100.250")
+      .send({
+        recentWorkouts: [],
+        goals: "build strength",
+      });
+
+    assert.equal(response.status, 429);
+    assert.deepEqual(response.body, {
+      error: "Too many requests. Please wait a moment and try again.",
     });
   });
 });

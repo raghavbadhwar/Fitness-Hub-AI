@@ -119,6 +119,8 @@ Run `pnpm run format` before large documentation or config changes, and `pnpm ru
 
 - [Contributor guide](./CONTRIBUTING.md)
 - [Security policy](./SECURITY.md)
+- [Codex operating contract](./AGENTS.md)
+- [Codex task board and QA matrix](./docs/CODEX_TASKS.md)
 - [Architecture diagrams](./docs/fitness-hub-diagrams.md)
 - [Internal beta secret rotation runbook](./docs/internal-beta/secret-rotation-runbook.md)
 - [Deployment guide](./docs/deployment.md)

@@ -9,6 +9,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { AppAuthGate } from "@/components/AppAuthGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { GestureHandlerRootView, SafeAreaProvider } from "@/components/native-compat";
+import { ActivityLearningProvider } from "@/contexts/ActivityLearningContext";
 import { AppProvider } from "@/contexts/AppContext";
 import { NutritionProvider } from "@/contexts/NutritionContext";
 import { WorkoutProvider } from "@/contexts/WorkoutContext";
@@ -18,6 +19,10 @@ import { getClerkProxyUrl } from "@/lib/clerk-config";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+const lightModalHeader = {
+  headerStyle: { backgroundColor: "#FFFFFF" },
+  headerTintColor: "#18181B",
+};
 
 function RootLayoutNav() {
   return (
@@ -30,8 +35,7 @@ function RootLayoutNav() {
           headerShown: true,
           title: "Log Food",
           presentation: "modal",
-          headerStyle: { backgroundColor: "#0C0E1A" },
-          headerTintColor: "#F0F2FF",
+          ...lightModalHeader,
         }}
       />
       <Stack.Screen
@@ -40,8 +44,7 @@ function RootLayoutNav() {
           headerShown: true,
           title: "Workout",
           presentation: "modal",
-          headerStyle: { backgroundColor: "#0C0E1A" },
-          headerTintColor: "#F0F2FF",
+          ...lightModalHeader,
         }}
       />
       <Stack.Screen
@@ -49,8 +52,7 @@ function RootLayoutNav() {
         options={{
           headerShown: true,
           title: "Progress",
-          headerStyle: { backgroundColor: "#0C0E1A" },
-          headerTintColor: "#F0F2FF",
+          ...lightModalHeader,
         }}
       />
       <Stack.Screen
@@ -59,8 +61,7 @@ function RootLayoutNav() {
           headerShown: true,
           title: "Profile",
           presentation: "modal",
-          headerStyle: { backgroundColor: "#0C0E1A" },
-          headerTintColor: "#F0F2FF",
+          ...lightModalHeader,
         }}
       />
       <Stack.Screen
@@ -69,8 +70,7 @@ function RootLayoutNav() {
           headerShown: true,
           title: "Manage Class",
           presentation: "modal",
-          headerStyle: { backgroundColor: "#0C0E1A" },
-          headerTintColor: "#F0F2FF",
+          ...lightModalHeader,
         }}
       />
       <Stack.Screen
@@ -103,15 +103,17 @@ export default function RootLayout() {
               <AppProvider>
                 <NutritionProvider>
                   <WorkoutProvider>
-                    <ScheduleProvider>
-                      <GestureHandlerRootView style={{ flex: 1 }}>
-                        <KeyboardProvider>
-                          <AppAuthGate>
-                            <RootLayoutNav />
-                          </AppAuthGate>
-                        </KeyboardProvider>
-                      </GestureHandlerRootView>
-                    </ScheduleProvider>
+                    <ActivityLearningProvider>
+                      <ScheduleProvider>
+                        <GestureHandlerRootView style={{ flex: 1 }}>
+                          <KeyboardProvider>
+                            <AppAuthGate>
+                              <RootLayoutNav />
+                            </AppAuthGate>
+                          </KeyboardProvider>
+                        </GestureHandlerRootView>
+                      </ScheduleProvider>
+                    </ActivityLearningProvider>
                   </WorkoutProvider>
                 </NutritionProvider>
               </AppProvider>

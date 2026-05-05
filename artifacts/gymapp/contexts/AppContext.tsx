@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { getApiBase } from "@/lib/api-base";
+import { getLocalDateKey } from "@/lib/date-key";
 import { refreshServerProfileAccess } from "@/lib/profile-access";
 
 export type UserRole = "member" | "trainer" | "owner";
@@ -407,7 +408,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logWeight = useCallback(
     async (weight: number) => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateKey();
       const updated = weightLog.filter((e) => e.date !== today);
       updated.push({ date: today, weight });
       updated.sort((a, b) => a.date.localeCompare(b.date));
@@ -423,7 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logMeasurement = useCallback(
     async (measurement: Omit<BodyMeasurement, "date">) => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateKey();
       const updated = bodyMeasurements.filter((e) => e.date !== today);
       updated.push({ date: today, ...measurement });
       updated.sort((a, b) => a.date.localeCompare(b.date));

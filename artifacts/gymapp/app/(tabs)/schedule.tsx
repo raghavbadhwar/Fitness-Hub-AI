@@ -6,6 +6,7 @@ import { Alert } from "react-native";
 import { ScheduleScreenView } from "@/components/schedule/ScheduleScreenView";
 import { useApp } from "@/contexts/AppContext";
 import { type GymClass, useSchedule } from "@/contexts/ScheduleContext";
+import { notifySuccess, notifyWarning } from "@/lib/haptics";
 
 export default function ScheduleScreen() {
   const { user } = useUser();
@@ -14,7 +15,10 @@ export default function ScheduleScreen() {
     classes,
     enrollInClass,
     unenrollFromClass,
+    joinWaitlist,
+    leaveWaitlist,
     isEnrolled,
+    isWaitlisted,
     getClassesForDate,
     refreshSchedule,
     isLoading,
@@ -25,6 +29,9 @@ export default function ScheduleScreen() {
   const [confirmSheet, setConfirmSheet] = useState<{ cls: GymClass } | null>(null);
   const [actionClassId, setActionClassId] = useState<string | null>(null);
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
+  const [bookingMessageTone, setBookingMessageTone] = useState<"error" | "success" | "info">(
+    "error",
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -33,8 +40,14 @@ export default function ScheduleScreen() {
   );
 
   const showBookingError = useCallback((message: string) => {
+    setBookingMessageTone("error");
     setBookingMessage(message);
     Alert.alert("Could not update class booking", message);
+  }, []);
+
+  const showBookingNotice = useCallback((message: string, tone: "success" | "info" = "success") => {
+    setBookingMessageTone(tone);
+    setBookingMessage(message);
   }, []);
 
   const handleEnrollment = useCallback(
@@ -49,11 +62,23 @@ export default function ScheduleScreen() {
         }
 
         if (gymClass.enrolledCount >= gymClass.maxParticipants) {
-          showBookingError("This class is already full. Please pick another slot.");
+          if (isWaitlisted(gymClass.id)) {
+            await leaveWaitlist(gymClass.id);
+            notifyWarning();
+            showBookingNotice("You have left the waitlist for this class.", "info");
+            return;
+          }
+
+          await joinWaitlist(gymClass.id);
+          notifySuccess();
+          showBookingNotice(
+            "You are on the waitlist. We will keep your interest ready if a spot opens.",
+          );
           return;
         }
 
         await enrollInClass(gymClass.id, user?.id || "me");
+        notifySuccess();
       } catch (error) {
         const message =
           error instanceof Error && error.message
@@ -64,7 +89,16 @@ export default function ScheduleScreen() {
         setActionClassId(null);
       }
     },
-    [enrollInClass, isEnrolled, showBookingError, user?.id],
+    [
+      enrollInClass,
+      isEnrolled,
+      isWaitlisted,
+      joinWaitlist,
+      leaveWaitlist,
+      showBookingError,
+      showBookingNotice,
+      user?.id,
+    ],
   );
 
   const handleConfirmUnenroll = useCallback(async () => {
@@ -77,6 +111,7 @@ export default function ScheduleScreen() {
 
     try {
       await unenrollFromClass(confirmSheet.cls.id, user?.id || "me");
+      notifyWarning();
       setConfirmSheet(null);
     } catch (error) {
       const message =
@@ -93,9 +128,11 @@ export default function ScheduleScreen() {
     <ScheduleScreenView
       actionClassId={actionClassId}
       bookingMessage={bookingMessage}
+      bookingMessageTone={bookingMessageTone}
       classes={classes}
       confirmSheetClass={confirmSheet?.cls ?? null}
       isEnrolled={isEnrolled}
+      isWaitlisted={isWaitlisted}
       isLoading={isLoading}
       onCancelUnenroll={() => setConfirmSheet(null)}
       onConfirmUnenroll={handleConfirmUnenroll}

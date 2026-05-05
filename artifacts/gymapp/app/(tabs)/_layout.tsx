@@ -15,8 +15,18 @@ export default function TabLayout() {
       backgroundColor: isIOS ? "transparent" : colors.tabBackground,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      elevation: 0,
+      elevation: 8,
       height: isWeb ? 84 : 80,
+      paddingTop: 8,
+      ...Platform.select({
+        web: { boxShadow: "0 -6px 12px rgba(0, 0, 0, 0.08)" },
+        default: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -6 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+        },
+      }),
     },
   });
 

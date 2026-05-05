@@ -6,4 +6,5 @@ export * from "./workout_templates";
 export * from "./workout_assignments";
 export * from "./member_workout_plans";
 export * from "./member_ai_profiles";
+export * from "./monthly_reviews";
 export * from "./user_profiles";

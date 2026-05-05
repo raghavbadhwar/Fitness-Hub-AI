@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
-import { eq, gte } from "drizzle-orm";
-import { db, gymClassesTable, pool } from "@workspace/db";
+import { and, eq, gte } from "drizzle-orm";
+import { db, gymClassesTable, pool, type ClassAttendanceRecord } from "@workspace/db";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
@@ -16,6 +16,7 @@ type PoolClient = {
 };
 type LockedClassRow = {
   id: number;
+  gym_id: string;
   name: string;
   category: string;
   description: string;
@@ -26,6 +27,8 @@ type LockedClassRow = {
   max_participants: number;
   enrolled_count: number;
   enrolled_member_ids: string[] | null;
+  waitlisted_member_ids: string[] | null;
+  attendance_records: unknown[] | null;
   room: string;
   status: string;
   color: string;
@@ -47,6 +50,8 @@ function isRouteError(error: unknown): error is RouteError {
 }
 
 function serializeClass(cls: typeof gymClassesTable.$inferSelect) {
+  const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds) ? cls.waitlistedMemberIds : [];
+
   return {
     id: cls.id,
     name: cls.name,
@@ -58,6 +63,7 @@ function serializeClass(cls: typeof gymClassesTable.$inferSelect) {
     duration: cls.duration,
     maxParticipants: cls.maxParticipants,
     enrolledCount: cls.enrolledCount,
+    waitlistedCount: waitlistedMemberIds.length,
     room: cls.room,
     status: cls.status,
     color: cls.color,
@@ -69,6 +75,7 @@ function serializeClass(cls: typeof gymClassesTable.$inferSelect) {
 function hydrateLockedClass(row: LockedClassRow): typeof gymClassesTable.$inferSelect {
   return {
     id: row.id,
+    gymId: row.gym_id,
     name: row.name,
     category: row.category,
     description: row.description,
@@ -79,6 +86,10 @@ function hydrateLockedClass(row: LockedClassRow): typeof gymClassesTable.$inferS
     maxParticipants: row.max_participants,
     enrolledCount: row.enrolled_count,
     enrolledMemberIds: Array.isArray(row.enrolled_member_ids) ? row.enrolled_member_ids : [],
+    waitlistedMemberIds: Array.isArray(row.waitlisted_member_ids) ? row.waitlisted_member_ids : [],
+    attendanceRecords: Array.isArray(row.attendance_records)
+      ? (row.attendance_records as ClassAttendanceRecord[])
+      : [],
     room: row.room,
     status: row.status,
     color: row.color,
@@ -90,10 +101,12 @@ function hydrateLockedClass(row: LockedClassRow): typeof gymClassesTable.$inferS
 async function loadLockedClass(
   client: PoolClient,
   classId: number,
+  gymId: string,
 ): Promise<typeof gymClassesTable.$inferSelect | null> {
   const result = await client.query<LockedClassRow>(
     `SELECT
         id,
+        gym_id,
         name,
         category,
         description,
@@ -104,34 +117,40 @@ async function loadLockedClass(
         max_participants,
         enrolled_count,
         enrolled_member_ids,
+        waitlisted_member_ids,
+        attendance_records,
         room,
         status,
         color,
         created_at,
         updated_at
       FROM gym_classes
-      WHERE id = $1
+      WHERE id = $1 AND gym_id = $2
       FOR UPDATE`,
-    [classId],
+    [classId, gymId],
   );
 
   return result.rows[0] ? hydrateLockedClass(result.rows[0]) : null;
 }
 
-async function persistLockedClass(
+async function persistLockedClassRoster(
   client: PoolClient,
   classId: number,
+  gymId: string,
   enrolledCount: number,
   enrolledMemberIds: string[],
+  waitlistedMemberIds: string[],
 ) {
   const result = await client.query<LockedClassRow>(
     `UPDATE gym_classes
       SET enrolled_count = $2,
           enrolled_member_ids = $3::jsonb,
+          waitlisted_member_ids = $4::jsonb,
           updated_at = NOW()
-      WHERE id = $1
+      WHERE id = $1 AND gym_id = $5
       RETURNING
         id,
+        gym_id,
         name,
         category,
         description,
@@ -142,19 +161,34 @@ async function persistLockedClass(
         max_participants,
         enrolled_count,
         enrolled_member_ids,
+        waitlisted_member_ids,
+        attendance_records,
         room,
         status,
         color,
         created_at,
         updated_at`,
-    [classId, enrolledCount, JSON.stringify(enrolledMemberIds)],
+    [
+      classId,
+      enrolledCount,
+      JSON.stringify(enrolledMemberIds),
+      JSON.stringify(waitlistedMemberIds),
+      gymId,
+    ],
   );
 
   return hydrateLockedClass(result.rows[0]);
 }
 
+function parseClassId(rawId: string | string[] | undefined): number | null {
+  const value = Array.isArray(rawId) ? rawId[0] : rawId;
+  const classId = parseInt(value ?? "", 10);
+  return Number.isNaN(classId) ? null : classId;
+}
+
 async function withLockedClass(
   classId: number,
+  gymId: string,
   mutate: (
     client: PoolClient,
     cls: typeof gymClassesTable.$inferSelect,
@@ -164,7 +198,7 @@ async function withLockedClass(
 
   try {
     await client.query("BEGIN");
-    const cls = await loadLockedClass(client, classId);
+    const cls = await loadLockedClass(client, classId, gymId);
     if (!cls) {
       await client.query("ROLLBACK");
       return null;
@@ -181,12 +215,15 @@ async function withLockedClass(
   }
 }
 
-router.get("/classes", async (_req: Request, res: Response): Promise<void> => {
+router.get("/classes", requireAuth(), async (req: Request, res: Response): Promise<void> => {
+  const access = await requireApprovedAccess(req, res);
+  if (!access) return;
+
   const today = new Date().toISOString().split("T")[0];
   const classes = await db
     .select()
     .from(gymClassesTable)
-    .where(gte(gymClassesTable.date, today))
+    .where(and(eq(gymClassesTable.gymId, access.gymId), gte(gymClassesTable.date, today)))
     .orderBy(gymClassesTable.date, gymClassesTable.startTime);
 
   res.json(classes.map(serializeClass));
@@ -207,7 +244,7 @@ router.get(
         enrolledMemberIds: gymClassesTable.enrolledMemberIds,
       })
       .from(gymClassesTable)
-      .where(gte(gymClassesTable.date, today));
+      .where(and(eq(gymClassesTable.gymId, access.gymId), gte(gymClassesTable.date, today)));
 
     const enrolledClassIds = classes
       .filter(
@@ -220,6 +257,34 @@ router.get(
   },
 );
 
+router.get(
+  "/classes/waitlisted",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
+
+    const today = new Date().toISOString().split("T")[0];
+    const classes = await db
+      .select({
+        id: gymClassesTable.id,
+        waitlistedMemberIds: gymClassesTable.waitlistedMemberIds,
+      })
+      .from(gymClassesTable)
+      .where(and(eq(gymClassesTable.gymId, access.gymId), gte(gymClassesTable.date, today)));
+
+    const waitlistedClassIds = classes
+      .filter(
+        (cls) =>
+          Array.isArray(cls.waitlistedMemberIds) && cls.waitlistedMemberIds.includes(callerUserId),
+      )
+      .map((cls) => String(cls.id));
+
+    res.json({ classIds: waitlistedClassIds });
+  },
+);
+
 router.post(
   "/classes/:id/enroll",
   requireAuth(),
@@ -228,16 +293,18 @@ router.post(
     if (!access) return;
     const callerUserId = access.userId;
 
-    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const classId = parseInt(rawId, 10);
-    if (isNaN(classId)) {
+    const classId = parseClassId(req.params.id);
+    if (classId === null) {
       res.status(400).json({ error: "Invalid class ID" });
       return;
     }
 
     try {
-      const updated = await withLockedClass(classId, async (client, cls) => {
+      const updated = await withLockedClass(classId, access.gymId, async (client, cls) => {
         const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds)
+          ? cls.waitlistedMemberIds
+          : [];
         if (enrolledMemberIds.includes(callerUserId)) {
           return cls;
         }
@@ -246,10 +313,14 @@ router.post(
           throw new RouteError(409, "Class is full");
         }
 
-        return persistLockedClass(client, classId, cls.enrolledCount + 1, [
-          ...enrolledMemberIds,
-          callerUserId,
-        ]);
+        return persistLockedClassRoster(
+          client,
+          classId,
+          access.gymId,
+          cls.enrolledCount + 1,
+          [...enrolledMemberIds, callerUserId],
+          waitlistedMemberIds.filter((memberId) => memberId !== callerUserId),
+        );
       });
 
       if (!updated) {
@@ -270,6 +341,115 @@ router.post(
   },
 );
 
+router.post(
+  "/classes/:id/waitlist",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
+
+    const classId = parseClassId(req.params.id);
+    if (classId === null) {
+      res.status(400).json({ error: "Invalid class ID" });
+      return;
+    }
+
+    try {
+      const updated = await withLockedClass(classId, access.gymId, async (client, cls) => {
+        const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds)
+          ? cls.waitlistedMemberIds
+          : [];
+
+        if (enrolledMemberIds.includes(callerUserId)) {
+          throw new RouteError(409, "Already enrolled in class");
+        }
+
+        if (cls.enrolledCount < cls.maxParticipants) {
+          throw new RouteError(409, "Class has open spots");
+        }
+
+        if (waitlistedMemberIds.includes(callerUserId)) {
+          return cls;
+        }
+
+        return persistLockedClassRoster(
+          client,
+          classId,
+          access.gymId,
+          cls.enrolledCount,
+          enrolledMemberIds,
+          [...waitlistedMemberIds, callerUserId],
+        );
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: "Class not found" });
+        return;
+      }
+
+      res.json(serializeClass(updated));
+    } catch (error) {
+      if (isRouteError(error)) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
+
+      req.log.error({ error }, "Error joining class waitlist");
+      res.status(500).json({ error: "Failed to join class waitlist" });
+    }
+  },
+);
+
+router.delete(
+  "/classes/:id/waitlist",
+  requireAuth(),
+  async (req: Request, res: Response): Promise<void> => {
+    const access = await requireApprovedAccess(req, res);
+    if (!access) return;
+    const callerUserId = access.userId;
+
+    const classId = parseClassId(req.params.id);
+    if (classId === null) {
+      res.status(400).json({ error: "Invalid class ID" });
+      return;
+    }
+
+    try {
+      const updated = await withLockedClass(classId, access.gymId, async (client, cls) => {
+        const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds)
+          ? cls.waitlistedMemberIds
+          : [];
+
+        if (!waitlistedMemberIds.includes(callerUserId)) {
+          return cls;
+        }
+
+        return persistLockedClassRoster(
+          client,
+          classId,
+          access.gymId,
+          cls.enrolledCount,
+          enrolledMemberIds,
+          waitlistedMemberIds.filter((memberId) => memberId !== callerUserId),
+        );
+      });
+
+      if (!updated) {
+        res.status(404).json({ error: "Class not found" });
+        return;
+      }
+
+      res.json(serializeClass(updated));
+    } catch (error) {
+      req.log.error({ error }, "Error leaving class waitlist");
+      res.status(500).json({ error: "Failed to leave class waitlist" });
+    }
+  },
+);
+
 router.delete(
   "/classes/:id/enroll",
   requireAuth(),
@@ -278,26 +458,30 @@ router.delete(
     if (!access) return;
     const callerUserId = access.userId;
 
-    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const classId = parseInt(rawId, 10);
-    if (isNaN(classId)) {
+    const classId = parseClassId(req.params.id);
+    if (classId === null) {
       res.status(400).json({ error: "Invalid class ID" });
       return;
     }
 
     try {
-      const updated = await withLockedClass(classId, async (client, cls) => {
+      const updated = await withLockedClass(classId, access.gymId, async (client, cls) => {
         const enrolledMemberIds = Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [];
+        const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds)
+          ? cls.waitlistedMemberIds
+          : [];
         if (!enrolledMemberIds.includes(callerUserId)) {
           return cls;
         }
 
         const nextMemberIds = enrolledMemberIds.filter((memberId) => memberId !== callerUserId);
-        return persistLockedClass(
+        return persistLockedClassRoster(
           client,
           classId,
+          access.gymId,
           Math.max(0, cls.enrolledCount - 1),
           nextMemberIds,
+          waitlistedMemberIds,
         );
       });
 

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { getLocalDateKey, getMillisecondsUntilNextLocalDate } from "@/lib/date-key";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
 
@@ -36,10 +37,6 @@ export interface NutritionSummary {
   water: number;
 }
 
-function getDateKey(date: Date = new Date()): string {
-  return date.toISOString().split("T")[0];
-}
-
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
@@ -50,6 +47,7 @@ interface NutritionContextType {
   addFoodEntry: (entry: Omit<FoodEntry, "id" | "timestamp">, date?: string) => Promise<void>;
   removeFoodEntry: (entryId: string, date?: string) => Promise<void>;
   updateWaterIntake: (glasses: number, date?: string) => Promise<void>;
+  getLogsForRange: (startDate: string, endDate: string) => DailyLog[];
   getWeeklyCalories: () => { date: string; calories: number }[];
   get30DayCalories: () => { date: string; calories: number }[];
   isLoading: boolean;
@@ -62,8 +60,27 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
   const { isLoaded: authLoaded, userId } = useAuth();
   const [logs, setLogs] = useState<Record<string, DailyLog>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const today = getDateKey();
+  const [today, setToday] = useState(() => getLocalDateKey());
   const storageKey = `${NUTRITION_STORAGE_KEY}:${userId ?? "guest"}`;
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleNextDayRefresh = () => {
+      timeoutId = setTimeout(() => {
+        setToday(getLocalDateKey());
+        scheduleNextDayRefresh();
+      }, getMillisecondsUntilNextLocalDate());
+    };
+
+    scheduleNextDayRefresh();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!authLoaded) {
@@ -145,12 +162,21 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     [logs, saveLogs, today],
   );
 
+  const getLogsForRange = useCallback(
+    (startDate: string, endDate: string) => {
+      return Object.values(logs)
+        .filter((log) => log.date >= startDate && log.date <= endDate)
+        .sort((left, right) => left.date.localeCompare(right.date));
+    },
+    [logs],
+  );
+
   const getWeeklyCalories = useCallback(() => {
     const result = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateKey = getDateKey(d);
+      const dateKey = getLocalDateKey(d);
       const log = logs[dateKey] || { date: dateKey, entries: [], waterIntake: 0 };
       const calories = log.entries.reduce((sum, e) => sum + e.calories, 0);
       result.push({ date: dateKey, calories });
@@ -163,7 +189,7 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateKey = getDateKey(d);
+      const dateKey = getLocalDateKey(d);
       const log = logs[dateKey] || { date: dateKey, entries: [], waterIntake: 0 };
       const calories = log.entries.reduce((sum, e) => sum + e.calories, 0);
       result.push({ date: dateKey, calories });
@@ -179,6 +205,7 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
         addFoodEntry,
         removeFoodEntry,
         updateWaterIntake,
+        getLogsForRange,
         getWeeklyCalories,
         get30DayCalories,
         isLoading,

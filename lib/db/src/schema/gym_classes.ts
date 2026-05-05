@@ -2,8 +2,18 @@ import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+export type ClassAttendanceStatus = "booked" | "checked_in" | "no_show";
+
+export type ClassAttendanceRecord = {
+  memberId: string;
+  status: ClassAttendanceStatus;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
 export const gymClassesTable = pgTable("gym_classes", {
   id: serial("id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   name: text("name").notNull(),
   category: text("category").notNull().default("Other"),
   description: text("description").notNull().default(""),
@@ -14,6 +24,11 @@ export const gymClassesTable = pgTable("gym_classes", {
   maxParticipants: integer("max_participants").notNull(),
   enrolledCount: integer("enrolled_count").notNull().default(0),
   enrolledMemberIds: jsonb("enrolled_member_ids").notNull().default([]).$type<string[]>(),
+  waitlistedMemberIds: jsonb("waitlisted_member_ids").notNull().default([]).$type<string[]>(),
+  attendanceRecords: jsonb("attendance_records")
+    .notNull()
+    .default([])
+    .$type<ClassAttendanceRecord[]>(),
   room: text("room").notNull(),
   status: text("status").notNull().default("scheduled"),
   color: text("color").notNull().default("#9096B3"),

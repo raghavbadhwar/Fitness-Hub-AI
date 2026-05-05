@@ -8,6 +8,7 @@ export interface MemberAiMemoryMessage {
 
 export const memberAiProfiles = pgTable("member_ai_profiles", {
   memberClerkId: text("member_clerk_id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   memorySummary: text("memory_summary").notNull().default(""),
   goals: jsonb("goals").notNull().default([]).$type<string[]>(),
   preferences: jsonb("preferences").notNull().default([]).$type<string[]>(),

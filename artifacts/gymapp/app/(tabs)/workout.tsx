@@ -1,4 +1,4 @@
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
+import { useNutrition } from "@/contexts/NutritionContext";
 import {
   type SaveWorkoutPlanInput,
   type SavedWorkoutPlan,
@@ -24,6 +25,14 @@ import {
 import { EXERCISES, searchExercises } from "@/constants/exercises";
 import { useAuth } from "@clerk/expo";
 import { getApiBase } from "@/lib/api-base";
+import { impact } from "@/lib/haptics";
+import {
+  formatMonthLabel,
+  getCurrentMonthKey,
+  shiftMonthKey,
+  type MonthlyReviewResponse,
+  type SavedMonthlyReview,
+} from "@/lib/monthly-review";
 
 const MUSCLE_FILTER_CHIPS = [
   "All",
@@ -136,7 +145,7 @@ function parsePositiveInteger(value: unknown, fallback: number): number {
 }
 
 export default function WorkoutScreen() {
-  const { profile, refreshProfile } = useApp();
+  const { profile: storedProfile, refreshProfile } = useApp();
   const {
     sessions,
     personalRecords,
@@ -149,14 +158,27 @@ export default function WorkoutScreen() {
     getWeeklyVolume,
   } = useWorkout();
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ role?: string }>();
   const colors = useColors();
   const { getToken, userId } = useAuth();
+  const { todayLog } = useNutrition();
   const [loadingAI, setLoadingAI] = useState(false);
+  const profile = useMemo(
+    () =>
+      routeParams.role === "trainer"
+        ? {
+            ...storedProfile,
+            name: storedProfile.name || "Coach Preview",
+            role: "trainer" as const,
+          }
+        : storedProfile,
+    [routeParams.role, storedProfile],
+  );
   const isTrainerOrOwner = profile.role === "trainer" || profile.role === "owner";
   const isMemberView = !isTrainerOrOwner;
 
   const tabOptions = isTrainerOrOwner
-    ? (["workouts", "exercises", "records", "templates"] as const)
+    ? (["workouts", "exercises", "records", "templates", "reviews"] as const)
     : (["workouts", "exercises", "records"] as const);
   type TabOption = (typeof tabOptions)[number];
 
@@ -174,6 +196,12 @@ export default function WorkoutScreen() {
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<AssignableMember | null>(null);
   const [assigningWorkout, setAssigningWorkout] = useState(false);
+  const [reviewMonth, setReviewMonth] = useState(() => getCurrentMonthKey());
+  const [selectedReviewMemberId, setSelectedReviewMemberId] = useState<string | null>(null);
+  const [trainerMonthlyReview, setTrainerMonthlyReview] = useState<SavedMonthlyReview | null>(null);
+  const [loadingTrainerMonthlyReview, setLoadingTrainerMonthlyReview] = useState(false);
+  const [updatingTrainerMonthlyReview, setUpdatingTrainerMonthlyReview] = useState(false);
+  const [trainerMonthlyReviewError, setTrainerMonthlyReviewError] = useState<string | null>(null);
 
   const [assignedWorkouts, setAssignedWorkouts] = useState<AssignedWorkout[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(false);
@@ -183,6 +211,36 @@ export default function WorkoutScreen() {
   const weeklyVolume = getWeeklyVolume();
   const thisWeekVolume = weeklyVolume.reduce((sum, d) => sum + d.volume, 0);
   const recentSessions = sessions.slice(0, 10);
+  const todayNutritionSummary = useMemo(() => {
+    const totals = todayLog.entries.reduce(
+      (acc, entry) => ({
+        calories: acc.calories + entry.calories,
+        protein: acc.protein + entry.protein,
+        carbs: acc.carbs + entry.carbs,
+        fat: acc.fat + entry.fat,
+        fiber: acc.fiber + entry.fiber,
+      }),
+      {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+      },
+    );
+
+    return {
+      ...totals,
+      waterIntake: todayLog.waterIntake,
+      targetCalories: profile.dailyCalorieTarget,
+      targetProtein: profile.dailyProteinTarget,
+    };
+  }, [
+    profile.dailyCalorieTarget,
+    profile.dailyProteinTarget,
+    todayLog.entries,
+    todayLog.waterIntake,
+  ]);
   const savedPlanSummaries = useMemo(
     () =>
       savedPlans.slice(0, 4).map((plan) => ({
@@ -255,6 +313,10 @@ export default function WorkoutScreen() {
       );
     });
   }, [assignableMembers, memberSearch]);
+  const selectedReviewMember = useMemo(
+    () => assignableMembers.find((member) => member.id === selectedReviewMemberId) ?? null,
+    [assignableMembers, selectedReviewMemberId],
+  );
 
   const fetchTemplates = useCallback(async () => {
     if (!isTrainerOrOwner) return;
@@ -298,6 +360,38 @@ export default function WorkoutScreen() {
     }
   }, [isTrainerOrOwner, getToken]);
 
+  const fetchTrainerMonthlyReview = useCallback(
+    async (memberId: string, month: string) => {
+      if (!isTrainerOrOwner || !memberId) return;
+
+      setLoadingTrainerMonthlyReview(true);
+      setTrainerMonthlyReviewError(null);
+      try {
+        const token = await getToken();
+        const response = await fetch(
+          `${getApiBase()}/api/monthly-reviews?memberId=${encodeURIComponent(
+            memberId,
+          )}&month=${encodeURIComponent(month)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const payload = (await response.json().catch(() => ({}))) as MonthlyReviewResponse & {
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to fetch monthly review");
+        }
+        setTrainerMonthlyReview(payload.review);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch monthly review";
+        setTrainerMonthlyReview(null);
+        setTrainerMonthlyReviewError(message);
+      } finally {
+        setLoadingTrainerMonthlyReview(false);
+      }
+    },
+    [getToken, isTrainerOrOwner],
+  );
+
   const fetchAssignedWorkouts = useCallback(async () => {
     if (isTrainerOrOwner || !userId) return;
     setLoadingAssigned(true);
@@ -323,6 +417,28 @@ export default function WorkoutScreen() {
       fetchTemplates();
     }
   }, [activeTab, isTrainerOrOwner, fetchTemplates]);
+
+  useEffect(() => {
+    if (isTrainerOrOwner && activeTab === "reviews") {
+      void fetchAssignableMembers();
+    }
+  }, [activeTab, fetchAssignableMembers, isTrainerOrOwner]);
+
+  useEffect(() => {
+    if (!isTrainerOrOwner || activeTab !== "reviews" || selectedReviewMemberId) {
+      return;
+    }
+    if (assignableMembers.length > 0) {
+      setSelectedReviewMemberId(assignableMembers[0].id);
+    }
+  }, [activeTab, assignableMembers, isTrainerOrOwner, selectedReviewMemberId]);
+
+  useEffect(() => {
+    if (!isTrainerOrOwner || activeTab !== "reviews" || !selectedReviewMemberId) {
+      return;
+    }
+    void fetchTrainerMonthlyReview(selectedReviewMemberId, reviewMonth);
+  }, [activeTab, fetchTrainerMonthlyReview, isTrainerOrOwner, reviewMonth, selectedReviewMemberId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -412,6 +528,7 @@ export default function WorkoutScreen() {
           goals: profile.fitnessGoal,
           fitnessLevel: "intermediate",
           availableTime: 45,
+          todayStats: todayNutritionSummary,
           behaviorProfile,
           savedPlans: savedPlanSummaries,
         }),
@@ -541,109 +658,304 @@ export default function WorkoutScreen() {
     ]);
   };
 
+  const handleTrainerMarkReviewReviewed = useCallback(async () => {
+    if (!trainerMonthlyReview) return;
+
+    setUpdatingTrainerMonthlyReview(true);
+    setTrainerMonthlyReviewError(null);
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${getApiBase()}/api/monthly-reviews/${encodeURIComponent(trainerMonthlyReview.id)}/review`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ reviewed: true }),
+        },
+      );
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as Partial<MonthlyReviewResponse> & {
+        error?: string;
+      };
+      if (!response.ok || !payload.review) {
+        throw new Error(payload.error || "Failed to mark review reviewed");
+      }
+      setTrainerMonthlyReview(payload.review);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to mark review reviewed";
+      setTrainerMonthlyReviewError(message);
+    } finally {
+      setUpdatingTrainerMonthlyReview(false);
+    }
+  }, [getToken, trainerMonthlyReview]);
+
   const prs = Object.values(personalRecords);
+  const incompleteAssignedWorkouts = assignedWorkouts.filter((assigned) => !assigned.completedAt);
+  const nextAssignedWorkout = incompleteAssignedWorkouts[0];
+  const firstSavedPlan = savedPlans[0];
+  const primaryWorkoutName =
+    nextAssignedWorkout?.templateName || firstSavedPlan?.name || "Full Body Primer";
+  const primaryWorkoutCount =
+    nextAssignedWorkout?.exercises.length || firstSavedPlan?.exercises.length || 6;
+  const primaryWorkoutSource = nextAssignedWorkout
+    ? `Assigned by ${nextAssignedWorkout.trainerName}`
+    : firstSavedPlan
+      ? firstSavedPlan.focus || "Saved plan"
+      : "Quick start template";
+  const firstName = profile.name?.split(" ")[0] || "there";
+
+  const handleStartTodayWorkout = () => {
+    if (nextAssignedWorkout) {
+      handleStartAssignedWorkout(nextAssignedWorkout);
+      return;
+    }
+
+    if (firstSavedPlan) {
+      handleStartSavedPlan(firstSavedPlan.id);
+      return;
+    }
+
+    handleQuickStart(QUICK_STARTS[3]);
+  };
 
   const tabLabel = (tab: TabOption) => {
     if (tab === "workouts") return "Workouts";
     if (tab === "exercises") return "Exercises";
     if (tab === "records") return "Records";
     if (tab === "templates") return "Templates";
+    if (tab === "reviews") return "Reviews";
     return tab;
+  };
+
+  const openTrainerTab = (tab: Extract<TabOption, "templates" | "reviews">) => {
+    impact();
+    setActiveTab(tab);
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.topBar}>
-        <Text style={[styles.screenTitle, { color: colors.text }]}>Workout</Text>
-        <Pressable
-          style={[styles.startBtn, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            const session = startSession("Custom Workout");
-            router.push({
-              pathname: "/workout-session",
-              params: { sessionId: session.id },
-            });
-          }}
-        >
-          <Feather name="plus" size={18} color="#fff" />
-          <Text style={styles.startBtnText}>Start</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.weekStats}>
-        <View
-          style={[
-            styles.weekStatCard,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.weekStatVal, { color: colors.primary }]}>
-            {
-              sessions.filter((s) => {
-                const today = new Date();
-                const weekAgo = new Date(today);
-                weekAgo.setDate(today.getDate() - 7);
-                return new Date(s.date) >= weekAgo && s.completed;
-              }).length
-            }
-          </Text>
-          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>This Week</Text>
-        </View>
-        <View
-          style={[
-            styles.weekStatCard,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.weekStatVal, { color: colors.text }]}>
-            {Math.round(thisWeekVolume / 1000)}k
-          </Text>
-          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>Volume (kg)</Text>
-        </View>
-        <View
-          style={[
-            styles.weekStatCard,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.weekStatVal, { color: colors.success }]}>{prs.length}</Text>
-          <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>Total PRs</Text>
-        </View>
-      </View>
-
-      <View style={styles.tabs}>
-        {tabOptions.map((tab) => (
-          <Pressable
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab && {
-                borderBottomColor: colors.primary,
-                borderBottomWidth: 2,
-              },
-            ]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                {
-                  color: activeTab === tab ? colors.primary : colors.mutedForeground,
-                },
-              ]}
-            >
-              {tabLabel(tab)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          styles.webFrame,
+          { paddingBottom: TAB_BAR_HEIGHT + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.trainingHero}>
+          <View style={styles.heroCopy}>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
+              Ready, {firstName}
+            </Text>
+            <Text style={[styles.screenTitle, { color: colors.text }]}>Training Floor</Text>
+            <Text style={[styles.heroSubtitle, { color: colors.mutedForeground }]}>
+              Start the best next session, save repeatable plans, and keep trainer work separate.
+            </Text>
+            <View style={styles.heroChipRow}>
+              <View style={[styles.heroChip, { backgroundColor: colors.primaryMuted }]}>
+                <Feather name="zap" size={13} color={colors.primary} />
+                <Text style={[styles.heroChipText, { color: colors.primary }]}>
+                  {primaryWorkoutSource}
+                </Text>
+              </View>
+              <View style={[styles.heroChip, { backgroundColor: colors.surface }]}>
+                <Feather name="clock" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.heroChipText, { color: colors.mutedForeground }]}>
+                  45 min · {primaryWorkoutCount} moves
+                </Text>
+              </View>
+            </View>
+          </View>
+          <Pressable
+            style={[styles.startBtn, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              const session = startSession("Custom Workout");
+              router.push({
+                pathname: "/workout-session",
+                params: { sessionId: session.id },
+              });
+            }}
+          >
+            <Feather name="plus" size={18} color="#fff" />
+            <Text style={styles.startBtnText}>Custom</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.weekStats}>
+          <View
+            style={[
+              styles.weekStatCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.weekStatVal, { color: colors.primary }]}>
+              {
+                sessions.filter((s) => {
+                  const today = new Date();
+                  const weekAgo = new Date(today);
+                  weekAgo.setDate(today.getDate() - 7);
+                  return new Date(s.date) >= weekAgo && s.completed;
+                }).length
+              }
+            </Text>
+            <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>This Week</Text>
+          </View>
+          <View
+            style={[
+              styles.weekStatCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.weekStatVal, { color: colors.text }]}>
+              {Math.round(thisWeekVolume / 1000)}k
+            </Text>
+            <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>
+              Volume (kg)
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.weekStatCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.weekStatVal, { color: colors.success }]}>{prs.length}</Text>
+            <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>Total PRs</Text>
+          </View>
+        </View>
+
+        {isTrainerOrOwner && (
+          <View
+            style={[
+              styles.trainerWorkspaceCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.trainerWorkspaceHeader}>
+              <View style={[styles.trainerWorkspaceIcon, { backgroundColor: colors.primaryMuted }]}>
+                <Feather name="users" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.trainerWorkspaceEyebrow, { color: colors.primary }]}>
+                  Trainer workspace
+                </Text>
+                <Text style={[styles.trainerWorkspaceTitle, { color: colors.text }]}>
+                  Build, assign, and review member training without mixing it into member logging.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.trainerWorkspaceGrid}>
+              <Pressable
+                style={[styles.trainerWorkspaceItem, { backgroundColor: colors.surface }]}
+                onPress={() => openTrainerTab("templates")}
+              >
+                <Feather name="clipboard" size={15} color={colors.primary} />
+                <Text style={[styles.trainerWorkspaceValue, { color: colors.text }]}>
+                  {templates.length}
+                </Text>
+                <Text style={[styles.trainerWorkspaceLabel, { color: colors.mutedForeground }]}>
+                  reusable templates
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.trainerWorkspaceItem, { backgroundColor: colors.surface }]}
+                onPress={() => openTrainerTab("reviews")}
+              >
+                <Feather name="file-text" size={15} color={colors.primary} />
+                <Text style={[styles.trainerWorkspaceValue, { color: colors.text }]}>
+                  {assignableMembers.length}
+                </Text>
+                <Text style={[styles.trainerWorkspaceLabel, { color: colors.mutedForeground }]}>
+                  reviewable members
+                </Text>
+              </Pressable>
+              <View style={[styles.trainerWorkspaceItem, { backgroundColor: colors.surface }]}>
+                <Feather name="shield" size={15} color={colors.primary} />
+                <Text style={[styles.trainerWorkspaceValue, { color: colors.text }]}>Manual</Text>
+                <Text style={[styles.trainerWorkspaceLabel, { color: colors.mutedForeground }]}>
+                  AI suggestions need review
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.tabs}>
+          {tabOptions.map((tab) => (
+            <Pressable
+              key={tab}
+              style={[styles.tab, activeTab === tab && { backgroundColor: colors.primary }]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  {
+                    color: activeTab === tab ? "#fff" : colors.mutedForeground,
+                  },
+                ]}
+              >
+                {tabLabel(tab)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         {activeTab === "workouts" && (
           <>
+            <Pressable
+              style={[
+                styles.todayWorkoutCard,
+                { backgroundColor: colors.card, borderColor: colors.primary + "55" },
+              ]}
+              onPress={handleStartTodayWorkout}
+            >
+              <View style={styles.todayWorkoutHeader}>
+                <View style={[styles.todayWorkoutIcon, { backgroundColor: colors.primaryMuted }]}>
+                  <Feather name="play" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.todayWorkoutEyebrow, { color: colors.primary }]}>
+                    Recommended next
+                  </Text>
+                  <Text style={[styles.todayWorkoutTitle, { color: colors.text }]}>
+                    {primaryWorkoutName}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.todayWorkoutMetaRow}>
+                <View style={[styles.todayWorkoutMetric, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.todayWorkoutMetaLabel, { color: colors.mutedForeground }]}>
+                    Source
+                  </Text>
+                  <Text style={[styles.todayWorkoutMeta, { color: colors.text }]}>
+                    {primaryWorkoutSource}
+                  </Text>
+                </View>
+                <View style={[styles.todayWorkoutMetric, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.todayWorkoutMetaLabel, { color: colors.mutedForeground }]}>
+                    Session
+                  </Text>
+                  <Text style={[styles.todayWorkoutMeta, { color: colors.text }]}>
+                    45 min · {primaryWorkoutCount} moves
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  styles.todayWorkoutButton,
+                  { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
+              >
+                <Text style={styles.todayWorkoutButtonText}>Start now</Text>
+                <Feather name="arrow-right" size={16} color="#fff" />
+              </View>
+            </Pressable>
+
             {!isTrainerOrOwner && assignedWorkouts.length > 0 && (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -751,76 +1063,92 @@ export default function WorkoutScreen() {
                     </Text>
                   </View>
                 ) : (
-                  savedPlans.map((plan) => (
-                    <View
-                      key={plan.id}
-                      style={[
-                        styles.memberPlanCard,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                    >
-                      <View style={styles.memberPlanHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.memberPlanName, { color: colors.text }]}>
-                            {plan.name}
-                          </Text>
-                          <Text style={[styles.memberPlanMeta, { color: colors.mutedForeground }]}>
-                            {plan.focus ? `${plan.focus} · ` : ""}
-                            {plan.exercises.length} exercises
-                          </Text>
-                        </View>
-                        <View
-                          style={[styles.memberPlanPill, { backgroundColor: colors.primaryMuted }]}
-                        >
-                          <Text style={[styles.memberPlanPillText, { color: colors.primary }]}>
-                            Saved
-                          </Text>
-                        </View>
-                      </View>
-
-                      <Text
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.memberPlanRail}
+                  >
+                    {savedPlans.slice(0, 4).map((plan) => (
+                      <View
+                        key={plan.id}
                         style={[
-                          styles.memberPlanExercisePreview,
-                          { color: colors.mutedForeground },
+                          styles.memberPlanCard,
+                          {
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
+                          },
                         ]}
                       >
-                        {plan.exercises
-                          .slice(0, 3)
-                          .map((exercise) => exercise.name)
-                          .join(" · ")}
-                        {plan.exercises.length > 3 ? ` · +${plan.exercises.length - 3} more` : ""}
-                      </Text>
+                        <View style={styles.memberPlanHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.memberPlanName, { color: colors.text }]}>
+                              {plan.name}
+                            </Text>
+                            <Text
+                              style={[styles.memberPlanMeta, { color: colors.mutedForeground }]}
+                            >
+                              {plan.focus ? `${plan.focus} · ` : ""}
+                              {plan.exercises.length} exercises
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.memberPlanPill,
+                              { backgroundColor: colors.primaryMuted },
+                            ]}
+                          >
+                            <Text style={[styles.memberPlanPillText, { color: colors.primary }]}>
+                              Saved
+                            </Text>
+                          </View>
+                        </View>
 
-                      <View style={styles.memberPlanActions}>
-                        <Pressable
-                          style={[styles.memberPlanPrimaryBtn, { backgroundColor: colors.primary }]}
-                          onPress={() => handleStartSavedPlan(plan.id)}
+                        <Text
+                          style={[
+                            styles.memberPlanExercisePreview,
+                            { color: colors.mutedForeground },
+                          ]}
                         >
-                          <Text style={styles.memberPlanPrimaryBtnText}>Start</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.memberPlanSecondaryBtn, { borderColor: colors.border }]}
-                          onPress={() => {
-                            setEditingPlan(plan);
-                            setShowPlanModal(true);
-                          }}
-                        >
-                          <Text style={[styles.memberPlanSecondaryBtnText, { color: colors.text }]}>
-                            Edit
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.memberPlanIconBtn, { borderColor: colors.border }]}
-                          onPress={() => handleDeleteSavedPlan(plan)}
-                        >
-                          <Feather name="trash-2" size={14} color={colors.destructive} />
-                        </Pressable>
+                          {plan.exercises
+                            .slice(0, 3)
+                            .map((exercise) => exercise.name)
+                            .join(" · ")}
+                          {plan.exercises.length > 3 ? ` · +${plan.exercises.length - 3} more` : ""}
+                        </Text>
+
+                        <View style={styles.memberPlanActions}>
+                          <Pressable
+                            style={[
+                              styles.memberPlanPrimaryBtn,
+                              { backgroundColor: colors.primary },
+                            ]}
+                            onPress={() => handleStartSavedPlan(plan.id)}
+                          >
+                            <Text style={styles.memberPlanPrimaryBtnText}>Start</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.memberPlanSecondaryBtn, { borderColor: colors.border }]}
+                            onPress={() => {
+                              setEditingPlan(plan);
+                              setShowPlanModal(true);
+                            }}
+                          >
+                            <Text
+                              style={[styles.memberPlanSecondaryBtnText, { color: colors.text }]}
+                            >
+                              Edit
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.memberPlanIconBtn, { borderColor: colors.border }]}
+                            onPress={() => handleDeleteSavedPlan(plan)}
+                          >
+                            <Feather name="trash-2" size={14} color={colors.destructive} />
+                          </Pressable>
+                        </View>
                       </View>
-                    </View>
-                  ))
+                    ))}
+                  </ScrollView>
                 )}
               </>
             )}
@@ -1052,6 +1380,266 @@ export default function WorkoutScreen() {
                   </Text>
                 </View>
               ))
+            )}
+          </View>
+        )}
+
+        {activeTab === "reviews" && isTrainerOrOwner && (
+          <View style={styles.reviewPanel}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Member Monthly Reviews
+              </Text>
+              <View style={styles.reviewMonthControls}>
+                <Pressable
+                  style={[styles.reviewMonthBtn, { borderColor: colors.border }]}
+                  onPress={() => setReviewMonth((month) => shiftMonthKey(month, -1))}
+                >
+                  <Feather name="chevron-left" size={15} color={colors.text} />
+                </Pressable>
+                <Text style={[styles.reviewMonthLabel, { color: colors.text }]}>
+                  {formatMonthLabel(reviewMonth)}
+                </Text>
+                <Pressable
+                  style={[
+                    styles.reviewMonthBtn,
+                    {
+                      borderColor: colors.border,
+                      opacity: reviewMonth < getCurrentMonthKey() ? 1 : 0.35,
+                    },
+                  ]}
+                  onPress={() => setReviewMonth((month) => shiftMonthKey(month, 1))}
+                  disabled={reviewMonth >= getCurrentMonthKey()}
+                >
+                  <Feather name="chevron-right" size={15} color={colors.text} />
+                </Pressable>
+              </View>
+            </View>
+            <Text style={[styles.sectionHelperText, { color: colors.mutedForeground }]}>
+              Saved member-generated reports only. AI suggestions stay advisory until a member or
+              trainer applies them.
+            </Text>
+
+            {loadingAssignableMembers ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                  Loading members...
+                </Text>
+              </View>
+            ) : assignableMembers.length === 0 ? (
+              <View style={styles.empty}>
+                <Feather name="users" size={44} color={colors.mutedForeground} />
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  No member profiles are available for monthly reviews yet.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.reviewMemberRail}
+                >
+                  {assignableMembers.map((member) => {
+                    const isSelected = member.id === selectedReviewMemberId;
+                    return (
+                      <Pressable
+                        key={member.id}
+                        style={[
+                          styles.reviewMemberChip,
+                          {
+                            backgroundColor: isSelected ? colors.primaryMuted : colors.card,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => setSelectedReviewMemberId(member.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.reviewMemberName,
+                            { color: isSelected ? colors.primary : colors.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {member.name}
+                        </Text>
+                        <Text
+                          style={[styles.reviewMemberEmail, { color: colors.mutedForeground }]}
+                          numberOfLines={1}
+                        >
+                          {member.email || member.id}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                {loadingTrainerMonthlyReview ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color={colors.primary} size="small" />
+                    <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                      Loading monthly review...
+                    </Text>
+                  </View>
+                ) : trainerMonthlyReview ? (
+                  <View
+                    style={[
+                      styles.trainerReviewCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <View style={styles.trainerReviewHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.trainerReviewEyebrow, { color: colors.primary }]}>
+                          {selectedReviewMember?.name ?? "Member"} · {trainerMonthlyReview.status}
+                        </Text>
+                        <Text style={[styles.trainerReviewTitle, { color: colors.text }]}>
+                          {trainerMonthlyReview.aiSummary || "Monthly review saved"}
+                        </Text>
+                      </View>
+                      {trainerMonthlyReview.status !== "reviewed" && (
+                        <Pressable
+                          style={[
+                            styles.reviewReviewedBtn,
+                            {
+                              borderColor: colors.border,
+                              opacity: updatingTrainerMonthlyReview ? 0.65 : 1,
+                            },
+                          ]}
+                          onPress={handleTrainerMarkReviewReviewed}
+                          disabled={updatingTrainerMonthlyReview}
+                        >
+                          <Feather name="check" size={14} color={colors.text} />
+                          <Text style={[styles.reviewReviewedText, { color: colors.text }]}>
+                            Review
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+
+                    <View style={styles.trainerReviewMetricGrid}>
+                      {[
+                        {
+                          label: "Workouts",
+                          value: trainerMonthlyReview.metrics.completedWorkouts,
+                          detail: `${trainerMonthlyReview.metrics.consistencyRate}% consistency`,
+                          color: colors.primary,
+                        },
+                        {
+                          label: "Nutrition",
+                          value: trainerMonthlyReview.metrics.nutritionLoggedDays,
+                          detail: `${trainerMonthlyReview.metrics.proteinAdherenceRate}% protein`,
+                          color: colors.info,
+                        },
+                        {
+                          label: "PRs",
+                          value: trainerMonthlyReview.metrics.prCount,
+                          detail: trainerMonthlyReview.metrics.bestLiftName || "No PR",
+                          color: colors.warning,
+                        },
+                        {
+                          label: "Weight",
+                          value:
+                            trainerMonthlyReview.metrics.weightDelta === null
+                              ? "—"
+                              : `${trainerMonthlyReview.metrics.weightDelta > 0 ? "+" : ""}${
+                                  trainerMonthlyReview.metrics.weightDelta
+                                }kg`,
+                          detail: `${trainerMonthlyReview.metrics.bodyMeasurementsLogged} body logs`,
+                          color: colors.success,
+                        },
+                      ].map((item) => (
+                        <View
+                          key={item.label}
+                          style={[styles.trainerReviewMetric, { backgroundColor: colors.surface }]}
+                        >
+                          <Text style={[styles.trainerReviewMetricValue, { color: item.color }]}>
+                            {item.value}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.trainerReviewMetricLabel,
+                              { color: colors.mutedForeground },
+                            ]}
+                          >
+                            {item.label}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.trainerReviewMetricDetail,
+                              { color: colors.mutedForeground },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.detail}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    <Text style={[styles.trainerReviewNote, { color: colors.mutedForeground }]}>
+                      {trainerMonthlyReview.coachNote}
+                    </Text>
+
+                    {trainerMonthlyReview.metrics.risks.length > 0 && (
+                      <View
+                        style={[styles.trainerRiskBox, { backgroundColor: colors.warning + "14" }]}
+                      >
+                        <Feather name="alert-triangle" size={15} color={colors.warning} />
+                        <Text style={[styles.trainerRiskText, { color: colors.warning }]}>
+                          Coaching risk: {trainerMonthlyReview.metrics.risks.join(", ")}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.trainerSuggestions}>
+                      {trainerMonthlyReview.suggestedAdjustments.slice(0, 4).map((suggestion) => (
+                        <View
+                          key={suggestion.id}
+                          style={[styles.trainerSuggestionRow, { borderTopColor: colors.border }]}
+                        >
+                          <Text style={[styles.trainerSuggestionTitle, { color: colors.text }]}>
+                            {suggestion.title}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.trainerSuggestionDetail,
+                              { color: colors.mutedForeground },
+                            ]}
+                          >
+                            {suggestion.detail}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.trainerReviewEmptyCard,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Feather name="file-text" size={32} color={colors.mutedForeground} />
+                    <Text style={[styles.trainerReviewEmptyTitle, { color: colors.text }]}>
+                      No saved review for {selectedReviewMember?.name ?? "this member"}
+                    </Text>
+                    <Text
+                      style={[styles.trainerReviewEmptyBody, { color: colors.mutedForeground }]}
+                    >
+                      The member needs to generate the report from Progress so only bounded monthly
+                      aggregates are saved server-side.
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {trainerMonthlyReviewError && (
+              <Text style={[styles.trainerReviewError, { color: colors.destructive }]}>
+                {trainerMonthlyReviewError}
+              </Text>
             )}
           </View>
         )}
@@ -1816,17 +2404,36 @@ function MemberPlanModal({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
+  webFrame: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
+  trainingHero: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    paddingBottom: 8,
+    paddingVertical: 18,
+    gap: 16,
   },
-  screenTitle: { fontSize: 28, fontWeight: "800" },
+  heroCopy: { flex: 1, minWidth: 0 },
+  greeting: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
+  screenTitle: { fontSize: 30, fontWeight: "900" },
+  heroSubtitle: { fontSize: 13, lineHeight: 19, marginTop: 4, maxWidth: 560 },
+  heroChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  heroChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  heroChipText: { fontSize: 12, fontWeight: "800" },
   startBtn: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
     gap: 4,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1835,7 +2442,6 @@ const styles = StyleSheet.create({
   startBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   weekStats: {
     flexDirection: "row",
-    paddingHorizontal: 16,
     gap: 10,
     marginBottom: 4,
   },
@@ -1848,16 +2454,92 @@ const styles = StyleSheet.create({
   },
   weekStatVal: { fontSize: 24, fontWeight: "700" },
   weekStatLabel: { fontSize: 11, marginTop: 2 },
+  trainerWorkspaceCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    marginTop: 8,
+    marginBottom: 10,
+    padding: 16,
+    gap: 14,
+  },
+  trainerWorkspaceHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  trainerWorkspaceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trainerWorkspaceEyebrow: {
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  trainerWorkspaceTitle: { marginTop: 3, fontSize: 14, fontWeight: "700", lineHeight: 20 },
+  trainerWorkspaceGrid: { gap: 8 },
+  trainerWorkspaceItem: {
+    borderRadius: 12,
+    padding: 12,
+    gap: 5,
+  },
+  trainerWorkspaceValue: { fontSize: 18, fontWeight: "900" },
+  trainerWorkspaceLabel: { fontSize: 12, fontWeight: "700", lineHeight: 17 },
   tabs: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "transparent",
-    marginHorizontal: 16,
-    marginBottom: 8,
+    backgroundColor: "#F4F4F5",
+    borderRadius: 999,
+    padding: 4,
+    marginBottom: 10,
   },
-  tab: { flex: 1, paddingVertical: 10, alignItems: "center" },
-  tabText: { fontSize: 13, fontWeight: "600" },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 999 },
+  tabText: { fontSize: 13, fontWeight: "800" },
   scroll: { paddingHorizontal: 16, gap: 12 },
+  todayWorkoutCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 18,
+    gap: 16,
+    ...Platform.select({
+      web: { boxShadow: "0 10px 18px rgba(0, 0, 0, 0.12)" },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.12,
+        shadowRadius: 18,
+      },
+    }),
+  },
+  todayWorkoutHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  todayWorkoutIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  todayWorkoutEyebrow: { fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  todayWorkoutTitle: { fontSize: 24, fontWeight: "900", marginTop: 3 },
+  todayWorkoutMetaRow: { flexDirection: "row", gap: 10 },
+  todayWorkoutMetric: { flex: 1, borderRadius: 16, padding: 12 },
+  todayWorkoutMetaLabel: { fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  todayWorkoutMeta: { fontSize: 13, fontWeight: "800", marginTop: 2 },
+  todayWorkoutButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  todayWorkoutButtonText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   aiWorkoutCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
   aiWorkoutInner: { flexDirection: "row", alignItems: "center", gap: 12 },
   aiWorkoutIcon: {
@@ -1895,7 +2577,9 @@ const styles = StyleSheet.create({
   },
   memberPlanEmptyTitle: { fontSize: 15, fontWeight: "700" },
   memberPlanEmptyBody: { fontSize: 13, lineHeight: 19 },
+  memberPlanRail: { gap: 10, paddingRight: 2 },
   memberPlanCard: {
+    width: 280,
     borderRadius: 16,
     borderWidth: 1,
     padding: 16,
@@ -1944,6 +2628,74 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  reviewPanel: { gap: 12 },
+  reviewMonthControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  reviewMonthBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewMonthLabel: { minWidth: 116, textAlign: "center", fontSize: 13, fontWeight: "800" },
+  reviewMemberRail: { gap: 8, paddingRight: 2 },
+  reviewMemberChip: {
+    width: 190,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  reviewMemberName: { fontSize: 14, fontWeight: "800" },
+  reviewMemberEmail: { fontSize: 11, marginTop: 2 },
+  trainerReviewCard: { borderRadius: 18, borderWidth: 1, padding: 16, gap: 14 },
+  trainerReviewHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  trainerReviewEyebrow: { fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  trainerReviewTitle: { fontSize: 18, lineHeight: 24, fontWeight: "900", marginTop: 4 },
+  reviewReviewedBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  reviewReviewedText: { fontSize: 12, fontWeight: "800" },
+  trainerReviewMetricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  trainerReviewMetric: { width: "48%", flexGrow: 1, borderRadius: 12, padding: 12 },
+  trainerReviewMetricValue: { fontSize: 20, fontWeight: "900" },
+  trainerReviewMetricLabel: { fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  trainerReviewMetricDetail: { fontSize: 11, marginTop: 3 },
+  trainerReviewNote: { fontSize: 13, lineHeight: 19 },
+  trainerRiskBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 12,
+    padding: 10,
+  },
+  trainerRiskText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  trainerSuggestions: { gap: 0 },
+  trainerSuggestionRow: { borderTopWidth: 1, paddingVertical: 10 },
+  trainerSuggestionTitle: { fontSize: 13, fontWeight: "900" },
+  trainerSuggestionDetail: { fontSize: 12, lineHeight: 17, marginTop: 3 },
+  trainerReviewEmptyCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  trainerReviewEmptyTitle: { fontSize: 16, fontWeight: "900" },
+  trainerReviewEmptyBody: { fontSize: 13, lineHeight: 19 },
+  trainerReviewError: { fontSize: 12, lineHeight: 17, fontWeight: "800" },
   templateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   templateCard: { width: "47%", borderRadius: 12, padding: 14, borderWidth: 1 },
   templateName: { fontSize: 14, fontWeight: "600" },

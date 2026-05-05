@@ -173,7 +173,7 @@ export default function NutritionScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, styles.webFrame]}>
         <Text style={[styles.screenTitle, typography.screenTitle, { color: colors.text }]}>
           Nutrition
         </Text>
@@ -187,7 +187,11 @@ export default function NutritionScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_HEIGHT + 16 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          styles.webFrame,
+          { paddingBottom: TAB_BAR_HEIGHT + 16 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -447,6 +451,11 @@ export default function NutritionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  webFrame: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",

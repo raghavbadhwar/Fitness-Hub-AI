@@ -8,6 +8,7 @@ export type AdminAccessResult =
       userId: string;
       email: string | null;
       role: string | null;
+      gymId: string;
       allowlistConfigured: boolean;
       reason: null;
     }
@@ -17,9 +18,45 @@ export type AdminAccessResult =
       userId: string | null;
       email: string | null;
       role: string | null;
+      gymId: string | null;
       allowlistConfigured: boolean;
       reason: string;
     };
+
+export const DEFAULT_GYM_ID = "gymos-main";
+
+function normalizeGymId(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized && /^[a-z0-9][a-z0-9-]{1,62}$/.test(normalized) ? normalized : null;
+}
+
+function getDefaultGymId() {
+  return normalizeGymId(process.env.DEFAULT_GYM_ID) ?? DEFAULT_GYM_ID;
+}
+
+function getConfiguredAdminGymOwners(): Map<string, string> {
+  const raw = process.env.ADMIN_GYM_OWNER_EMAILS;
+  const owners = new Map<string, string>();
+  if (typeof raw !== "string" || !raw.trim()) {
+    return owners;
+  }
+
+  for (const entry of raw.split(/[,\n;]+/)) {
+    const [rawEmail, rawGymId] = entry.split(":");
+    const email = normalizeEmail(rawEmail);
+    const gymId = normalizeGymId(rawGymId);
+
+    if (email && gymId) {
+      owners.set(email, gymId);
+    }
+  }
+
+  return owners;
+}
 
 function getAllowedAdminEmails(): Set<string> {
   const raw = process.env.ADMIN_ALLOWED_EMAILS;
@@ -35,6 +72,29 @@ function getAllowedAdminEmails(): Set<string> {
   );
 }
 
+function resolveOwnerGymId(email: string | null): {
+  gymId: string | null;
+  allowlistConfigured: boolean;
+} {
+  const configuredOwners = getConfiguredAdminGymOwners();
+  if (configuredOwners.size > 0) {
+    return {
+      gymId: email ? (configuredOwners.get(email) ?? null) : null,
+      allowlistConfigured: true,
+    };
+  }
+
+  const allowedEmails = getAllowedAdminEmails();
+  if (allowedEmails.size > 0) {
+    return {
+      gymId: email && allowedEmails.has(email) ? getDefaultGymId() : null,
+      allowlistConfigured: true,
+    };
+  }
+
+  return { gymId: getDefaultGymId(), allowlistConfigured: false };
+}
+
 export async function resolveAdminAccess(req: Request): Promise<AdminAccessResult> {
   const identity = await getAuthenticatedClerkUser(req);
   if (!identity) {
@@ -44,7 +104,9 @@ export async function resolveAdminAccess(req: Request): Promise<AdminAccessResul
       userId: null,
       email: null,
       role: null,
-      allowlistConfigured: getAllowedAdminEmails().size > 0,
+      gymId: null,
+      allowlistConfigured:
+        getConfiguredAdminGymOwners().size > 0 || getAllowedAdminEmails().size > 0,
       reason: "Unauthorized",
     };
   }
@@ -52,30 +114,31 @@ export async function resolveAdminAccess(req: Request): Promise<AdminAccessResul
   const user = identity.user;
   const role = typeof user.publicMetadata?.role === "string" ? user.publicMetadata.role : null;
   const email = getPrimaryEmail(user);
-  const allowedEmails = getAllowedAdminEmails();
-  const allowlistConfigured = allowedEmails.size > 0;
+  const { gymId, allowlistConfigured } = resolveOwnerGymId(email);
 
-  if (role !== "owner") {
+  if (allowlistConfigured && !gymId) {
     return {
       allowed: false,
       status: 403,
       userId: user.id,
       email,
       role,
+      gymId: null,
       allowlistConfigured,
-      reason: "Forbidden: owner access required",
+      reason: "Forbidden: email is not approved for admin access",
     };
   }
 
-  if (allowlistConfigured && (!email || !allowedEmails.has(email))) {
+  if (!allowlistConfigured && role !== "owner") {
     return {
       allowed: false,
       status: 403,
       userId: user.id,
       email,
       role,
+      gymId,
       allowlistConfigured,
-      reason: "Forbidden: email is not approved for admin access",
+      reason: "Forbidden: owner access required",
     };
   }
 
@@ -83,7 +146,8 @@ export async function resolveAdminAccess(req: Request): Promise<AdminAccessResul
     allowed: true,
     userId: user.id,
     email,
-    role,
+    role: "owner",
+    gymId: gymId ?? getDefaultGymId(),
     allowlistConfigured,
     reason: null,
   };

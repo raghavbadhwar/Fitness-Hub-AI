@@ -18,6 +18,8 @@ import type {
 
 import type {
   AccessCheckResponse,
+  AiActivitySnapshotRequest,
+  AiActivitySnapshotResponse,
   AiAnalyzeFoodRequest,
   AiChatRequest,
   AiFoodAnalysis,
@@ -25,6 +27,7 @@ import type {
   AiWorkoutSuggestion,
   AiWorkoutSuggestionRequest,
   AssignedWorkout,
+  ClassEnrollmentAttendanceUpdateResponse,
   ClassEnrollmentMember,
   CreateGymClassBody,
   CreateWorkoutTemplateBody,
@@ -36,15 +39,21 @@ import type {
   HealthStatus,
   Member,
   MemberWorkoutPlan,
+  MonthlyReviewGenerateBody,
+  MonthlyReviewResponse,
+  MonthlyReviewReviewBody,
+  MonthlyReviewsGetParams,
   OkResponse,
   Profile,
   SetMemberAccessBody,
   SuccessResponse,
   SyncProfileBody,
+  UpdateClassEnrollmentAttendanceBody,
   UpdateGymClassBody,
   UpdateGymSettingsBody,
   UpdateMemberBody,
   UpsertMemberWorkoutPlanBody,
+  WaitlistedClassIdsResponse,
   WorkoutAssignBody,
   WorkoutAssignment,
   WorkoutAssignmentsBindResponse,
@@ -250,6 +259,71 @@ export function useListEnrolledClassIds<
 }
 
 /**
+ * Returns upcoming class ids that the authenticated member has waitlisted
+ * @summary List the caller's waitlisted class ids
+ */
+export const getListWaitlistedClassIdsUrl = () => {
+  return `/api/classes/waitlisted`;
+};
+
+export const listWaitlistedClassIds = async (
+  options?: RequestInit,
+): Promise<WaitlistedClassIdsResponse> => {
+  return customFetch<WaitlistedClassIdsResponse>(getListWaitlistedClassIdsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWaitlistedClassIdsQueryKey = () => {
+  return [`/api/classes/waitlisted`] as const;
+};
+
+export const getListWaitlistedClassIdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWaitlistedClassIds>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listWaitlistedClassIds>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWaitlistedClassIdsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWaitlistedClassIds>>> = ({ signal }) =>
+    listWaitlistedClassIds({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWaitlistedClassIds>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWaitlistedClassIdsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWaitlistedClassIds>>
+>;
+export type ListWaitlistedClassIdsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List the caller's waitlisted class ids
+ */
+
+export function useListWaitlistedClassIds<
+  TData = Awaited<ReturnType<typeof listWaitlistedClassIds>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listWaitlistedClassIds>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWaitlistedClassIdsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Enroll the caller in a class
  */
 export const getEnrollInClassUrl = (id: number) => {
@@ -388,6 +462,164 @@ export const useLeaveClass = <TError = ErrorType<ErrorResponse>, TContext = unkn
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<Awaited<ReturnType<typeof leaveClass>>, TError, { id: number }, TContext> => {
   return useMutation(getLeaveClassMutationOptions(options));
+};
+
+/**
+ * @summary Join the waitlist for a full class
+ */
+export const getJoinClassWaitlistUrl = (id: number) => {
+  return `/api/classes/${id}/waitlist`;
+};
+
+export const joinClassWaitlist = async (id: number, options?: RequestInit): Promise<GymClass> => {
+  return customFetch<GymClass>(getJoinClassWaitlistUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getJoinClassWaitlistMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinClassWaitlist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinClassWaitlist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["joinClassWaitlist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinClassWaitlist>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return joinClassWaitlist(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinClassWaitlistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinClassWaitlist>>
+>;
+
+export type JoinClassWaitlistMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Join the waitlist for a full class
+ */
+export const useJoinClassWaitlist = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinClassWaitlist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof joinClassWaitlist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getJoinClassWaitlistMutationOptions(options));
+};
+
+/**
+ * @summary Leave the waitlist for a class
+ */
+export const getLeaveClassWaitlistUrl = (id: number) => {
+  return `/api/classes/${id}/waitlist`;
+};
+
+export const leaveClassWaitlist = async (id: number, options?: RequestInit): Promise<GymClass> => {
+  return customFetch<GymClass>(getLeaveClassWaitlistUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getLeaveClassWaitlistMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof leaveClassWaitlist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof leaveClassWaitlist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["leaveClassWaitlist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof leaveClassWaitlist>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return leaveClassWaitlist(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LeaveClassWaitlistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof leaveClassWaitlist>>
+>;
+
+export type LeaveClassWaitlistMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Leave the waitlist for a class
+ */
+export const useLeaveClassWaitlist = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof leaveClassWaitlist>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof leaveClassWaitlist>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getLeaveClassWaitlistMutationOptions(options));
 };
 
 /**
@@ -774,6 +1006,97 @@ export function useAdminListClassEnrollments<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Marks an enrolled member as booked, checked in, or no-show (owner-only)
+ * @summary Update class attendance for an enrolled member
+ */
+export const getAdminUpdateClassEnrollmentAttendanceUrl = (id: number, memberId: string) => {
+  return `/api/admin/classes/${id}/enrollments/${memberId}`;
+};
+
+export const adminUpdateClassEnrollmentAttendance = async (
+  id: number,
+  memberId: string,
+  updateClassEnrollmentAttendanceBody: UpdateClassEnrollmentAttendanceBody,
+  options?: RequestInit,
+): Promise<ClassEnrollmentAttendanceUpdateResponse> => {
+  return customFetch<ClassEnrollmentAttendanceUpdateResponse>(
+    getAdminUpdateClassEnrollmentAttendanceUrl(id, memberId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateClassEnrollmentAttendanceBody),
+    },
+  );
+};
+
+export const getAdminUpdateClassEnrollmentAttendanceMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>,
+    TError,
+    { id: number; memberId: string; data: BodyType<UpdateClassEnrollmentAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>,
+  TError,
+  { id: number; memberId: string; data: BodyType<UpdateClassEnrollmentAttendanceBody> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateClassEnrollmentAttendance"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>,
+    { id: number; memberId: string; data: BodyType<UpdateClassEnrollmentAttendanceBody> }
+  > = (props) => {
+    const { id, memberId, data } = props ?? {};
+
+    return adminUpdateClassEnrollmentAttendance(id, memberId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateClassEnrollmentAttendanceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>
+>;
+export type AdminUpdateClassEnrollmentAttendanceMutationBody =
+  BodyType<UpdateClassEnrollmentAttendanceBody>;
+export type AdminUpdateClassEnrollmentAttendanceMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update class attendance for an enrolled member
+ */
+export const useAdminUpdateClassEnrollmentAttendance = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>,
+    TError,
+    { id: number; memberId: string; data: BodyType<UpdateClassEnrollmentAttendanceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateClassEnrollmentAttendance>>,
+  TError,
+  { id: number; memberId: string; data: BodyType<UpdateClassEnrollmentAttendanceBody> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateClassEnrollmentAttendanceMutationOptions(options));
+};
 
 /**
  * Returns the gym settings (owner-only)
@@ -1692,6 +2015,91 @@ export const useAiChat = <TError = ErrorType<ErrorResponse>, TContext = unknown>
 };
 
 /**
+ * Accepts a bounded daily nutrition/workout snapshot and updates durable member AI memory server-side.
+ * @summary Update AI memory from daily activity
+ */
+export const getAiUpdateActivitySnapshotUrl = () => {
+  return `/api/ai/activity-snapshot`;
+};
+
+export const aiUpdateActivitySnapshot = async (
+  aiActivitySnapshotRequest: AiActivitySnapshotRequest,
+  options?: RequestInit,
+): Promise<AiActivitySnapshotResponse> => {
+  return customFetch<AiActivitySnapshotResponse>(getAiUpdateActivitySnapshotUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(aiActivitySnapshotRequest),
+  });
+};
+
+export const getAiUpdateActivitySnapshotMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>,
+    TError,
+    { data: BodyType<AiActivitySnapshotRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>,
+  TError,
+  { data: BodyType<AiActivitySnapshotRequest> },
+  TContext
+> => {
+  const mutationKey = ["aiUpdateActivitySnapshot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>,
+    { data: BodyType<AiActivitySnapshotRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return aiUpdateActivitySnapshot(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AiUpdateActivitySnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>
+>;
+export type AiUpdateActivitySnapshotMutationBody = BodyType<AiActivitySnapshotRequest>;
+export type AiUpdateActivitySnapshotMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update AI memory from daily activity
+ */
+export const useAiUpdateActivitySnapshot = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>,
+    TError,
+    { data: BodyType<AiActivitySnapshotRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof aiUpdateActivitySnapshot>>,
+  TError,
+  { data: BodyType<AiActivitySnapshotRequest> },
+  TContext
+> => {
+  return useMutation(getAiUpdateActivitySnapshotMutationOptions(options));
+};
+
+/**
  * Produces a personalized workout suggestion using recent activity, goals, and saved-plan context.
  * @summary Generate an AI workout suggestion
  */
@@ -1774,6 +2182,261 @@ export const useAiWorkoutSuggestion = <
   TContext
 > => {
   return useMutation(getAiWorkoutSuggestionMutationOptions(options));
+};
+
+/**
+ * Returns a saved member monthly review for the requested calendar month. Members can read their own review; trainers and owners can read member reviews in their gym.
+ * @summary Fetch a saved monthly review
+ */
+export const getMonthlyReviewsGetUrl = (params: MonthlyReviewsGetParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/monthly-reviews?${stringifiedParams}`
+    : `/api/monthly-reviews`;
+};
+
+export const monthlyReviewsGet = async (
+  params: MonthlyReviewsGetParams,
+  options?: RequestInit,
+): Promise<MonthlyReviewResponse> => {
+  return customFetch<MonthlyReviewResponse>(getMonthlyReviewsGetUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMonthlyReviewsGetQueryKey = (params?: MonthlyReviewsGetParams) => {
+  return [`/api/monthly-reviews`, ...(params ? [params] : [])] as const;
+};
+
+export const getMonthlyReviewsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof monthlyReviewsGet>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: MonthlyReviewsGetParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof monthlyReviewsGet>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMonthlyReviewsGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof monthlyReviewsGet>>> = ({ signal }) =>
+    monthlyReviewsGet(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof monthlyReviewsGet>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MonthlyReviewsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof monthlyReviewsGet>>
+>;
+export type MonthlyReviewsGetQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Fetch a saved monthly review
+ */
+
+export function useMonthlyReviewsGet<
+  TData = Awaited<ReturnType<typeof monthlyReviewsGet>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: MonthlyReviewsGetParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof monthlyReviewsGet>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMonthlyReviewsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
+ * @summary Generate or refresh a monthly review
+ */
+export const getMonthlyReviewsGenerateUrl = () => {
+  return `/api/monthly-reviews/generate`;
+};
+
+export const monthlyReviewsGenerate = async (
+  monthlyReviewGenerateBody: MonthlyReviewGenerateBody,
+  options?: RequestInit,
+): Promise<MonthlyReviewResponse> => {
+  return customFetch<MonthlyReviewResponse>(getMonthlyReviewsGenerateUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(monthlyReviewGenerateBody),
+  });
+};
+
+export const getMonthlyReviewsGenerateMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof monthlyReviewsGenerate>>,
+    TError,
+    { data: BodyType<MonthlyReviewGenerateBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof monthlyReviewsGenerate>>,
+  TError,
+  { data: BodyType<MonthlyReviewGenerateBody> },
+  TContext
+> => {
+  const mutationKey = ["monthlyReviewsGenerate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof monthlyReviewsGenerate>>,
+    { data: BodyType<MonthlyReviewGenerateBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return monthlyReviewsGenerate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MonthlyReviewsGenerateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof monthlyReviewsGenerate>>
+>;
+export type MonthlyReviewsGenerateMutationBody = BodyType<MonthlyReviewGenerateBody>;
+export type MonthlyReviewsGenerateMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate or refresh a monthly review
+ */
+export const useMonthlyReviewsGenerate = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof monthlyReviewsGenerate>>,
+    TError,
+    { data: BodyType<MonthlyReviewGenerateBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof monthlyReviewsGenerate>>,
+  TError,
+  { data: BodyType<MonthlyReviewGenerateBody> },
+  TContext
+> => {
+  return useMutation(getMonthlyReviewsGenerateMutationOptions(options));
+};
+
+/**
+ * Marks a saved monthly review as reviewed by the member, trainer, or owner.
+ * @summary Update monthly review state
+ */
+export const getMonthlyReviewsMarkReviewedUrl = (id: string) => {
+  return `/api/monthly-reviews/${id}/review`;
+};
+
+export const monthlyReviewsMarkReviewed = async (
+  id: string,
+  monthlyReviewReviewBody?: MonthlyReviewReviewBody,
+  options?: RequestInit,
+): Promise<MonthlyReviewResponse> => {
+  return customFetch<MonthlyReviewResponse>(getMonthlyReviewsMarkReviewedUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(monthlyReviewReviewBody),
+  });
+};
+
+export const getMonthlyReviewsMarkReviewedMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>,
+    TError,
+    { id: string; data: BodyType<MonthlyReviewReviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>,
+  TError,
+  { id: string; data: BodyType<MonthlyReviewReviewBody> },
+  TContext
+> => {
+  const mutationKey = ["monthlyReviewsMarkReviewed"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>,
+    { id: string; data: BodyType<MonthlyReviewReviewBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return monthlyReviewsMarkReviewed(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MonthlyReviewsMarkReviewedMutationResult = NonNullable<
+  Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>
+>;
+export type MonthlyReviewsMarkReviewedMutationBody = BodyType<MonthlyReviewReviewBody>;
+export type MonthlyReviewsMarkReviewedMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update monthly review state
+ */
+export const useMonthlyReviewsMarkReviewed = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>,
+    TError,
+    { id: string; data: BodyType<MonthlyReviewReviewBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof monthlyReviewsMarkReviewed>>,
+  TError,
+  { id: string; data: BodyType<MonthlyReviewReviewBody> },
+  TContext
+> => {
+  return useMutation(getMonthlyReviewsMarkReviewedMutationOptions(options));
 };
 
 /**

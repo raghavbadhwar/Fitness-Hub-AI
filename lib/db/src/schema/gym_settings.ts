@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const gymSettingsTable = pgTable("gym_settings", {
   id: serial("id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   gymName: text("gym_name").notNull().default("GymOS"),
   address: text("address").notNull().default(""),
   phone: text("phone").notNull().default(""),

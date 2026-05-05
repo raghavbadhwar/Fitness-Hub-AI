@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const workoutTemplates = pgTable("workout_templates", {
   id: serial("id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   trainerId: text("trainer_id").notNull(),
   trainerName: text("trainer_name").notNull(),
   name: text("name").notNull(),

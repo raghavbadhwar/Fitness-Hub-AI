@@ -24,6 +24,18 @@ const Dashboard = lazy(() => import("./pages/dashboard"));
 const Classes = lazy(() => import("./pages/classes"));
 const Members = lazy(() => import("./pages/members"));
 const Settings = lazy(() => import("./pages/settings"));
+const AdminDashboardPreview = lazy(() =>
+  import("./pages/e2e-previews").then((module) => ({ default: module.AdminDashboardPreview })),
+);
+const AdminMembersPreview = lazy(() =>
+  import("./pages/e2e-previews").then((module) => ({ default: module.AdminMembersPreview })),
+);
+const AdminClassesPreview = lazy(() =>
+  import("./pages/e2e-previews").then((module) => ({ default: module.AdminClassesPreview })),
+);
+const AdminSettingsPreview = lazy(() =>
+  import("./pages/e2e-previews").then((module) => ({ default: module.AdminSettingsPreview })),
+);
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = getClerkProxyUrl();
@@ -268,6 +280,10 @@ function ClerkProviderWithRoutes() {
           <TooltipProvider>
             <Switch>
               <Route path="/__e2e/access-denied" component={E2EAccessDeniedPreview} />
+              <Route path="/__e2e/dashboard" component={AdminDashboardPreview} />
+              <Route path="/__e2e/classes" component={AdminClassesPreview} />
+              <Route path="/__e2e/members" component={AdminMembersPreview} />
+              <Route path="/__e2e/settings" component={AdminSettingsPreview} />
               <Route path="/sign-in/*?" component={SignInPage} />
               <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
               <Route path="/classes" component={() => <ProtectedRoute component={Classes} />} />

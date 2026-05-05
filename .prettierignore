@@ -3,6 +3,7 @@ node_modules
 .codex
 .cache
 .local
+.claude
 .playwright-cli
 .expo
 .expo-shared

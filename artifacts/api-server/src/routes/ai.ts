@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
 import { requireApprovedAccess } from "../lib/user-access.ts";
+import { getRequestUserId } from "../lib/clerk-request.ts";
+import { createFixedWindowRateLimiter } from "../lib/fixed-window-rate-limit.ts";
 import {
   appendRecentMessages,
   buildSystemInstruction,
@@ -19,29 +21,23 @@ const router = Router();
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_PER_WINDOW = 20;
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+const ACTIVITY_SNAPSHOT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_ACTIVITY_SNAPSHOT_CHARS = 8_000;
+const rateLimit = createFixedWindowRateLimiter({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  maxRequests: RATE_LIMIT_MAX_PER_WINDOW,
+  getKey(req) {
+    return getAiRateLimitKey(req);
+  },
+});
 
-function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
-    req.socket.remoteAddress ??
-    "unknown";
-  const now = Date.now();
-  const entry = ipRequestCounts.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    next();
-    return;
+function getAiRateLimitKey(req: Request) {
+  const userId = getRequestUserId(req);
+  if (userId) {
+    return `user:${userId}`;
   }
 
-  if (entry.count >= RATE_LIMIT_MAX_PER_WINDOW) {
-    res.status(429).json({ error: "Too many requests. Please wait a moment and try again." });
-    return;
-  }
-
-  entry.count += 1;
-  next();
+  return `ip:${req.ip || req.socket.remoteAddress || "unknown"}`;
 }
 
 async function requireApprovedAiAccess(
@@ -65,6 +61,50 @@ async function requireApprovedAiAccess(
 
 function getAiUserId(res: Response): string | null {
   return typeof res.locals.aiUserId === "string" ? res.locals.aiUserId : null;
+}
+
+function buildActivityMemoryPrompt(args: {
+  memoryProfile:
+    | {
+        memorySummary?: string;
+        goals?: unknown;
+        preferences?: unknown;
+        barriers?: unknown;
+        motivators?: unknown;
+        injuries?: unknown;
+      }
+    | null
+    | undefined;
+  snapshot: Record<string, unknown>;
+}) {
+  const snapshotJson = JSON.stringify(args.snapshot).slice(0, MAX_ACTIVITY_SNAPSHOT_CHARS);
+
+  return `Update the member memory for a fitness coaching app using this passive daily activity snapshot.
+
+Keep only durable coaching information that should improve future nutrition and workout guidance. Do not store raw logs, exact calorie totals for a single ordinary day, or noisy one-off events unless they clearly reveal a pattern. Prefer patterns, constraints, preferences, consistency, recovery state, likely adherence barriers, and injury limitations.
+
+Return JSON only with this shape:
+{
+  "memorySummary": "short paragraph",
+  "goals": ["..."],
+  "preferences": ["..."],
+  "barriers": ["..."],
+  "motivators": ["..."],
+  "injuries": ["..."]
+}
+
+Current memory:
+${JSON.stringify({
+  memorySummary: args.memoryProfile?.memorySummary ?? "",
+  goals: args.memoryProfile?.goals ?? [],
+  preferences: args.memoryProfile?.preferences ?? [],
+  barriers: args.memoryProfile?.barriers ?? [],
+  motivators: args.memoryProfile?.motivators ?? [],
+  injuries: args.memoryProfile?.injuries ?? [],
+})}
+
+Latest activity snapshot:
+${snapshotJson}`;
 }
 
 router.use(requireAuth());
@@ -405,17 +445,121 @@ ${JSON.stringify({
   }
 });
 
+router.post("/activity-snapshot", async (req: Request, res: Response) => {
+  try {
+    const userId = getAiUserId(res);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const snapshot = req.body as Record<string, unknown> | undefined;
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+      res.status(400).json({ error: "activity snapshot is required" });
+      return;
+    }
+
+    if (typeof snapshot.date !== "string" || !ACTIVITY_SNAPSHOT_DATE_RE.test(snapshot.date)) {
+      res.status(400).json({ error: "date must be YYYY-MM-DD" });
+      return;
+    }
+
+    const [memoryProfile] = await db
+      .select()
+      .from(memberAiProfiles)
+      .where(eq(memberAiProfiles.memberClerkId, userId))
+      .limit(1);
+
+    let mergedMemory = mergeMemoryUpdate(memoryProfile, undefined);
+
+    try {
+      const memoryUpdateResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-04-17",
+        config: {
+          responseMimeType: "application/json",
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildActivityMemoryPrompt({ memoryProfile, snapshot }) }],
+          },
+        ],
+      });
+
+      mergedMemory = mergeMemoryUpdate(
+        memoryProfile,
+        parseMemoryExtraction(memoryUpdateResponse.text),
+      );
+    } catch (memoryErr) {
+      req.log.error({ err: memoryErr }, "AI activity memory extraction error");
+    }
+
+    const updatedAt = new Date();
+    await db
+      .insert(memberAiProfiles)
+      .values({
+        memberClerkId: userId,
+        memorySummary: mergedMemory.memorySummary,
+        goals: mergedMemory.goals,
+        preferences: mergedMemory.preferences,
+        barriers: mergedMemory.barriers,
+        motivators: mergedMemory.motivators,
+        injuries: mergedMemory.injuries,
+        recentMessages: memoryProfile?.recentMessages ?? [],
+        lastConversationAt: memoryProfile?.lastConversationAt ?? null,
+      })
+      .onConflictDoUpdate({
+        target: memberAiProfiles.memberClerkId,
+        set: {
+          memorySummary: mergedMemory.memorySummary,
+          goals: mergedMemory.goals,
+          preferences: mergedMemory.preferences,
+          barriers: mergedMemory.barriers,
+          motivators: mergedMemory.motivators,
+          injuries: mergedMemory.injuries,
+          recentMessages: memoryProfile?.recentMessages ?? [],
+          updatedAt,
+        },
+      });
+
+    res.json({
+      ok: true,
+      memorySummary: mergedMemory.memorySummary,
+      updatedAt: updatedAt.toISOString(),
+    });
+  } catch (err: unknown) {
+    req.log.error({ err }, "AI activity snapshot error");
+    res.status(500).json({ error: "Failed to update activity memory" });
+  }
+});
+
 router.post("/workout-suggestion", async (req: Request, res: Response) => {
   try {
-    const { recentWorkouts, goals, fitnessLevel, availableTime, behaviorProfile, savedPlans } =
-      (req.body ?? {}) as {
-        recentWorkouts?: unknown[];
-        goals?: string;
-        fitnessLevel?: string;
-        availableTime?: number;
-        behaviorProfile?: Record<string, unknown>;
-        savedPlans?: unknown[];
-      };
+    const {
+      recentWorkouts,
+      goals,
+      fitnessLevel,
+      availableTime,
+      todayStats,
+      behaviorProfile,
+      savedPlans,
+    } = (req.body ?? {}) as {
+      recentWorkouts?: unknown[];
+      goals?: string;
+      fitnessLevel?: string;
+      availableTime?: number;
+      todayStats?: Record<string, unknown>;
+      behaviorProfile?: Record<string, unknown>;
+      savedPlans?: unknown[];
+    };
+    const userId = getAiUserId(res);
+    const [memoryProfile] = userId
+      ? await db
+          .select()
+          .from(memberAiProfiles)
+          .where(eq(memberAiProfiles.memberClerkId, userId))
+          .limit(1)
+      : [];
 
     const prompt = `You are a professional fitness coach. Based on the following user data, suggest a workout plan.
 
@@ -423,10 +567,19 @@ Recent Workouts: ${JSON.stringify(recentWorkouts ?? [])}
 Goals: ${goals ?? "general fitness"}
 Fitness Level: ${fitnessLevel ?? "intermediate"}
 Available Time: ${availableTime ?? 45} minutes
+Today's Nutrition/Recovery Context: ${JSON.stringify(todayStats ?? {})}
 Behavior Profile: ${JSON.stringify(behaviorProfile ?? {})}
 Saved Plans: ${JSON.stringify(savedPlans ?? [])}
+Durable Member Memory: ${JSON.stringify({
+      memorySummary: memoryProfile?.memorySummary ?? "",
+      goals: memoryProfile?.goals ?? [],
+      preferences: memoryProfile?.preferences ?? [],
+      barriers: memoryProfile?.barriers ?? [],
+      motivators: memoryProfile?.motivators ?? [],
+      injuries: memoryProfile?.injuries ?? [],
+    })}
 
-Make the workout feel premium but easy to execute. Reuse familiar movement patterns when the behavior profile shows the user is building consistency, and bias toward saved-plan themes before inventing a completely different routine.
+Make the workout feel premium but easy to execute. Auto-adjust volume, intensity, exercise choice, and recovery demand from the behavior profile, today's nutrition/recovery context, saved plans, and durable memory. Reuse familiar movement patterns when the user is building consistency, bias toward saved-plan themes before inventing a completely different routine, and avoid exercises that conflict with remembered injuries or limitations.
 
 Return ONLY this JSON (no markdown):
 {

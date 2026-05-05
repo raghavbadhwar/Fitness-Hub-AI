@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import { getApiBase } from "@/lib/api-base";
+import { getLocalDateKey } from "@/lib/date-key";
 import React, {
   createContext,
   useCallback,
@@ -326,7 +327,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       const session: WorkoutSession = {
         id: generateId(),
         name,
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalDateKey(),
         startTime: Date.now(),
         exercises: exercises.map((exercise) => ({ ...exercise, id: generateId() })),
         totalVolume: 0,
@@ -701,7 +702,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().split("T")[0];
+      const dateKey = getLocalDateKey(date);
       const dayVolume = sessions
         .filter((session) => session.date === dateKey && session.completed)
         .reduce((sum, session) => sum + session.totalVolume, 0);
@@ -715,7 +716,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().split("T")[0];
+      const dateKey = getLocalDateKey(date);
       const dayVolume = sessions
         .filter((session) => session.date === dateKey && session.completed)
         .reduce((sum, session) => sum + session.totalVolume, 0);

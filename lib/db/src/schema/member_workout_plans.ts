@@ -12,6 +12,7 @@ export interface MemberWorkoutPlanExercise {
 
 export const memberWorkoutPlans = pgTable("member_workout_plans", {
   id: text("id").primaryKey(),
+  gymId: text("gym_id").notNull().default("gymos-main"),
   memberClerkId: text("member_clerk_id").notNull(),
   name: text("name").notNull(),
   focus: text("focus"),

@@ -157,8 +157,11 @@ const SAMPLE_CLASSES: GymClass[] = [
 interface ScheduleContextType {
   classes: GymClass[];
   enrolledClassIds: string[];
+  waitlistedClassIds: string[];
   enrollInClass: (classId: string, userId: string) => Promise<void>;
   unenrollFromClass: (classId: string, userId: string) => Promise<void>;
+  joinWaitlist: (classId: string) => Promise<void>;
+  leaveWaitlist: (classId: string) => Promise<void>;
   addClass: (
     gymClass: Omit<GymClass, "id" | "enrolledCount" | "enrolledMembers" | "color">,
   ) => Promise<void>;
@@ -167,6 +170,7 @@ interface ScheduleContextType {
   getTodayClasses: () => GymClass[];
   getClassesForDate: (date: string) => GymClass[];
   isEnrolled: (classId: string) => boolean;
+  isWaitlisted: (classId: string) => boolean;
   refreshSchedule: () => Promise<void>;
   isLoading: boolean;
 }
@@ -174,6 +178,7 @@ interface ScheduleContextType {
 const ScheduleContext = createContext<ScheduleContextType | null>(null);
 const CLASSES_STORAGE_KEY = "@gymapp_classes";
 const LEGACY_ENROLLED_STORAGE_KEY = "@gymapp_enrolled";
+const LEGACY_WAITLIST_STORAGE_KEY = "@gymapp_waitlisted";
 
 function normalizeGymClass(c: Record<string, unknown>): GymClass {
   return {
@@ -196,12 +201,15 @@ function normalizeGymClass(c: Record<string, unknown>): GymClass {
   };
 }
 
-async function fetchClassesFromAPI(): Promise<GymClass[] | null> {
+async function fetchClassesFromAPI(token: string | null): Promise<GymClass[] | null> {
   try {
     const apiBase = getApiBase();
-    if (!apiBase) return null;
+    if (!apiBase || !token) return null;
     const url = `${apiBase}/api/classes`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
     if (!response.ok) return null;
     const data = await response.json();
     if (!Array.isArray(data)) return null;
@@ -215,11 +223,15 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded: authLoaded, isSignedIn, userId } = useAuth();
   const [classes, setClasses] = useState<GymClass[]>(SAMPLE_CLASSES);
   const [enrolledClassIds, setEnrolledClassIds] = useState<string[]>([]);
+  const [waitlistedClassIds, setWaitlistedClassIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const getTokenRef = useRef(getToken);
   const enrolledStorageKey = userId
     ? `${LEGACY_ENROLLED_STORAGE_KEY}:${userId}`
     : `${LEGACY_ENROLLED_STORAGE_KEY}:guest`;
+  const waitlistStorageKey = userId
+    ? `${LEGACY_WAITLIST_STORAGE_KEY}:${userId}`
+    : `${LEGACY_WAITLIST_STORAGE_KEY}:guest`;
 
   useEffect(() => {
     getTokenRef.current = getToken;
@@ -231,6 +243,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(enrolledStorageKey, JSON.stringify(nextEnrolledClassIds));
     },
     [enrolledStorageKey],
+  );
+
+  const saveLocalWaitlistedIds = useCallback(
+    async (nextWaitlistedClassIds: string[]) => {
+      setWaitlistedClassIds(nextWaitlistedClassIds);
+      await AsyncStorage.setItem(waitlistStorageKey, JSON.stringify(nextWaitlistedClassIds));
+    },
+    [waitlistStorageKey],
   );
 
   const saveClasses = useCallback(async (newClasses: GymClass[]) => {
@@ -275,13 +295,45 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     await saveLocalEnrolledIds(nextEnrolledClassIds);
   }, [isSignedIn, saveLocalEnrolledIds]);
 
+  const fetchWaitlistedClassIds = useCallback(async () => {
+    if (!isSignedIn) {
+      await saveLocalWaitlistedIds([]);
+      return;
+    }
+
+    const token = await getTokenRef.current();
+    const apiBase = getApiBase();
+    if (!token || !apiBase) {
+      return;
+    }
+
+    const response = await fetch(`${apiBase}/api/classes/waitlisted`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch waitlisted classes (${response.status})`);
+    }
+
+    const payload = (await response.json()) as { classIds?: unknown };
+    const nextWaitlistedClassIds = Array.isArray(payload.classIds)
+      ? payload.classIds.map((classId) => String(classId))
+      : [];
+    await saveLocalWaitlistedIds(nextWaitlistedClassIds);
+  }, [isSignedIn, saveLocalWaitlistedIds]);
+
   const refreshSchedule = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [storedEnrolled, storedClasses, apiClasses] = await Promise.all([
+      const apiClassesPromise = (async () => {
+        if (!isSignedIn) return null;
+        return fetchClassesFromAPI(await getTokenRef.current());
+      })();
+      const [storedEnrolled, storedWaitlist, storedClasses, apiClasses] = await Promise.all([
         AsyncStorage.getItem(enrolledStorageKey),
+        AsyncStorage.getItem(waitlistStorageKey),
         AsyncStorage.getItem(CLASSES_STORAGE_KEY),
-        fetchClassesFromAPI(),
+        apiClassesPromise,
       ]);
 
       const fallbackEnrolled =
@@ -289,6 +341,11 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
           ? await AsyncStorage.getItem(LEGACY_ENROLLED_STORAGE_KEY)
           : null;
       const scopedOrLegacyEnrolled = storedEnrolled ?? fallbackEnrolled;
+      const fallbackWaitlist =
+        !userId && waitlistStorageKey !== LEGACY_WAITLIST_STORAGE_KEY
+          ? await AsyncStorage.getItem(LEGACY_WAITLIST_STORAGE_KEY)
+          : null;
+      const scopedOrLegacyWaitlist = storedWaitlist ?? fallbackWaitlist;
 
       const localClasses: GymClass[] = storedClasses ? JSON.parse(storedClasses) : [];
 
@@ -310,12 +367,34 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       } else if (scopedOrLegacyEnrolled) {
         setEnrolledClassIds(JSON.parse(scopedOrLegacyEnrolled));
       }
+
+      if (authLoaded) {
+        try {
+          await fetchWaitlistedClassIds();
+        } catch (error) {
+          console.error("Failed to sync waitlisted classes", error);
+          if (scopedOrLegacyWaitlist) {
+            setWaitlistedClassIds(JSON.parse(scopedOrLegacyWaitlist));
+          }
+        }
+      } else if (scopedOrLegacyWaitlist) {
+        setWaitlistedClassIds(JSON.parse(scopedOrLegacyWaitlist));
+      }
     } catch (e) {
       console.error("Failed to load schedule", e);
     } finally {
       setIsLoading(false);
     }
-  }, [authLoaded, enrolledStorageKey, fetchEnrolledClassIds, saveClasses, userId]);
+  }, [
+    authLoaded,
+    enrolledStorageKey,
+    fetchEnrolledClassIds,
+    fetchWaitlistedClassIds,
+    isSignedIn,
+    saveClasses,
+    userId,
+    waitlistStorageKey,
+  ]);
 
   useEffect(() => {
     void refreshSchedule();
@@ -346,6 +425,9 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         if (!enrolledClassIds.includes(classId)) {
           await saveLocalEnrolledIds([...enrolledClassIds, classId]);
         }
+        if (waitlistedClassIds.includes(classId)) {
+          await saveLocalWaitlistedIds(waitlistedClassIds.filter((id) => id !== classId));
+        }
         return;
       }
 
@@ -362,8 +444,19 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       if (!enrolledClassIds.includes(classId)) {
         await saveLocalEnrolledIds([...enrolledClassIds, classId]);
       }
+      if (waitlistedClassIds.includes(classId)) {
+        await saveLocalWaitlistedIds(waitlistedClassIds.filter((id) => id !== classId));
+      }
     },
-    [classes, enrolledClassIds, replaceClass, saveClasses, saveLocalEnrolledIds],
+    [
+      classes,
+      enrolledClassIds,
+      replaceClass,
+      saveClasses,
+      saveLocalEnrolledIds,
+      saveLocalWaitlistedIds,
+      waitlistedClassIds,
+    ],
   );
 
   const unenrollFromClass = useCallback(
@@ -410,6 +503,60 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     throw new Error("Class management is only available in the admin dashboard.");
   }, []);
 
+  const joinWaitlist = useCallback(
+    async (classId: string) => {
+      const token = await getTokenRef.current();
+      const apiBase = getApiBase();
+      if (token && apiBase) {
+        const response = await fetch(
+          `${apiBase}/api/classes/${encodeURIComponent(classId)}/waitlist`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(payload?.error || "Failed to join waitlist");
+        }
+
+        const updatedClass = normalizeGymClass(await response.json());
+        await replaceClass(updatedClass);
+      }
+
+      if (!waitlistedClassIds.includes(classId)) {
+        await saveLocalWaitlistedIds([...waitlistedClassIds, classId]);
+      }
+    },
+    [replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
+  );
+
+  const leaveWaitlist = useCallback(
+    async (classId: string) => {
+      const token = await getTokenRef.current();
+      const apiBase = getApiBase();
+      if (token && apiBase) {
+        const response = await fetch(
+          `${apiBase}/api/classes/${encodeURIComponent(classId)}/waitlist`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(payload?.error || "Failed to leave waitlist");
+        }
+
+        const updatedClass = normalizeGymClass(await response.json());
+        await replaceClass(updatedClass);
+      }
+
+      await saveLocalWaitlistedIds(waitlistedClassIds.filter((id) => id !== classId));
+    },
+    [replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
+  );
+
   const getTodayClasses = useCallback(() => {
     const today = new Date().toISOString().split("T")[0];
     return classes
@@ -428,19 +575,28 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [enrolledClassIds],
   );
 
+  const isWaitlisted = useCallback(
+    (classId: string) => waitlistedClassIds.includes(classId),
+    [waitlistedClassIds],
+  );
+
   return (
     <ScheduleContext.Provider
       value={{
         classes,
         enrolledClassIds,
+        waitlistedClassIds,
         enrollInClass,
         unenrollFromClass,
+        joinWaitlist,
+        leaveWaitlist,
         addClass: managementMovedToAdmin,
         updateClass: managementMovedToAdmin,
         deleteClass: managementMovedToAdmin,
         getTodayClasses,
         getClassesForDate,
         isEnrolled,
+        isWaitlisted,
         refreshSchedule,
         isLoading,
       }}

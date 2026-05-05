@@ -1,9 +1,11 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   KeyboardAvoidingView,
@@ -21,6 +23,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { getApiBase } from "@/lib/api-base";
+import { impact, notifyWarning } from "@/lib/haptics";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
@@ -44,14 +47,38 @@ const WELCOME_MESSAGE: Message = {
   timestamp: 0,
 };
 
-const QUICK_PROMPTS = [
-  "What should I eat post-workout today?",
-  "Create a 5-day Indian meal plan for muscle gain",
-  "How many calories in 2 rotis with dal?",
-  "Give me a 30-minute home workout",
-  "Is paneer good for weight loss?",
-  "What's a good pre-workout snack?",
+type CoachMode = "nutrition" | "training" | "recovery";
+
+const COACH_MODES: Array<{
+  id: CoachMode;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+}> = [
+  { id: "nutrition", label: "Nutrition", icon: "pie-chart" },
+  { id: "training", label: "Training", icon: "activity" },
+  { id: "recovery", label: "Recovery", icon: "moon" },
 ];
+
+const QUICK_PROMPTS: Record<CoachMode, string[]> = {
+  nutrition: [
+    "What should I eat post-workout today?",
+    "Create a 5-day Indian meal plan for muscle gain",
+    "How many calories in 2 rotis with dal?",
+    "Is paneer good for weight loss?",
+  ],
+  training: [
+    "Give me a 30-minute home workout",
+    "Turn my saved plan into a push day",
+    "What should I train if my legs are sore?",
+    "Create a beginner-friendly gym session for today",
+  ],
+  recovery: [
+    "Build a 10-minute mobility routine",
+    "How should I adjust after poor sleep?",
+    "What should I do on a rest day?",
+    "Explain safe warmups for shoulder tightness",
+  ],
+};
 
 function generateId() {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -145,6 +172,7 @@ export default function AssistantScreen() {
   const { profile } = useApp();
   const { todayLog } = useNutrition();
   const { sessions, behaviorProfile, savedPlans } = useWorkout();
+  const router = useRouter();
   const colors = useColors();
   const typography = useTypography();
   const flatListRef = useRef<FlatList>(null);
@@ -153,6 +181,7 @@ export default function AssistantScreen() {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [activeMode, setActiveMode] = useState<CoachMode>("nutrition");
   const storageKey = getScopedStorageKey(CHAT_STORAGE_KEY, userId);
 
   useEffect(() => {
@@ -247,6 +276,7 @@ export default function AssistantScreen() {
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || isLoading) return;
+      impact();
 
       const userMsg: Message = {
         id: generateId(),
@@ -384,24 +414,72 @@ export default function AssistantScreen() {
     ],
   );
 
-  const handleClearHistory = useCallback(async () => {
-    setMessages([WELCOME_MESSAGE]);
-    try {
-      if (isSignedIn && userId) {
-        const token = await getToken();
-        if (token) {
-          await fetch(`${getApiBase()}/api/ai/history`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+  const handleClearHistory = useCallback(() => {
+    const clear = async () => {
+      setMessages([WELCOME_MESSAGE]);
+      try {
+        if (isSignedIn && userId) {
+          const token = await getToken();
+          if (token) {
+            await fetch(`${getApiBase()}/api/ai/history`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+          }
         }
+      } finally {
+        await AsyncStorage.removeItem(storageKey);
+        notifyWarning();
       }
-    } finally {
-      await AsyncStorage.removeItem(storageKey);
-    }
+    };
+
+    impact();
+    Alert.alert("Clear AI history?", "This removes local chat history and any synced messages.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => {
+          void clear();
+        },
+      },
+    ]);
   }, [getToken, isSignedIn, storageKey, userId]);
+
+  const handleQuickPrompt = useCallback(
+    (prompt: string) => {
+      impact();
+      void sendMessage(prompt);
+    },
+    [sendMessage],
+  );
+
+  const handleModeChange = useCallback((mode: CoachMode) => {
+    impact();
+    setActiveMode(mode);
+  }, []);
+
+  const openProfile = useCallback(() => {
+    impact();
+    router.push("/profile");
+  }, [router]);
+
+  const trustedContextItems = [
+    { label: "Goal", value: profile.fitnessGoal.replace("_", " ") },
+    { label: "Diet", value: profile.dietType.replace("_", " ") },
+    { label: "Recent workouts", value: String(behaviorProfile.completedSessionsLast30Days) },
+    { label: "Saved plans", value: String(savedPlans.length) },
+    { label: "Injury notes", value: String(profile.injuries.length) },
+    { label: "Today", value: `${todayCalories}/${profile.dailyCalorieTarget} cal` },
+  ];
+
+  const handleMessageContentSizeChange = useCallback(() => {
+    if (messages.length > 1) {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [messages.length]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === "user";
@@ -475,7 +553,7 @@ export default function AssistantScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
+      <View style={[styles.topBar, styles.webFrame, { borderBottomColor: colors.border }]}>
         <View style={[styles.botAvatar, { backgroundColor: colors.primary }]}>
           <Feather name="cpu" size={18} color="#fff" />
         </View>
@@ -508,24 +586,103 @@ export default function AssistantScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={[styles.messageList, { paddingBottom: 16 }]}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          contentContainerStyle={[styles.messageList, styles.webFrame, { paddingBottom: 16 }]}
+          onContentSizeChange={handleMessageContentSizeChange}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             messages.length <= 1 ? (
               <View style={styles.quickPromptsContainer}>
+                <View
+                  style={[
+                    styles.trustPanel,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.trustPanelHeader}>
+                    <View style={[styles.trustPanelIcon, { backgroundColor: colors.primaryMuted }]}>
+                      <Feather name="shield" size={16} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.trustPanelTitle, { color: colors.text }]}>
+                        Advisory AI, bounded by your profile
+                      </Text>
+                      <Text style={[styles.trustPanelBody, { color: colors.mutedForeground }]}>
+                        Gemini receives goals, recent logs, saved plans, and injury notes. It does
+                        not make automatic changes.
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.trustChipGrid}>
+                    {trustedContextItems.map((item) => (
+                      <View
+                        key={item.label}
+                        style={[styles.trustChip, { backgroundColor: colors.surface }]}
+                      >
+                        <Text style={[styles.trustChipLabel, { color: colors.mutedForeground }]}>
+                          {item.label}
+                        </Text>
+                        <Text
+                          style={[styles.trustChipValue, { color: colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {item.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Pressable
+                    style={[styles.reviewProfileBtn, { borderColor: colors.border }]}
+                    onPress={openProfile}
+                  >
+                    <Feather name="edit-2" size={13} color={colors.primary} />
+                    <Text style={[styles.reviewProfileText, { color: colors.text }]}>
+                      Review source profile
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.modeRow}>
+                  {COACH_MODES.map((mode) => {
+                    const selected = activeMode === mode.id;
+                    return (
+                      <Pressable
+                        key={mode.id}
+                        style={[
+                          styles.modeChip,
+                          {
+                            backgroundColor: selected ? colors.primary : colors.card,
+                            borderColor: selected ? colors.primary : colors.border,
+                          },
+                        ]}
+                        onPress={() => handleModeChange(mode.id)}
+                      >
+                        <Feather
+                          name={mode.icon}
+                          size={13}
+                          color={selected ? "#fff" : colors.primary}
+                        />
+                        <Text
+                          style={[styles.modeChipText, { color: selected ? "#fff" : colors.text }]}
+                        >
+                          {mode.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
                 <Text style={[styles.quickPromptsTitle, { color: colors.mutedForeground }]}>
                   Quick questions
                 </Text>
                 <View style={styles.quickPrompts}>
-                  {QUICK_PROMPTS.map((p) => (
+                  {QUICK_PROMPTS[activeMode].map((p) => (
                     <Pressable
                       key={p}
                       style={[
                         styles.quickPrompt,
                         { backgroundColor: colors.card, borderColor: colors.border },
                       ]}
-                      onPress={() => sendMessage(p)}
+                      onPress={() => handleQuickPrompt(p)}
                     >
                       <Text style={[styles.quickPromptText, { color: colors.text }]}>{p}</Text>
                     </Pressable>
@@ -547,7 +704,11 @@ export default function AssistantScreen() {
           ]}
         >
           <View
-            style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.inputRow,
+              styles.webFrame,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
           >
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -582,6 +743,11 @@ export default function AssistantScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  webFrame: {
+    width: "100%",
+    maxWidth: 980,
+    alignSelf: "center",
+  },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   topBar: {
     flexDirection: "row",
@@ -628,7 +794,72 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 15, lineHeight: 22 },
   timestamp: { fontSize: 11, paddingHorizontal: 4 },
   tsRight: { textAlign: "right" },
-  quickPromptsContainer: { paddingBottom: 16, gap: 8 },
+  quickPromptsContainer: { paddingBottom: 16, gap: 10 },
+  trustPanel: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  trustPanelHeader: {
+    flexDirection: "row",
+    gap: 11,
+    alignItems: "flex-start",
+  },
+  trustPanelIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trustPanelTitle: { fontSize: 15, fontWeight: "800" },
+  trustPanelBody: { marginTop: 4, fontSize: 12, lineHeight: 17 },
+  trustChipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  trustChip: {
+    minWidth: 112,
+    flexGrow: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  trustChipLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  trustChipValue: {
+    marginTop: 3,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "capitalize",
+  },
+  reviewProfileBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  reviewProfileText: { fontSize: 12, fontWeight: "800" },
+  modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  modeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  modeChipText: { fontSize: 13, fontWeight: "800" },
   quickPromptsTitle: {
     fontSize: 12,
     textTransform: "uppercase",

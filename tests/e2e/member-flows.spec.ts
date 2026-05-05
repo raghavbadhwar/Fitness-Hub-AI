@@ -21,5 +21,18 @@ test("approved member schedule preview opens cleanly and can enroll in a class",
   await page.getByTestId("schedule-enroll-button-preview-open").click();
 
   await expect(page.getByTestId("schedule-enroll-button-preview-open")).toContainText("Enrolled");
+  await expect(page.getByTestId("schedule-enroll-button-preview-full")).toContainText(
+    "Join Waitlist",
+  );
+  await page.getByTestId("schedule-enroll-button-preview-full").click();
+  await expect(page.getByTestId("schedule-enroll-button-preview-full")).toContainText("Waitlisted");
   await expect(page.getByTestId("schedule-mini-class-preview-open")).toBeVisible();
+});
+
+test("trainer workout preview exposes the trainer workspace", async ({ page }) => {
+  await page.goto(`${MEMBER_BASE_URL}__e2e/workout?role=trainer`);
+
+  await expect(page.getByText("Trainer workspace")).toBeVisible();
+  await expect(page.getByText("Templates", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Reviews", { exact: true }).first()).toBeVisible();
 });
