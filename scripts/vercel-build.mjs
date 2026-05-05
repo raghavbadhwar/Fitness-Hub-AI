@@ -14,6 +14,15 @@ const clerkPublishableKey =
 const clerkSecretKey = process.env.CLERK_SECRET_KEY || "";
 const isProductionDeploy = process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production";
 
+function assertNodeRuntime() {
+  const major = Number.parseInt(process.versions.node.split(".")[0] ?? "", 10);
+  if (major !== 22) {
+    throw new Error(
+      `Fitness Hub AI Vercel build requires Node 22.x. Current runtime is ${process.versions.node}.`,
+    );
+  }
+}
+
 function assertProductionClerkKeys() {
   if (!isProductionDeploy) {
     return;
@@ -58,6 +67,7 @@ rmSync(staticOutput, { recursive: true, force: true });
 rmSync(memberOutput, { recursive: true, force: true });
 mkdirSync(staticOutput, { recursive: true });
 
+assertNodeRuntime();
 assertProductionClerkKeys();
 
 run("pnpm", ["--dir", "lib/api-spec", "codegen"]);

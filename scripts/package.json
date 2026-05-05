@@ -7,7 +7,8 @@
     "beta-secrets-preflight": "tsx ./src/internal-beta-secret-preflight.ts",
     "beta-secrets-preflight:init": "tsx ./src/internal-beta-secret-preflight.ts --init",
     "beta-secrets-preflight:accept-risk": "tsx ./src/internal-beta-secret-preflight.ts --accept-risk",
-    "test": "node --import tsx --test src/internal-beta-secret-preflight.test.ts",
+    "node-version-preflight": "tsx ./src/node-version-preflight.ts",
+    "test": "node --import tsx --test src/internal-beta-secret-preflight.test.ts src/node-version-preflight.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
