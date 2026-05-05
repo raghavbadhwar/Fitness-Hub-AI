@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth, getAuth } from "@clerk/express";
+import { createClerkClient } from "@clerk/backend";
 import { db } from "@workspace/db";
 import {
   workoutTemplates,
@@ -13,7 +14,10 @@ const router = Router();
 
 router.use(requireAuth());
 
-async function requireTrainerOrOwner(req: Request, res: Response): Promise<string | null> {
+async function requireTrainerOrOwner(
+  req: Request,
+  res: Response,
+): Promise<string | null> {
   const auth = getAuth(req);
   const userId = auth.userId;
   if (!userId) {
@@ -26,11 +30,63 @@ async function requireTrainerOrOwner(req: Request, res: Response): Promise<strin
     .where(eq(userProfiles.clerkId, userId))
     .limit(1);
   if (!profile || (profile.role !== "trainer" && profile.role !== "owner")) {
-    res.status(403).json({ error: "Only trainers and owners can perform this action" });
+    res
+      .status(403)
+      .json({ error: "Only trainers and owners can perform this action" });
     return null;
   }
   return userId;
 }
+
+router.get("/members", async (req: Request, res: Response) => {
+  try {
+    const trainerId = await requireTrainerOrOwner(req, res);
+    if (!trainerId) return;
+
+    const profiles = await db
+      .select({
+        id: userProfiles.clerkId,
+        name: userProfiles.name,
+      })
+      .from(userProfiles)
+      .where(eq(userProfiles.role, "member"))
+      .orderBy(userProfiles.name);
+
+    const clerkClient = createClerkClient({
+      secretKey: process.env.CLERK_SECRET_KEY,
+    });
+    const { data: users } = await clerkClient.users.getUserList({ limit: 200 });
+    const usersById = new Map(
+      users.map((user) => [
+        user.id,
+        {
+          email: user.emailAddresses[0]?.emailAddress ?? "",
+          fallbackName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+        },
+      ]),
+    );
+
+    const members = profiles.map((profile) => {
+      const clerkData = usersById.get(profile.id);
+      const resolvedName =
+        profile.name.trim() ||
+        clerkData?.fallbackName ||
+        clerkData?.email ||
+        profile.id;
+
+      return {
+        id: profile.id,
+        name: resolvedName,
+        email: clerkData?.email ?? "",
+      };
+    });
+
+    res.json(members);
+  } catch (err) {
+    console.error("Error fetching workout members:", err);
+    res.status(500).json({ error: "Failed to fetch members" });
+  }
+});
 
 router.get("/templates", async (req: Request, res: Response) => {
   try {
@@ -68,10 +124,19 @@ router.post("/templates", async (req: Request, res: Response) => {
     const parsed: TemplateExercise[] = exercises.map((e) => {
       const ex = e as Record<string, unknown>;
       return {
-        exerciseId: typeof ex.exerciseId === "string" ? ex.exerciseId : String(ex.exerciseId ?? ""),
+        exerciseId:
+          typeof ex.exerciseId === "string"
+            ? ex.exerciseId
+            : String(ex.exerciseId ?? ""),
         name: typeof ex.name === "string" ? ex.name : String(ex.name ?? ""),
-        sets: typeof ex.sets === "number" ? ex.sets : parseInt(String(ex.sets ?? 3), 10) || 3,
-        reps: typeof ex.reps === "number" ? ex.reps : parseInt(String(ex.reps ?? 10), 10) || 10,
+        sets:
+          typeof ex.sets === "number"
+            ? ex.sets
+            : parseInt(String(ex.sets ?? 3), 10) || 3,
+        reps:
+          typeof ex.reps === "number"
+            ? ex.reps
+            : parseInt(String(ex.reps ?? 10), 10) || 10,
         notes: typeof ex.notes === "string" && ex.notes ? ex.notes : undefined,
       };
     });
@@ -80,7 +145,9 @@ router.post("/templates", async (req: Request, res: Response) => {
       .values({
         trainerId,
         trainerName:
-          typeof trainerName === "string" && trainerName.trim() ? trainerName.trim() : "Trainer",
+          typeof trainerName === "string" && trainerName.trim()
+            ? trainerName.trim()
+            : "Trainer",
         name: name.trim(),
         exercises: parsed,
       })
@@ -96,14 +163,22 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
   try {
     const trainerId = await requireTrainerOrOwner(req, res);
     if (!trainerId) return;
-    const templateId = parseInt(req.params.id, 10);
+    const rawTemplateId = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+    const templateId = parseInt(rawTemplateId, 10);
     if (isNaN(templateId)) {
       res.status(400).json({ error: "Invalid template id" });
       return;
     }
     await db
       .delete(workoutTemplates)
-      .where(and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.trainerId, trainerId)));
+      .where(
+        and(
+          eq(workoutTemplates.id, templateId),
+          eq(workoutTemplates.trainerId, trainerId),
+        ),
+      );
     res.json({ success: true });
   } catch (err) {
     console.error("Error deleting template:", err);
@@ -115,30 +190,60 @@ router.post("/assign", async (req: Request, res: Response) => {
   try {
     const trainerId = await requireTrainerOrOwner(req, res);
     if (!trainerId) return;
-    const { templateId, memberName } = req.body as {
+    const { templateId, memberId } = req.body as {
       templateId?: number;
-      memberName?: string;
+      memberId?: string;
     };
     if (!templateId || typeof templateId !== "number") {
       res.status(400).json({ error: "templateId is required" });
       return;
     }
-    if (!memberName || typeof memberName !== "string" || !memberName.trim()) {
-      res.status(400).json({ error: "memberName is required" });
+    if (!memberId || typeof memberId !== "string" || !memberId.trim()) {
+      res.status(400).json({ error: "memberId is required" });
       return;
     }
     const template = await db
       .select()
       .from(workoutTemplates)
-      .where(and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.trainerId, trainerId)))
+      .where(
+        and(
+          eq(workoutTemplates.id, templateId),
+          eq(workoutTemplates.trainerId, trainerId),
+        ),
+      )
       .limit(1);
     if (!template.length) {
       res.status(404).json({ error: "Template not found or not owned by you" });
       return;
     }
+
+    const [memberProfile] = await db
+      .select({
+        clerkId: userProfiles.clerkId,
+        name: userProfiles.name,
+      })
+      .from(userProfiles)
+      .where(
+        and(
+          eq(userProfiles.clerkId, memberId.trim()),
+          eq(userProfiles.role, "member"),
+        ),
+      )
+      .limit(1);
+
+    if (!memberProfile) {
+      res.status(404).json({ error: "Member not found" });
+      return;
+    }
+
     const [assignment] = await db
       .insert(workoutAssignments)
-      .values({ templateId, trainerId, memberName: memberName.trim() })
+      .values({
+        templateId,
+        trainerId,
+        memberName: memberProfile.name.trim() || memberProfile.clerkId,
+        memberClerkId: memberProfile.clerkId,
+      })
       .returning();
     res.status(201).json(assignment);
   } catch (err) {
@@ -161,7 +266,9 @@ router.post("/assigned/bind", async (req: Request, res: Response) => {
       .where(eq(userProfiles.clerkId, callerUserId))
       .limit(1);
     if (!serverProfile || !serverProfile.name) {
-      res.status(400).json({ error: "Profile not found. Sync your profile first." });
+      res
+        .status(400)
+        .json({ error: "Profile not found. Sync your profile first." });
       return;
     }
     const result = await db
@@ -197,7 +304,9 @@ router.get("/assigned", async (req: Request, res: Response) => {
       return;
     }
     if (memberId !== callerUserId) {
-      res.status(403).json({ error: "You can only fetch your own assigned workouts" });
+      res
+        .status(403)
+        .json({ error: "You can only fetch your own assigned workouts" });
       return;
     }
     const assignments = await db
@@ -214,7 +323,10 @@ router.get("/assigned", async (req: Request, res: Response) => {
         exercises: workoutTemplates.exercises,
       })
       .from(workoutAssignments)
-      .innerJoin(workoutTemplates, eq(workoutAssignments.templateId, workoutTemplates.id))
+      .innerJoin(
+        workoutTemplates,
+        eq(workoutAssignments.templateId, workoutTemplates.id),
+      )
       .where(eq(workoutAssignments.memberClerkId, callerUserId));
     res.json(assignments);
   } catch (err) {
@@ -231,7 +343,10 @@ router.patch("/assigned/:id/complete", async (req: Request, res: Response) => {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const assignmentId = parseInt(req.params.id, 10);
+    const rawAssignmentId = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
+    const assignmentId = parseInt(rawAssignmentId, 10);
     if (isNaN(assignmentId)) {
       res.status(400).json({ error: "Invalid assignment id" });
       return;

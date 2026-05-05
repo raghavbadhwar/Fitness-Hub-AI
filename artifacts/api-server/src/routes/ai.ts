@@ -105,10 +105,13 @@ Return only the JSON, no other text.`;
 
 router.post("/chat", async (req: Request, res: Response) => {
   try {
-    const { messages, userProfile, todayStats } = req.body as {
+    const { messages, userProfile, todayStats, behaviorProfile, savedPlans } =
+      req.body as {
       messages?: Array<{ role: string; content: string }>;
       userProfile?: Record<string, unknown>;
       todayStats?: Record<string, unknown>;
+      behaviorProfile?: Record<string, unknown>;
+      savedPlans?: unknown[];
     };
 
     if (!messages || !Array.isArray(messages)) {
@@ -130,8 +133,10 @@ router.post("/chat", async (req: Request, res: Response) => {
 
 User Profile: ${JSON.stringify(userProfile ?? {})}
 Today's Stats: ${JSON.stringify(todayStats ?? {})}
+Behavior Profile: ${JSON.stringify(behaviorProfile ?? {})}
+Saved Plans: ${JSON.stringify(savedPlans ?? [])}
 
-Keep responses concise, actionable, and encouraging. Use Indian food examples when relevant. Address the user warmly.`;
+Adapt to the user's actual workout rhythm. If their consistency is still building, prefer simpler guidance and fewer changes. If they already have saved plans, reference them before inventing something new. Keep responses concise, actionable, and encouraging. Use Indian food examples when relevant. Address the user warmly.`;
 
     const geminiMessages = messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
@@ -179,11 +184,20 @@ Keep responses concise, actionable, and encouraging. Use Indian food examples wh
 
 router.post("/workout-suggestion", async (req: Request, res: Response) => {
   try {
-    const { recentWorkouts, goals, fitnessLevel, availableTime } = req.body as {
+    const {
+      recentWorkouts,
+      goals,
+      fitnessLevel,
+      availableTime,
+      behaviorProfile,
+      savedPlans,
+    } = req.body as {
       recentWorkouts?: unknown[];
       goals?: string;
       fitnessLevel?: string;
       availableTime?: number;
+      behaviorProfile?: Record<string, unknown>;
+      savedPlans?: unknown[];
     };
 
     const prompt = `You are a professional fitness coach. Based on the following user data, suggest a workout plan.
@@ -192,6 +206,10 @@ Recent Workouts: ${JSON.stringify(recentWorkouts ?? [])}
 Goals: ${goals ?? "general fitness"}
 Fitness Level: ${fitnessLevel ?? "intermediate"}
 Available Time: ${availableTime ?? 45} minutes
+Behavior Profile: ${JSON.stringify(behaviorProfile ?? {})}
+Saved Plans: ${JSON.stringify(savedPlans ?? [])}
+
+Make the plan feel premium but simple to follow. Reuse familiar movement patterns when the behavior profile shows the user values consistency. If saved plans exist, suggest something adjacent to those habits instead of a random overhaul.
 
 Return ONLY this JSON (no markdown):
 {

@@ -127,7 +127,7 @@ export default function AssistantScreen() {
   const { user } = useUser();
   const { profile } = useApp();
   const { todayLog } = useNutrition();
-  const { sessions } = useWorkout();
+  const { sessions, behaviorProfile, savedPlans } = useWorkout();
   const colors = useColors();
   const typography = useTypography();
   const flatListRef = useRef<FlatList>(null);
@@ -168,6 +168,12 @@ export default function AssistantScreen() {
 
   const todayCalories = todayLog.entries.reduce((sum, e) => sum + e.calories, 0);
   const recentWorkouts = sessions.slice(0, 3).map((s) => ({ name: s.name, date: s.date }));
+  const savedPlanSummaries = savedPlans.slice(0, 4).map((plan) => ({
+    name: plan.name,
+    focus: plan.focus,
+    exerciseCount: plan.exercises.length,
+    exercises: plan.exercises.slice(0, 5).map((exercise) => exercise.name),
+  }));
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -201,12 +207,24 @@ export default function AssistantScreen() {
           gymName: profile.gymName,
           role: profile.role,
         };
-        const todayStats = { calories: todayCalories, target: profile.dailyCalorieTarget, recentWorkouts };
+        const todayStats = {
+          calories: todayCalories,
+          target: profile.dailyCalorieTarget,
+          recentWorkouts,
+          behaviorProfile,
+          savedPlans: savedPlanSummaries,
+        };
 
         const response = await fetch(`${apiBase}/api/ai/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: chatHistory, userProfile, todayStats }),
+          body: JSON.stringify({
+            messages: chatHistory,
+            userProfile,
+            todayStats,
+            behaviorProfile,
+            savedPlans: savedPlanSummaries,
+          }),
         });
 
         if (!response.ok) throw new Error("Failed to get response");
