@@ -13,6 +13,7 @@
 ### Task 1: Sync the isolated worktree to the latest workout baseline
 
 **Files:**
+
 - Modify: `artifacts/gymapp/app/(tabs)/workout.tsx`
 - Modify: `artifacts/api-server/src/routes/workouts.ts`
 - Reference: `/Volumes/RAGHAV2/Projects/Fitness-Hub-AI/artifacts/gymapp/app/(tabs)/workout.tsx`
@@ -46,6 +47,7 @@ Expected: no output.
 ### Task 2: Add member-saved plans and behavior profiling to workout state
 
 **Files:**
+
 - Modify: `artifacts/gymapp/contexts/WorkoutContext.tsx`
 
 - [ ] **Step 1: Add the failing type surface in `WorkoutContext.tsx`**
@@ -168,7 +170,8 @@ const behaviorProfile = useMemo<WorkoutBehaviorProfile>(() => {
     completed.reduce((sum, session) => sum + (session.duration ?? 0), 0) / completed.length,
   );
   const averageWeeklyVolume = Math.round(
-    recent30.reduce((sum, session) => sum + session.totalVolume, 0) / Math.max(1, Math.ceil(30 / 7)),
+    recent30.reduce((sum, session) => sum + session.totalVolume, 0) /
+      Math.max(1, Math.ceil(30 / 7)),
   );
 
   const exerciseCounts = new Map<string, number>();
@@ -203,9 +206,19 @@ const behaviorProfile = useMemo<WorkoutBehaviorProfile>(() => {
 
   const topWindow = [...windowCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "mixed";
   const consistencyLabel =
-    recent7.length >= 4 ? "locked_in" : recent7.length >= 3 ? "steady" : recent7.length >= 1 ? "building" : "starting";
+    recent7.length >= 4
+      ? "locked_in"
+      : recent7.length >= 3
+        ? "steady"
+        : recent7.length >= 1
+          ? "building"
+          : "starting";
   const recoveryState =
-    daysSinceLastWorkout === null || daysSinceLastWorkout <= 1 ? "active" : daysSinceLastWorkout <= 4 ? "fresh" : "drifting";
+    daysSinceLastWorkout === null || daysSinceLastWorkout <= 1
+      ? "active"
+      : daysSinceLastWorkout <= 4
+        ? "fresh"
+        : "drifting";
 
   return {
     completedSessionsLast7Days: recent7.length,
@@ -225,52 +238,57 @@ const behaviorProfile = useMemo<WorkoutBehaviorProfile>(() => {
 - [ ] **Step 5: Add save/delete/start helpers for personal plans**
 
 ```ts
-const savePlan = useCallback(async (input: {
-  id?: string;
-  name: string;
-  exercises: SavedWorkoutPlan["exercises"];
-}) => {
-  const timestamp = new Date().toISOString();
-  const nextPlan: SavedWorkoutPlan = {
-    id: input.id ?? generateId(),
-    name: input.name.trim(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    source: "member",
-    exercises: input.exercises,
-  };
+const savePlan = useCallback(
+  async (input: { id?: string; name: string; exercises: SavedWorkoutPlan["exercises"] }) => {
+    const timestamp = new Date().toISOString();
+    const nextPlan: SavedWorkoutPlan = {
+      id: input.id ?? generateId(),
+      name: input.name.trim(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      source: "member",
+      exercises: input.exercises,
+    };
 
-  const nextPlans = input.id
-    ? savedPlans.map((plan) =>
-        plan.id === input.id ? { ...nextPlan, createdAt: plan.createdAt } : plan,
-      )
-    : [nextPlan, ...savedPlans];
+    const nextPlans = input.id
+      ? savedPlans.map((plan) =>
+          plan.id === input.id ? { ...nextPlan, createdAt: plan.createdAt } : plan,
+        )
+      : [nextPlan, ...savedPlans];
 
-  await persistPlans(nextPlans);
-  return nextPlan;
-}, [savedPlans, persistPlans]);
+    await persistPlans(nextPlans);
+    return nextPlan;
+  },
+  [savedPlans, persistPlans],
+);
 
-const deletePlan = useCallback(async (planId: string) => {
-  await persistPlans(savedPlans.filter((plan) => plan.id !== planId));
-}, [savedPlans, persistPlans]);
+const deletePlan = useCallback(
+  async (planId: string) => {
+    await persistPlans(savedPlans.filter((plan) => plan.id !== planId));
+  },
+  [savedPlans, persistPlans],
+);
 
-const startPlanSession = useCallback((planId: string) => {
-  const plan = savedPlans.find((entry) => entry.id === planId);
-  if (!plan) return null;
-  return startSession(
-    plan.name,
-    plan.exercises.map((exercise) => ({
-      exerciseId: exercise.exerciseId,
-      name: exercise.name,
-      notes: exercise.notes,
-      sets: Array.from({ length: exercise.sets }, () => ({
-        weight: 0,
-        reps: exercise.reps,
-        completed: false,
+const startPlanSession = useCallback(
+  (planId: string) => {
+    const plan = savedPlans.find((entry) => entry.id === planId);
+    if (!plan) return null;
+    return startSession(
+      plan.name,
+      plan.exercises.map((exercise) => ({
+        exerciseId: exercise.exerciseId,
+        name: exercise.name,
+        notes: exercise.notes,
+        sets: Array.from({ length: exercise.sets }, () => ({
+          weight: 0,
+          reps: exercise.reps,
+          completed: false,
+        })),
       })),
-    })),
-  );
-}, [savedPlans, startSession]);
+    );
+  },
+  [savedPlans, startSession],
+);
 ```
 
 - [ ] **Step 6: Run a focused typecheck**
@@ -284,6 +302,7 @@ Expected: existing baseline type errors may still remain, but no new `WorkoutCon
 ### Task 3: Add My Plans to the member workout experience
 
 **Files:**
+
 - Modify: `artifacts/gymapp/app/(tabs)/workout.tsx`
 
 - [ ] **Step 1: Update the workout screen to consume the new context fields**
@@ -312,76 +331,92 @@ const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
 - [ ] **Step 3: Add a member-only `My Plans` section above the AI generator**
 
 ```tsx
-{!isTrainerOrOwner && (
-  <>
-    <View style={styles.sectionHeaderRow}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>My Plans</Text>
-      <Pressable
-        style={[styles.linkActionBtn, { borderColor: colors.border }]}
-        onPress={() => {
-          setEditingPlanId(null);
-          setShowMyPlanModal(true);
-        }}
-      >
-        <Feather name="plus" size={14} color={colors.primary} />
-        <Text style={[styles.linkActionText, { color: colors.primary }]}>Create</Text>
-      </Pressable>
-    </View>
-
-    {savedPlans.length === 0 ? (
-      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.infoCardTitle, { color: colors.text }]}>Build your own routine</Text>
-        <Text style={[styles.infoCardBody, { color: colors.mutedForeground }]}>
-          Save your favorite custom split once and start it anytime.
-        </Text>
+{
+  !isTrainerOrOwner && (
+    <>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>My Plans</Text>
+        <Pressable
+          style={[styles.linkActionBtn, { borderColor: colors.border }]}
+          onPress={() => {
+            setEditingPlanId(null);
+            setShowMyPlanModal(true);
+          }}
+        >
+          <Feather name="plus" size={14} color={colors.primary} />
+          <Text style={[styles.linkActionText, { color: colors.primary }]}>Create</Text>
+        </Pressable>
       </View>
-    ) : (
-      savedPlans.map((plan) => (
-        <View key={plan.id} style={[styles.assignedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.assignedCardHeader}>
-            <View style={[styles.assignedIcon, { backgroundColor: colors.primary }]}>
-              <Feather name="bookmark" size={18} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.assignedTitle, { color: colors.text }]}>{plan.name}</Text>
-              <Text style={[styles.assignedMeta, { color: colors.mutedForeground }]}>
-                {plan.exercises.length} exercises · Updated {new Date(plan.updatedAt).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.inlineActionRow}>
-            <Pressable
-              style={[styles.startAssignedBtn, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                const session = startPlanSession(plan.id);
-                if (session) {
-                  router.push({ pathname: "/workout-session", params: { sessionId: session.id } });
-                }
-              }}
-            >
-              <Text style={styles.startAssignedBtnText}>Start Plan</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryActionBtn, { borderColor: colors.border }]}
-              onPress={() => {
-                setEditingPlanId(plan.id);
-                setShowMyPlanModal(true);
-              }}
-            >
-              <Text style={[styles.secondaryActionText, { color: colors.text }]}>Edit</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryActionBtn, { borderColor: colors.border }]}
-              onPress={() => deletePlan(plan.id)}
-            >
-              <Text style={[styles.secondaryActionText, { color: colors.destructive }]}>Delete</Text>
-            </Pressable>
-          </View>
+
+      {savedPlans.length === 0 ? (
+        <View
+          style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Text style={[styles.infoCardTitle, { color: colors.text }]}>Build your own routine</Text>
+          <Text style={[styles.infoCardBody, { color: colors.mutedForeground }]}>
+            Save your favorite custom split once and start it anytime.
+          </Text>
         </View>
-      ))
-    )}
-  </>
-)}
+      ) : (
+        savedPlans.map((plan) => (
+          <View
+            key={plan.id}
+            style={[
+              styles.assignedCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.assignedCardHeader}>
+              <View style={[styles.assignedIcon, { backgroundColor: colors.primary }]}>
+                <Feather name="bookmark" size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.assignedTitle, { color: colors.text }]}>{plan.name}</Text>
+                <Text style={[styles.assignedMeta, { color: colors.mutedForeground }]}>
+                  {plan.exercises.length} exercises · Updated{" "}
+                  {new Date(plan.updatedAt).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.inlineActionRow}>
+              <Pressable
+                style={[styles.startAssignedBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  const session = startPlanSession(plan.id);
+                  if (session) {
+                    router.push({
+                      pathname: "/workout-session",
+                      params: { sessionId: session.id },
+                    });
+                  }
+                }}
+              >
+                <Text style={styles.startAssignedBtnText}>Start Plan</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.secondaryActionBtn, { borderColor: colors.border }]}
+                onPress={() => {
+                  setEditingPlanId(plan.id);
+                  setShowMyPlanModal(true);
+                }}
+              >
+                <Text style={[styles.secondaryActionText, { color: colors.text }]}>Edit</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.secondaryActionBtn, { borderColor: colors.border }]}
+                onPress={() => deletePlan(plan.id)}
+              >
+                <Text style={[styles.secondaryActionText, { color: colors.destructive }]}>
+                  Delete
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))
+      )}
+    </>
+  );
+}
 ```
 
 - [ ] **Step 4: Make the AI workout card reflect behavior without adding clutter**
@@ -397,22 +432,24 @@ const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
 - [ ] **Step 5: Add a member personal-plan modal by reusing the existing template builder shape**
 
 ```tsx
-{showMyPlanModal && (
-  <MemberPlanModal
-    visible={showMyPlanModal}
-    onClose={() => {
-      setShowMyPlanModal(false);
-      setEditingPlanId(null);
-    }}
-    onSave={async (payload) => {
-      await savePlan(payload);
-      setShowMyPlanModal(false);
-      setEditingPlanId(null);
-    }}
-    colors={colors}
-    initialPlan={savedPlans.find((plan) => plan.id === editingPlanId) ?? null}
-  />
-)}
+{
+  showMyPlanModal && (
+    <MemberPlanModal
+      visible={showMyPlanModal}
+      onClose={() => {
+        setShowMyPlanModal(false);
+        setEditingPlanId(null);
+      }}
+      onSave={async (payload) => {
+        await savePlan(payload);
+        setShowMyPlanModal(false);
+        setEditingPlanId(null);
+      }}
+      colors={colors}
+      initialPlan={savedPlans.find((plan) => plan.id === editingPlanId) ?? null}
+    />
+  );
+}
 ```
 
 - [ ] **Step 6: Keep trainer flow untouched**
@@ -426,6 +463,7 @@ Expected: trainer/member assignment remains ID-based and member personal plans d
 ### Task 4: Make the assistant and AI routes behavior-aware
 
 **Files:**
+
 - Modify: `artifacts/gymapp/app/(tabs)/assistant.tsx`
 - Modify: `artifacts/api-server/src/routes/ai.ts`
 
@@ -484,14 +522,15 @@ Rules:
 - [ ] **Step 4: Make AI workout suggestions behavior-aware too**
 
 ```ts
-const { recentWorkouts, goals, fitnessLevel, availableTime, behaviorProfile, savedPlans } = req.body as {
-  recentWorkouts?: unknown[];
-  goals?: string;
-  fitnessLevel?: string;
-  availableTime?: number;
-  behaviorProfile?: Record<string, unknown>;
-  savedPlans?: unknown[];
-};
+const { recentWorkouts, goals, fitnessLevel, availableTime, behaviorProfile, savedPlans } =
+  req.body as {
+    recentWorkouts?: unknown[];
+    goals?: string;
+    fitnessLevel?: string;
+    availableTime?: number;
+    behaviorProfile?: Record<string, unknown>;
+    savedPlans?: unknown[];
+  };
 
 const prompt = `You are a professional fitness coach.
 
@@ -527,6 +566,7 @@ body: JSON.stringify({
 ### Task 5: Verification and review
 
 **Files:**
+
 - Review: `artifacts/gymapp/contexts/WorkoutContext.tsx`
 - Review: `artifacts/gymapp/app/(tabs)/workout.tsx`
 - Review: `artifacts/gymapp/app/(tabs)/assistant.tsx`

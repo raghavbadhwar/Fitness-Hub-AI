@@ -7,7 +7,7 @@
     "dev": "PORT=${PORT:-4000} NODE_ENV=development pnpm run build && PORT=${PORT:-4000} NODE_ENV=development pnpm run start",
     "build": "node ./build.mjs",
     "start": "PORT=${PORT:-4000} node --enable-source-maps ./dist/index.mjs",
-    "test": "node --experimental-test-module-mocks --experimental-transform-types --test --test-isolation=process",
+    "test": "node --experimental-test-module-mocks --experimental-transform-types --experimental-test-isolation=process --test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
