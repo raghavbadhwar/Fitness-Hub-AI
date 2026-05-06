@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { generateId } from "@/lib/id";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -20,10 +21,6 @@ import { EXERCISES } from "@/constants/exercises";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 
 type Colors = ReturnType<typeof useColors>;
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 const DEFAULT_REST_DURATION = 90;
 const RING_SIZE = 140;

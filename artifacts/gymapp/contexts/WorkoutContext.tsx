@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
+import { generateId } from "@/lib/id";
 import { getApiBase } from "@/lib/api-base";
 import React, {
   createContext,
@@ -134,10 +135,6 @@ const DEFAULT_BEHAVIOR_PROFILE: WorkoutBehaviorProfile = {
   consistencyLabel: "starting",
   recoveryState: "fresh",
 };
-
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
