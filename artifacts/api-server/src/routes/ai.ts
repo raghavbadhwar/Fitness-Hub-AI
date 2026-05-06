@@ -17,20 +17,26 @@ import {
 
 const router = Router();
 
+import { getAuth } from "@clerk/express";
+
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_PER_WINDOW = 20;
-const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
+const userRequestCounts = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(req: Request, res: Response, next: NextFunction): void {
-  const ip =
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
-    req.socket.remoteAddress ??
-    "unknown";
+  // Use authenticated userId for rate limiting rather than IP/x-forwarded-for
+  // to prevent attackers from spoofing headers and bypassing the rate limit.
+  const userId = getAuth(req)?.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const now = Date.now();
-  const entry = ipRequestCounts.get(ip);
+  const entry = userRequestCounts.get(userId);
 
   if (!entry || now > entry.resetAt) {
-    ipRequestCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    userRequestCounts.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     next();
     return;
   }
