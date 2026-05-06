@@ -31,6 +31,10 @@ const CLASS_COLORS: Record<string, string> = {
   Other: "#9096B3",
 };
 
+let activeMembersCache: number | null = null;
+let activeMembersCacheTime = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const router = Router();
 
 router.use(requireAuth());
@@ -397,11 +401,18 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
-    try {
-      const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-      totalActiveMembers = await clerkClient.users.getCount();
-    } catch {
-      totalActiveMembers = 0;
+    const nowMs = Date.now();
+    if (activeMembersCache !== null && nowMs - activeMembersCacheTime < CACHE_TTL_MS) {
+      totalActiveMembers = activeMembersCache;
+    } else {
+      try {
+        const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+        totalActiveMembers = await clerkClient.users.getCount();
+        activeMembersCache = totalActiveMembers;
+        activeMembersCacheTime = nowMs;
+      } catch {
+        totalActiveMembers = 0;
+      }
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
