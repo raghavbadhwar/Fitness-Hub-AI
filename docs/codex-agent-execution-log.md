@@ -182,3 +182,31 @@ Commands run:
 Blockers:
 
 - None.
+
+### T06 - Add Dependabot, CodeQL, and security automation
+
+Status: PASS.
+
+Summary:
+
+- Added Dependabot weekly checks for pnpm/npm dependencies and GitHub Actions.
+- Added CodeQL JavaScript/TypeScript analysis for PRs, `main`, and weekly scheduled scans.
+- Added a CI audit job using `pnpm audit --audit-level high --prod`.
+- Documented automated security checks in `SECURITY.md`.
+
+Files changed:
+
+- `.github/dependabot.yml`
+- `.github/workflows/codeql.yml`
+- `.github/workflows/ci.yml`
+- `SECURITY.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm audit --audit-level high --prod` - pass, no known vulnerabilities found.
+- `pnpm run format:check` - pass.
+
+Blockers:
+
+- None.

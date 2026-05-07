@@ -27,6 +27,16 @@ pnpm run preflight:beta-secrets
 
 - For credential cleanup and rotation guidance, see [docs/internal-beta/secret-rotation-runbook.md](./docs/internal-beta/secret-rotation-runbook.md).
 
+## Automated Security Checks
+
+This repo uses GitHub automation that does not require Clerk, Gemini, database, or payment secrets:
+
+- Dependabot checks pnpm workspace dependencies and GitHub Actions weekly.
+- CodeQL scans JavaScript and TypeScript on pull requests, pushes to `main`, and a weekly schedule.
+- CI runs `pnpm audit --audit-level high --prod` against production dependencies.
+
+Treat security automation failures as release blockers unless the finding is documented, accepted, and tracked with a clear remediation owner.
+
 ## Sensitive Areas in This Repo
 
 Changes in these areas should be reviewed carefully:
