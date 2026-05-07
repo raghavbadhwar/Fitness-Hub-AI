@@ -62,3 +62,29 @@ Commands run:
 
 Blockers:
 - None.
+
+### T02 - Replace weak Math.random ID generation in gymapp
+
+Status: PASS.
+
+Summary:
+- Added centralized secure ID generation via Expo Crypto `randomUUID()`.
+- Replaced production gymapp ID helpers in nutrition, workout context, workout session, and assistant chat.
+- Confirmed no production gymapp `Math.random()` usage remains outside tests.
+
+Files changed:
+- `artifacts/gymapp/lib/id.ts`
+- `artifacts/gymapp/contexts/NutritionContext.tsx`
+- `artifacts/gymapp/contexts/WorkoutContext.tsx`
+- `artifacts/gymapp/app/workout-session.tsx`
+- `artifacts/gymapp/app/(tabs)/assistant.tsx`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+- `rg -n "Math\\.random" artifacts/gymapp --glob '!**/*.test.*'` - pass, no matches.
+- `pnpm --filter @workspace/gymapp run typecheck` - pass.
+- `pnpm --filter @workspace/gymapp test` - pass, 32 tests.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+
+Blockers:
+- None.
