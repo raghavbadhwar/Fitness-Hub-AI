@@ -63,6 +63,28 @@ Commands run:
 Blockers:
 - None.
 
+### T04 - Debounce expensive member-app search inputs
+
+Status: PASS.
+
+Summary:
+- Added a reusable `useDebounce()` hook with a 250ms default delay.
+- Applied debounced derived queries to nutrition food search, workout exercise search, assignable member search, and workout-plan exercise pickers.
+- Kept all `TextInput` values immediate and only delayed local filtering.
+
+Files changed:
+- `artifacts/gymapp/hooks/useDebounce.ts`
+- `artifacts/gymapp/app/(tabs)/nutrition.tsx`
+- `artifacts/gymapp/app/(tabs)/workout.tsx`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+- `pnpm --filter @workspace/gymapp run typecheck` - pass.
+- `pnpm --filter @workspace/gymapp test` - pass, 32 tests.
+
+Blockers:
+- None.
+
 ### T03 - Add admin dashboard Clerk member-count cache
 
 Status: PASS.
