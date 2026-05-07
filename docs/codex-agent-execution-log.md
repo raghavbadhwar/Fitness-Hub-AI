@@ -146,6 +146,45 @@ Blockers:
 
 - None.
 
+### T18 - Final verification, report, and duplicate PR cleanup notes
+
+Status: PASS with one documented UI-preview residual.
+
+Summary:
+
+- Ran the standard final verification commands from the execution plan.
+- Attempted Playwright smoke and UI preview tests sequentially.
+- Confirmed no lingering dev-server listeners on ports `4000`, `4173`, or `3100`.
+- Searched for remaining `Math.random()` usage, `x-forwarded-for`, `[TODO:` placeholders, and tracked local artifacts.
+- Confirmed GitHub PR listing is available through `gh`, but did not close duplicate PRs because this canonical branch is not merged yet.
+- Created `docs/codex-final-completion-report.md` with completed tasks, commands, residual failures, changed-file summary, migrations, OpenAPI changes, and manual follow-ups.
+
+Files changed:
+
+- `docs/codex-final-completion-report.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass, worktree remained clean.
+- `pnpm run format:check` - pass.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm --dir artifacts/api-server test` - pass, 89 tests.
+- `pnpm --filter @workspace/gymapp test` - pass, 32 tests.
+- `git diff --check` - pass.
+- `pnpm run test:e2e:smoke` - pass, 2 tests.
+- `pnpm run test:e2e:ui` - 7 passed, 1 failed in the existing member preview CTA route: click on `Log first workout` timed out after the locator resolved.
+- `rg -n --glob '!node_modules/**' --glob '!dist/**' --glob '!test-results/**' --glob '!pnpm-lock.yaml' "Math\\.random\\(" .` - pass; remaining matches are tests, sidebar skeleton width, and historical log notes, not production member-data ID generation.
+- `rg -n --glob '!node_modules/**' --glob '!dist/**' --glob '!test-results/**' --glob '!pnpm-lock.yaml' "x-forwarded-for" .` - pass; remaining matches are Clerk proxy middleware/tests and AI spoofing tests, not AI rate-limit keying.
+- `rg -n --glob '!node_modules/**' --glob '!dist/**' --glob '!test-results/**' --glob '!pnpm-lock.yaml' "\\[TODO:" .` - pass; only historical execution-log command text matched.
+- `git ls-files | rg '(^\\.local/|^\\.playwright-cli/|^\\.codex/|^\\.vercel/|^dist/|^test-results/|\\.log$|\\.png$)'` - pass; only the real app asset `artifacts/gymapp/assets/images/icon.png` matched.
+- `lsof -nP -iTCP:4000 -iTCP:4173 -iTCP:3100 -sTCP:LISTEN || true` - pass, no listeners.
+- `gh auth status` and `gh pr list --state open --limit 50 --json number,title,headRefName,baseRefName,url,isDraft,author,updatedAt` - pass; duplicate PR groups were recorded in the final report for manual closure after merge.
+
+Blockers:
+
+- No blocker. The only residual is the existing member preview Playwright click timeout documented above.
+
 ### T15 - Add billing/membership foundation without real charges
 
 Status: PASS.
