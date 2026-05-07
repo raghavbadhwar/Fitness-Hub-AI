@@ -72,6 +72,32 @@ Blockers:
 
 - None.
 
+### T15 - Add billing/membership foundation without real charges
+
+Status: PASS.
+
+Summary:
+
+- Added `docs/billing.md` with membership-plan, Stripe-hosted Checkout/Portal, webhook, status, and security guidance.
+- Kept billing as documentation-only because no real provider setup exists and fake payment capture is explicitly out of scope.
+- Did not add Stripe environment placeholders because no Stripe integration code was introduced.
+- Did not add dormant membership schema/API yet; the doc specifies adding it with the first real server-side billing/status API so access logic can be tested in the same change.
+
+Files changed:
+
+- `docs/billing.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm run format:check` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `rg -n "stripe|payment|card|billing|membership" .env.example docs/billing.md artifacts lib -g '!**/generated/**' -g '!node_modules'` - pass; only documentation and existing non-payment UI text matched.
+
+Blockers:
+
+- None.
+
 ### T14 - Add notification/reminder preferences foundation
 
 Status: PASS.
