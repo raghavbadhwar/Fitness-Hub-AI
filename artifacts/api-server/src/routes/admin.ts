@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
-import { createClerkClient } from "@clerk/backend";
 import { eq } from "drizzle-orm";
 import { db, gymClassesTable, gymSettingsTable } from "@workspace/db";
 import {
@@ -17,6 +16,12 @@ import {
   updateAdminMemberRole,
 } from "../lib/admin-members.ts";
 import { isGrantableUserRole, normalizeEmail } from "../lib/user-access.ts";
+import { createServerClerkClient } from "../lib/clerk-request.ts";
+
+// Cache for total active members to reduce redundant Clerk API calls (5-minute TTL)
+let cachedTotalActiveMembers: number | null = null;
+let lastMembersCacheTime = 0;
+const MEMBERS_CACHE_TTL = 5 * 60 * 1000;
 
 const CLASS_COLORS: Record<string, string> = {
   Yoga: "#22C55E",
@@ -398,10 +403,18 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
-      const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-      totalActiveMembers = await clerkClient.users.getCount();
+      const nowMs = Date.now();
+      if (cachedTotalActiveMembers !== null && nowMs - lastMembersCacheTime < MEMBERS_CACHE_TTL) {
+        // Use cached total active members to optimize dashboard performance
+        totalActiveMembers = cachedTotalActiveMembers;
+      } else {
+        const clerkClient = createServerClerkClient();
+        totalActiveMembers = await clerkClient.users.getCount();
+        cachedTotalActiveMembers = totalActiveMembers;
+        lastMembersCacheTime = nowMs;
+      }
     } catch {
-      totalActiveMembers = 0;
+      totalActiveMembers = cachedTotalActiveMembers ?? 0;
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -449,7 +462,7 @@ router.get("/classes/:id/enrollments", async (req: Request, res: Response): Prom
   }
 
   try {
-    const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+    const clerkClient = createServerClerkClient();
     const usersMap = new Map<string, ClerkUserSummary>();
     const chunkSize = 100;
     const uniqueMemberIds = Array.from(new Set(memberIds));
