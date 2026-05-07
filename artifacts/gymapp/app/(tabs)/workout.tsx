@@ -561,7 +561,7 @@ export default function WorkoutScreen() {
         pathname: "/workout-session",
         params: { sessionId: session.id },
       });
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Failed to generate AI workout. Please try again.");
     } finally {
       setLoadingAI(false);
@@ -629,7 +629,7 @@ export default function WorkoutScreen() {
         const err = await resp.json();
         Alert.alert("Error", err.error || "Failed to assign workout");
       }
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Failed to assign workout");
     } finally {
       setAssigningWorkout(false);

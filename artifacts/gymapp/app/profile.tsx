@@ -2,16 +2,7 @@ import { useAuth, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";

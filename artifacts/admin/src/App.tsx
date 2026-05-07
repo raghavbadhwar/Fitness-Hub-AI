@@ -3,17 +3,16 @@ import {
   lazy,
   useEffect,
   useRef,
-  useState,
   type ComponentType,
   type LazyExoticComponent,
 } from "react";
 import { ClerkProvider, SignIn, useAuth, useClerk, useUser } from "@clerk/react";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { buildApiUrl, getApiBaseUrl } from "./lib/api-base";
 import { getClerkProxyUrl } from "./lib/clerk-config";
-import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { setBaseUrl } from "@workspace/api-client-react";
 import { Layout } from "./components/layout";
 import { ThemeProvider } from "./components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -69,16 +68,9 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function ApiClientConfigurator() {
-  const { getToken } = useAuth();
-
   useEffect(() => {
     setBaseUrl(getApiBaseUrl());
-    setAuthTokenGetter(() => getToken());
-
-    return () => {
-      setAuthTokenGetter(null);
-    };
-  }, [getToken]);
+  }, []);
 
   return null;
 }
@@ -151,65 +143,31 @@ function ProtectedRoute({ component }: { component: RouteComponent }) {
   const { getToken } = useAuth();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
-  const [accessState, setAccessState] = useState<{
-    status: "idle" | "loading" | "allowed" | "denied";
-    message: string;
-  }>({
-    status: "idle",
-    message: "",
-  });
+  const accessQuery = useQuery({
+    enabled: isLoaded && Boolean(user),
+    queryKey: ["admin-access", user?.id],
+    queryFn: async ({ signal }) => {
+      const token = await getToken();
+      const response = await fetch(buildApiUrl("/api/admin/access"), {
+        signal,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {
+        throw new Error("Unable to verify admin access right now. Please try again.");
+      });
+      const payload = await response.json().catch(() => null);
 
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
-    if (!user) {
-      setAccessState({ status: "idle", message: "" });
-      return;
-    }
-
-    let cancelled = false;
-
-    const verifyAccess = async () => {
-      setAccessState({ status: "loading", message: "" });
-
-      try {
-        const token = await getToken();
-        const response = await fetch(buildApiUrl("/api/admin/access"), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const payload = await response.json().catch(() => null);
-
-        if (cancelled) {
-          return;
-        }
-
-        if (response.ok) {
-          setAccessState({ status: "allowed", message: "" });
-          return;
-        }
-
-        setAccessState({
-          status: "denied",
-          message: payload?.error || "You do not have permission to access the GymOS Admin Panel.",
-        });
-      } catch {
-        if (!cancelled) {
-          setAccessState({
-            status: "denied",
-            message: "Unable to verify admin access right now. Please try again.",
-          });
-        }
+      if (!response.ok) {
+        throw new Error(
+          payload?.error || "You do not have permission to access the GymOS Admin Panel.",
+        );
       }
-    };
 
-    void verifyAccess();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken, isLoaded, user?.id]);
+      return payload;
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   if (!isLoaded) {
     return <FullScreenLoadingState />;
@@ -217,12 +175,12 @@ function ProtectedRoute({ component }: { component: RouteComponent }) {
 
   if (!user) return <Redirect to="/sign-in" />;
 
-  if (accessState.status === "idle" || accessState.status === "loading") {
-    return <FullScreenLoadingState />;
-  }
-
-  if (accessState.status === "denied") {
-    const canRetryWithDifferentAccount = !accessState.message.includes("Unable to verify");
+  if (accessQuery.error) {
+    const accessMessage =
+      accessQuery.error instanceof Error
+        ? accessQuery.error.message
+        : "Unable to verify admin access right now. Please try again.";
+    const canRetryWithDifferentAccount = !accessMessage.includes("Unable to verify");
 
     const handleSwitchAccount = async () => {
       await signOut();
@@ -232,11 +190,15 @@ function ProtectedRoute({ component }: { component: RouteComponent }) {
     return (
       <AccessDeniedState
         canRetryWithDifferentAccount={canRetryWithDifferentAccount}
-        message={accessState.message}
+        message={accessMessage}
         onGoToSignIn={() => setLocation("/sign-in", { replace: true })}
         onSwitchAccount={() => void handleSwitchAccount()}
       />
     );
+  }
+
+  if (accessQuery.isLoading || !accessQuery.data) {
+    return <FullScreenLoadingState />;
   }
 
   return (

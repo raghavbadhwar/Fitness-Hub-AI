@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import { getApiBase } from "@/lib/api-base";
 import { getLocalDateKey } from "@/lib/date-key";
+import { decodeVersionedWithLegacyFallback, encodeVersioned } from "@/lib/versioned-storage";
 import React, {
   createContext,
   useCallback,
@@ -249,7 +250,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     async (nextPlans: SavedWorkoutPlan[]) => {
       savedPlansRef.current = nextPlans;
       setSavedPlans(nextPlans);
-      await AsyncStorage.setItem(storageKeys.savedPlans, JSON.stringify(nextPlans));
+      await AsyncStorage.setItem(storageKeys.savedPlans, encodeVersioned(nextPlans));
     },
     [storageKeys.savedPlans],
   );
@@ -263,14 +264,63 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(storageKeys.personalRecords),
           AsyncStorage.getItem(storageKeys.savedPlans),
         ]);
-        setSessions(safeParse(storedSessions, []));
-        setPersonalRecords(safeParse(storedPRs, {}));
-        const parsedPlans = safeParse<unknown[]>(storedPlans, [])
+        const [legacySessions, legacyPRs, legacyPlans] = await Promise.all([
+          storageKeys.sessions !== SESSIONS_STORAGE_KEY
+            ? AsyncStorage.getItem(SESSIONS_STORAGE_KEY)
+            : null,
+          storageKeys.personalRecords !== PRS_STORAGE_KEY
+            ? AsyncStorage.getItem(PRS_STORAGE_KEY)
+            : null,
+          storageKeys.savedPlans !== SAVED_PLANS_STORAGE_KEY
+            ? AsyncStorage.getItem(SAVED_PLANS_STORAGE_KEY)
+            : null,
+        ]);
+        const sessionsResult = decodeVersionedWithLegacyFallback<WorkoutSession[]>(
+          storedSessions,
+          legacySessions,
+          [],
+        );
+        const personalRecordsResult = decodeVersionedWithLegacyFallback<
+          Record<string, PersonalRecord>
+        >(storedPRs, legacyPRs, {});
+        const savedPlansResult = decodeVersionedWithLegacyFallback<unknown[]>(
+          storedPlans,
+          legacyPlans,
+          [],
+        );
+
+        setSessions(sessionsResult.value);
+        setPersonalRecords(personalRecordsResult.value);
+        const parsedPlans = savedPlansResult.value
           .map(normalizeSavedPlan)
           .filter((plan): plan is SavedWorkoutPlan => Boolean(plan));
         setSavedPlans(parsedPlans);
         savedPlansRef.current = parsedPlans;
         setActiveSession(null);
+
+        const migrations: Array<Promise<void>> = [];
+        if (sessionsResult.shouldMigrate) {
+          migrations.push(
+            AsyncStorage.setItem(storageKeys.sessions, encodeVersioned(sessionsResult.value)),
+          );
+        }
+        if (personalRecordsResult.shouldMigrate) {
+          migrations.push(
+            AsyncStorage.setItem(
+              storageKeys.personalRecords,
+              encodeVersioned(personalRecordsResult.value),
+            ),
+          );
+        }
+        if (savedPlansResult.shouldMigrate) {
+          migrations.push(
+            AsyncStorage.setItem(storageKeys.savedPlans, encodeVersioned(parsedPlans)),
+          );
+        }
+
+        if (migrations.length > 0) {
+          await Promise.all(migrations);
+        }
       } catch (e) {
         console.error("Failed to load workouts", e);
       } finally {
@@ -303,7 +353,10 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       const remotePlans = payload
         .map(normalizeSavedPlan)
         .filter((plan): plan is SavedWorkoutPlan => Boolean(plan));
-      await replaceSavedPlans(remotePlans);
+      const localOnlyPlans = savedPlansRef.current.filter(
+        (localPlan) => !remotePlans.some((remotePlan) => remotePlan.id === localPlan.id),
+      );
+      await replaceSavedPlans([...remotePlans, ...localOnlyPlans]);
     } catch (error) {
       console.error("Failed to sync saved workout plans", error);
     }
@@ -317,7 +370,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const saveSessions = useCallback(
     async (newSessions: WorkoutSession[]) => {
       setSessions(newSessions);
-      await AsyncStorage.setItem(storageKeys.sessions, JSON.stringify(newSessions));
+      await AsyncStorage.setItem(storageKeys.sessions, encodeVersioned(newSessions));
     },
     [storageKeys.sessions],
   );
@@ -503,7 +556,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       }
 
       setPersonalRecords(newPRs);
-      await AsyncStorage.setItem(storageKeys.personalRecords, JSON.stringify(newPRs));
+      await AsyncStorage.setItem(storageKeys.personalRecords, encodeVersioned(newPRs));
       setActiveSession(null);
       return { session: completedSession, newPRs: sessionNewPRs };
     },

@@ -11,6 +11,46 @@ import {
 } from "@workspace/db";
 import { getAuthenticatedClerkUser, type ClerkUserAccessIdentity } from "./clerk-request.ts";
 
+async function seedApprovedControlForLegacyProfile(
+  email: string | null,
+  gymId: string,
+  profileRole?: string | null,
+  createdByClerkId?: string,
+): Promise<EmailAccessRecord | null> {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const role = isUserRole(profileRole) ? profileRole : "member";
+
+  const [created] = await db
+    .insert(userAccessControls)
+    .values({
+      email: normalizedEmail,
+      gymId,
+      role,
+      status: "approved",
+      note: "Auto-seeded: legacy member with profile but no access control record",
+      createdByClerkId: createdByClerkId ?? null,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!created) {
+    const [existing] = await db
+      .select()
+      .from(userAccessControls)
+      .where(
+        and(eq(userAccessControls.email, normalizedEmail), eq(userAccessControls.gymId, gymId)),
+      )
+      .limit(1);
+    return existing ?? null;
+  }
+
+  return created;
+}
+
 type ProfileAccessRecord = {
   clerkId: string;
   gymId: string;
@@ -131,6 +171,9 @@ function resolveApprovedRole(
   }
 
   if (control?.status === "approved" && isUserRole(control.role)) {
+    if (isUserRole(profile?.role)) {
+      return profile.role;
+    }
     return control.role;
   }
 
@@ -152,47 +195,62 @@ export async function resolveUserAccessForClerkUser(
   const email = getPrimaryEmail(user);
   const profile =
     providedProfile === undefined ? await getProfileForClerkId(user.id) : providedProfile;
-  const resolvedControl = await getAccessControlForEmail(email, profile?.gymId ?? null);
+  const gymId = profile?.gymId ?? "gymos-main";
+
+  const resolvedControl = await getAccessControlForEmail(email, gymId);
   const control = resolvedControl ?? (profile ? null : await getAccessControlForEmail(email));
-  const role = resolveApprovedRole(user, profile, control);
-  const gymId = profile?.gymId ?? control?.gymId ?? "gymos-main";
 
-  if (role === "owner") {
-    return { allowed: true, userId: user.id, email, gymId, role, profile, control };
+  if (control) {
+    const role = resolveApprovedRole(user, profile, control);
+
+    if (role === "owner") {
+      return { allowed: true, userId: user.id, email, gymId, role, profile, control };
+    }
+
+    if (control.status === "revoked") {
+      return {
+        allowed: false,
+        statusCode: 403,
+        userId: user.id,
+        email,
+        gymId,
+        role,
+        status: "revoked",
+        message: "Your gym team has turned off member app access for this email.",
+        profile,
+        control,
+      };
+    }
+
+    if (control.status === "pending") {
+      return {
+        allowed: false,
+        statusCode: 403,
+        userId: user.id,
+        email,
+        gymId,
+        role,
+        status: "pending_approval",
+        message: "Your gym team needs to allow this email before you can enter the member app.",
+        profile,
+        control,
+      };
+    }
+
+    if (control.status === "approved") {
+      return { allowed: true, userId: user.id, email, gymId, role, profile, control };
+    }
   }
 
-  if (control?.status === "revoked") {
-    return {
-      allowed: false,
-      statusCode: 403,
-      userId: user.id,
+  if (profile) {
+    const seededControl = await seedApprovedControlForLegacyProfile(
       email,
       gymId,
-      role,
-      status: "revoked",
-      message: "Your gym team has turned off member app access for this email.",
-      profile,
-      control,
-    };
-  }
-
-  if (control?.status === "pending") {
-    return {
-      allowed: false,
-      statusCode: 403,
-      userId: user.id,
-      email,
-      gymId,
-      role,
-      status: "pending_approval",
-      message: "Your gym team needs to allow this email before you can enter the member app.",
-      profile,
-      control,
-    };
-  }
-
-  if (control?.status === "approved" || profile) {
-    return { allowed: true, userId: user.id, email, gymId, role, profile, control };
+      profile.role,
+      user.id,
+    );
+    const role = resolveApprovedRole(user, profile, seededControl);
+    return { allowed: true, userId: user.id, email, gymId, role, profile, control: seededControl };
   }
 
   return {
@@ -201,11 +259,11 @@ export async function resolveUserAccessForClerkUser(
     userId: user.id,
     email,
     gymId,
-    role,
+    role: "member",
     status: "pending_approval",
     message: "Your gym team needs to allow this email before you can enter the member app.",
-    profile,
-    control,
+    profile: null,
+    control: null,
   };
 }
 

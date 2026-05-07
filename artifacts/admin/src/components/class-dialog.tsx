@@ -10,6 +10,7 @@ import {
 import type { GymClass } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,7 @@ interface ClassDialogProps {
 export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const request = useAuthenticatedRequest();
 
   const isEditing = !!editingClass;
 
@@ -142,10 +144,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
         queryClient.invalidateQueries({ queryKey: getAdminListClassesQueryKey() });
         onOpenChange(false);
       },
-      onError: (error) => {
+      onError: () => {
         toast({ title: "Failed to create class", variant: "destructive" });
       },
     },
+    request,
   });
 
   const updateClass = useAdminUpdateClass({
@@ -155,10 +158,11 @@ export function ClassDialog({ open, onOpenChange, editingClass }: ClassDialogPro
         queryClient.invalidateQueries({ queryKey: getAdminListClassesQueryKey() });
         onOpenChange(false);
       },
-      onError: (error) => {
+      onError: () => {
         toast({ title: "Failed to update class", variant: "destructive" });
       },
     },
+    request,
   });
 
   function onSubmit(data: ClassFormValues) {

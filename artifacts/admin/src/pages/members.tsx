@@ -21,14 +21,17 @@ import {
 import { MembersTable } from "@/features/members/members-table";
 import type { MemberAccessFilter } from "@/features/members/types";
 import { useMemberAccessController } from "@/features/members/use-member-access-controller";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 
 export default function Members({ previewMembers }: { previewMembers?: Member[] }) {
   const [search, setSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState<MemberAccessFilter>("all");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const memberAccess = useMemberAccessController();
+  const request = useAuthenticatedRequest();
+  const memberAccess = useMemberAccessController(request);
   const { data: fetchedMembers, isLoading } = useAdminListMembers({
     query: { enabled: !previewMembers, queryKey: getAdminListMembersQueryKey() },
+    request,
   });
   const members = previewMembers ?? fetchedMembers;
   const membersLoading = !previewMembers && isLoading;

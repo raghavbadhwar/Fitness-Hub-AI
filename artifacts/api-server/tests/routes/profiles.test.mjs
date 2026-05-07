@@ -164,28 +164,55 @@ const db = {
     return {
       values(values) {
         return {
-          onConflictDoUpdate({ set }) {
-            return {
-              returning() {
-                const existing = profilesByClerkId.get(values.clerkId);
-                const nextProfile = {
-                  id: existing?.id ?? profilesByClerkId.size + 1,
-                  clerkId: values.clerkId,
-                  gymId: set?.gymId ?? values.gymId ?? existing?.gymId ?? "gymos-main",
-                  name: set?.name ?? values.name,
-                  role: set?.role ?? values.role,
-                  updatedAt: set?.updatedAt ?? existing?.updatedAt ?? new Date(),
-                };
-                profilesByClerkId.set(values.clerkId, cloneProfile(nextProfile));
-                return Promise.resolve([cloneProfile(nextProfile)]);
-              },
-            };
+          onConflictDoNothing() {
+            return handleInsertReturning(values);
+          },
+          onConflictDoUpdate({ target, set }) {
+            return handleInsertReturning(values, { target, set });
           },
         };
       },
     };
   },
 };
+
+function handleInsertReturning(values, opts = {}) {
+  return {
+    returning() {
+      if (values.email && values.gymId) {
+        const key = `${values.email}|${values.gymId}`;
+        const existing = accessControlsByEmail.get(key);
+        if (existing) {
+          return Promise.resolve([cloneAccessControl(existing)]);
+        }
+        const newControl = {
+          email: values.email,
+          gymId: values.gymId,
+          role: values.role ?? "member",
+          status: values.status ?? "approved",
+          note: values.note ?? null,
+          createdByClerkId: values.createdByClerkId ?? null,
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        };
+        accessControlsByEmail.set(key, newControl);
+        return Promise.resolve([cloneAccessControl(newControl)]);
+      }
+
+      const existing = profilesByClerkId.get(values.clerkId);
+      const nextProfile = {
+        id: existing?.id ?? profilesByClerkId.size + 1,
+        clerkId: values.clerkId,
+        gymId: opts?.set?.gymId ?? values.gymId ?? existing?.gymId ?? "gymos-main",
+        name: opts?.set?.name ?? values.name,
+        role: opts?.set?.role ?? values.role,
+        updatedAt: opts?.set?.updatedAt ?? new Date(),
+      };
+      profilesByClerkId.set(values.clerkId, cloneProfile(nextProfile));
+      return Promise.resolve([cloneProfile(nextProfile)]);
+    },
+  };
+}
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -236,6 +263,10 @@ mock.module("@workspace/db", {
 const { default: profilesRouter } = await import("../../src/routes/profiles.ts");
 
 const app = express();
+app.use((req, _res, next) => {
+  req.log = { error: () => {}, warn: () => {}, info: () => {}, debug: () => {} };
+  next();
+});
 app.use(express.json());
 app.use("/profiles", profilesRouter);
 
@@ -302,6 +333,29 @@ describe("profiles routes", () => {
       name: "Asha",
       role: "member",
     });
+  });
+
+  it("seeds approved access control for legacy profiles without dropping their role", async () => {
+    profilesByClerkId.set("member_1", {
+      id: 1,
+      clerkId: "member_1",
+      name: "Asha",
+      role: "trainer",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+
+    const response = await request(app).get("/profiles/access-check");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.status, "ready");
+    assert.equal(response.body.role, "trainer");
+
+    const seededControl = [...accessControlsByEmail.values()].find(
+      (control) => control.email === "morgan@example.com" && control.gymId === "gymos-main",
+    );
+    assert.equal(seededControl?.role, "trainer");
+    assert.equal(seededControl?.status, "approved");
+    assert.equal(seededControl?.createdByClerkId, "member_1");
   });
 
   it("creates a synced profile with the requested name and approved access role", async () => {

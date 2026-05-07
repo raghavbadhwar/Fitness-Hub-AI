@@ -7,7 +7,7 @@ mock.module("http-proxy-middleware", {
   namedExports: {
     createProxyMiddleware(config) {
       mockCreateProxyMiddlewareConfig = config;
-      return (req, res, next) => {
+      return (_req, res) => {
         res.setHeader("X-Mock-Proxy", "true");
         res.end();
       };
@@ -30,8 +30,8 @@ describe("clerkProxyMiddleware", () => {
     process.env = { ...originalEnv };
   });
 
-  it("skips proxy in development mode", () => {
-    process.env.NODE_ENV = "development";
+  it("skips proxy when CLERK_PROXY_ENABLED=false", () => {
+    process.env.CLERK_PROXY_ENABLED = "false";
     process.env.CLERK_SECRET_KEY = "test_secret_key";
 
     const middleware = clerkProxyMiddleware();
@@ -49,30 +49,35 @@ describe("clerkProxyMiddleware", () => {
     );
   });
 
-  it("skips proxy when CLERK_SECRET_KEY is missing", () => {
-    process.env.NODE_ENV = "production";
+  it("throws when CLERK_PROXY_ENABLED is missing", () => {
+    delete process.env.CLERK_PROXY_ENABLED;
+    process.env.CLERK_SECRET_KEY = "test_secret_key";
+
+    assert.throws(() => clerkProxyMiddleware(), /CLERK_PROXY_ENABLED must be set/);
+  });
+
+  it("throws when CLERK_PROXY_ENABLED is not a boolean string", () => {
+    process.env.CLERK_PROXY_ENABLED = "yes";
+    process.env.CLERK_SECRET_KEY = "test_secret_key";
+
+    assert.throws(() => clerkProxyMiddleware(), /CLERK_PROXY_ENABLED must be either/);
+  });
+
+  it("throws when CLERK_SECRET_KEY is missing and proxy is enabled", () => {
+    process.env.CLERK_PROXY_ENABLED = "true";
     delete process.env.CLERK_SECRET_KEY;
 
-    const middleware = clerkProxyMiddleware();
-    let nextCalled = false;
-
-    middleware({}, {}, () => {
-      nextCalled = true;
-    });
-
-    assert.equal(nextCalled, true, "next() should be called");
-    assert.equal(
-      mockCreateProxyMiddlewareConfig,
-      null,
-      "createProxyMiddleware should not be called",
+    assert.throws(
+      () => clerkProxyMiddleware(),
+      /CLERK_SECRET_KEY is required when CLERK_PROXY_ENABLED=true/,
     );
   });
 
-  it("configures proxy correctly in production", () => {
-    process.env.NODE_ENV = "production";
+  it("configures proxy correctly when enabled", () => {
+    process.env.CLERK_PROXY_ENABLED = "true";
     process.env.CLERK_SECRET_KEY = "test_secret_key";
 
-    const middleware = clerkProxyMiddleware();
+    clerkProxyMiddleware();
     assert.ok(mockCreateProxyMiddlewareConfig, "createProxyMiddleware should be called");
 
     assert.equal(mockCreateProxyMiddlewareConfig.target, "https://frontend-api.clerk.dev");
@@ -87,7 +92,7 @@ describe("clerkProxyMiddleware", () => {
   });
 
   it("injects proper headers in on.proxyReq", () => {
-    process.env.NODE_ENV = "production";
+    process.env.CLERK_PROXY_ENABLED = "true";
     process.env.CLERK_SECRET_KEY = "test_secret_key";
 
     clerkProxyMiddleware(); // Initialize to capture config
@@ -116,7 +121,7 @@ describe("clerkProxyMiddleware", () => {
   });
 
   it("handles missing req.headers gracefully in on.proxyReq", () => {
-    process.env.NODE_ENV = "production";
+    process.env.CLERK_PROXY_ENABLED = "true";
     process.env.CLERK_SECRET_KEY = "test_secret_key";
 
     clerkProxyMiddleware(); // Initialize to capture config

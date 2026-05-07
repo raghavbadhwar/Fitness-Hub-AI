@@ -2,6 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { getApiBase } from "@/lib/api-base";
+import {
+  decodeVersioned,
+  decodeVersionedWithLegacyFallback,
+  encodeVersioned,
+} from "@/lib/versioned-storage";
 
 export type ClassStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 export type ClassCategory =
@@ -46,7 +51,7 @@ const CLASS_COLORS: Record<ClassCategory, string> = {
   Other: "#9096B3",
 };
 
-function getNextDateForDay(dayOfWeek: number, time: string): string {
+function getNextDateForDay(dayOfWeek: number): string {
   const today = new Date();
   const daysUntil = (dayOfWeek - today.getDay() + 7) % 7;
   const date = new Date(today);
@@ -62,7 +67,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     description:
       "Start your day with a refreshing yoga session focusing on flexibility and mindfulness",
     trainer: "Priya Sharma",
-    date: getNextDateForDay(1, "06:30"),
+    date: getNextDateForDay(1),
     startTime: "06:30",
     duration: 60,
     maxParticipants: 20,
@@ -78,7 +83,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     category: "HIIT",
     description: "Burn maximum calories with this 45-min high intensity interval training session",
     trainer: "Rahul Mehta",
-    date: getNextDateForDay(1, "07:30"),
+    date: getNextDateForDay(1),
     startTime: "07:30",
     duration: 45,
     maxParticipants: 15,
@@ -94,7 +99,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     category: "Zumba",
     description: "Dance your way to fitness with this energetic Latin-inspired cardio class",
     trainer: "Anjali Singh",
-    date: getNextDateForDay(2, "18:00"),
+    date: getNextDateForDay(2),
     startTime: "18:00",
     duration: 60,
     maxParticipants: 25,
@@ -110,7 +115,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     category: "CrossFit",
     description: "Today's Workout of the Day — challenging functional movements at high intensity",
     trainer: "Vikram Patel",
-    date: getNextDateForDay(3, "06:00"),
+    date: getNextDateForDay(3),
     startTime: "06:00",
     duration: 60,
     maxParticipants: 12,
@@ -126,7 +131,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     category: "Spinning",
     description: "Indoor cycling with rhythm-based training for maximum cardiovascular endurance",
     trainer: "Kavya Nair",
-    date: getNextDateForDay(4, "07:00"),
+    date: getNextDateForDay(4),
     startTime: "07:00",
     duration: 45,
     maxParticipants: 20,
@@ -142,7 +147,7 @@ const SAMPLE_CLASSES: GymClass[] = [
     category: "Boxing",
     description: "Learn proper boxing technique while getting an incredible full-body workout",
     trainer: "Arun Kumar",
-    date: getNextDateForDay(5, "19:00"),
+    date: getNextDateForDay(5),
     startTime: "19:00",
     duration: 75,
     maxParticipants: 16,
@@ -240,7 +245,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const saveLocalEnrolledIds = useCallback(
     async (nextEnrolledClassIds: string[]) => {
       setEnrolledClassIds(nextEnrolledClassIds);
-      await AsyncStorage.setItem(enrolledStorageKey, JSON.stringify(nextEnrolledClassIds));
+      await AsyncStorage.setItem(enrolledStorageKey, encodeVersioned(nextEnrolledClassIds));
     },
     [enrolledStorageKey],
   );
@@ -248,14 +253,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const saveLocalWaitlistedIds = useCallback(
     async (nextWaitlistedClassIds: string[]) => {
       setWaitlistedClassIds(nextWaitlistedClassIds);
-      await AsyncStorage.setItem(waitlistStorageKey, JSON.stringify(nextWaitlistedClassIds));
+      await AsyncStorage.setItem(waitlistStorageKey, encodeVersioned(nextWaitlistedClassIds));
     },
     [waitlistStorageKey],
   );
 
   const saveClasses = useCallback(async (newClasses: GymClass[]) => {
     setClasses(newClasses);
-    await AsyncStorage.setItem(CLASSES_STORAGE_KEY, JSON.stringify(newClasses));
+    await AsyncStorage.setItem(CLASSES_STORAGE_KEY, encodeVersioned(newClasses));
   }, []);
 
   const replaceClass = useCallback(
@@ -270,7 +275,6 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   const fetchEnrolledClassIds = useCallback(async () => {
     if (!isSignedIn) {
-      await saveLocalEnrolledIds([]);
       return;
     }
 
@@ -282,6 +286,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
     const response = await fetch(`${apiBase}/api/classes/enrolled`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -297,7 +302,6 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   const fetchWaitlistedClassIds = useCallback(async () => {
     if (!isSignedIn) {
-      await saveLocalWaitlistedIds([]);
       return;
     }
 
@@ -309,6 +313,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
     const response = await fetch(`${apiBase}/api/classes/waitlisted`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -337,17 +342,45 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       const fallbackEnrolled =
-        !userId && enrolledStorageKey !== LEGACY_ENROLLED_STORAGE_KEY
+        enrolledStorageKey !== LEGACY_ENROLLED_STORAGE_KEY
           ? await AsyncStorage.getItem(LEGACY_ENROLLED_STORAGE_KEY)
           : null;
-      const scopedOrLegacyEnrolled = storedEnrolled ?? fallbackEnrolled;
       const fallbackWaitlist =
-        !userId && waitlistStorageKey !== LEGACY_WAITLIST_STORAGE_KEY
+        waitlistStorageKey !== LEGACY_WAITLIST_STORAGE_KEY
           ? await AsyncStorage.getItem(LEGACY_WAITLIST_STORAGE_KEY)
           : null;
-      const scopedOrLegacyWaitlist = storedWaitlist ?? fallbackWaitlist;
 
-      const localClasses: GymClass[] = storedClasses ? JSON.parse(storedClasses) : [];
+      const decodedClasses = decodeVersioned<GymClass[]>(storedClasses, []);
+      const decodedEnrolled = decodeVersionedWithLegacyFallback<string[]>(
+        storedEnrolled,
+        fallbackEnrolled,
+        [],
+      );
+      const decodedWaitlisted = decodeVersionedWithLegacyFallback<string[]>(
+        storedWaitlist,
+        fallbackWaitlist,
+        [],
+      );
+      const localClasses = decodedClasses.value;
+
+      const migrations: Array<Promise<void>> = [];
+      if (decodedClasses.shouldMigrate) {
+        migrations.push(AsyncStorage.setItem(CLASSES_STORAGE_KEY, encodeVersioned(localClasses)));
+      }
+      if (decodedEnrolled.shouldMigrate) {
+        migrations.push(
+          AsyncStorage.setItem(enrolledStorageKey, encodeVersioned(decodedEnrolled.value)),
+        );
+      }
+      if (decodedWaitlisted.shouldMigrate) {
+        migrations.push(
+          AsyncStorage.setItem(waitlistStorageKey, encodeVersioned(decodedWaitlisted.value)),
+        );
+      }
+
+      if (migrations.length > 0) {
+        await Promise.all(migrations);
+      }
 
       if (apiClasses !== null) {
         await saveClasses(apiClasses);
@@ -355,30 +388,32 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         setClasses(localClasses);
       }
 
-      if (authLoaded) {
-        try {
-          await fetchEnrolledClassIds();
-        } catch (error) {
-          console.error("Failed to sync enrolled classes", error);
-          if (scopedOrLegacyEnrolled) {
-            setEnrolledClassIds(JSON.parse(scopedOrLegacyEnrolled));
-          }
-        }
-      } else if (scopedOrLegacyEnrolled) {
-        setEnrolledClassIds(JSON.parse(scopedOrLegacyEnrolled));
-      }
+      if (authLoaded && isSignedIn) {
+        const [enrolledResult, waitlistedResult] = await Promise.allSettled([
+          fetchEnrolledClassIds(),
+          fetchWaitlistedClassIds(),
+        ]);
 
-      if (authLoaded) {
-        try {
-          await fetchWaitlistedClassIds();
-        } catch (error) {
-          console.error("Failed to sync waitlisted classes", error);
-          if (scopedOrLegacyWaitlist) {
-            setWaitlistedClassIds(JSON.parse(scopedOrLegacyWaitlist));
+        if (enrolledResult.status === "rejected") {
+          console.error("Failed to sync enrolled classes", enrolledResult.reason);
+          if (decodedEnrolled.value.length > 0) {
+            setEnrolledClassIds(decodedEnrolled.value);
           }
         }
-      } else if (scopedOrLegacyWaitlist) {
-        setWaitlistedClassIds(JSON.parse(scopedOrLegacyWaitlist));
+
+        if (waitlistedResult.status === "rejected") {
+          console.error("Failed to sync waitlisted classes", waitlistedResult.reason);
+          if (decodedWaitlisted.value.length > 0) {
+            setWaitlistedClassIds(decodedWaitlisted.value);
+          }
+        }
+      } else {
+        if (decodedEnrolled.value.length > 0) {
+          setEnrolledClassIds(decodedEnrolled.value);
+        }
+        if (decodedWaitlisted.value.length > 0) {
+          setWaitlistedClassIds(decodedWaitlisted.value);
+        }
       }
     } catch (e) {
       console.error("Failed to load schedule", e);

@@ -4,7 +4,6 @@ import React, { useCallback, useMemo, useState, useEffect } from "react";
 import {
   Alert,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +15,6 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import Svg, {
   Rect,
-  Line,
   Text as SvgText,
   Path,
   Circle,

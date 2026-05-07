@@ -1,4 +1,4 @@
-import { useAuth, useUser } from "@clerk/expo";
+import { useAuth } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -168,7 +168,6 @@ function PulsingStatusDot({ color }: { color: string }) {
 
 export default function AssistantScreen() {
   const { getToken, userId, isLoaded: authLoaded, isSignedIn } = useAuth();
-  const { user } = useUser();
   const { profile } = useApp();
   const { todayLog } = useNutrition();
   const { sessions, behaviorProfile, savedPlans } = useWorkout();

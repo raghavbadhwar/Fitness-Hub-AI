@@ -17,7 +17,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
-import { useNutrition, MealType, FoodEntry } from "@/contexts/NutritionContext";
+import { useNutrition, MealType } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
 import { MacroBar } from "@/components/MacroBar";
 import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";

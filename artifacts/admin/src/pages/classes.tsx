@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { ClassDialog } from "@/components/class-dialog";
 import { EnrollmentsSheet, type EnrolledMember } from "@/components/enrollments-sheet";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,9 +126,11 @@ export default function Classes({
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<ScheduleView>("table");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const request = useAuthenticatedRequest();
 
   const { data: fetchedClasses, isLoading } = useAdminListClasses({
     query: { enabled: !previewClasses, queryKey: getAdminListClassesQueryKey() },
+    request,
   });
   const classes = previewClasses ?? fetchedClasses;
   const classesLoading = !previewClasses && isLoading;
@@ -142,6 +145,7 @@ export default function Classes({
         toast({ title: "Failed to duplicate class", variant: "destructive" });
       },
     },
+    request,
   });
 
   const updateClass = useAdminUpdateClass({
@@ -154,6 +158,7 @@ export default function Classes({
         toast({ title: "Failed to update class", variant: "destructive" });
       },
     },
+    request,
   });
 
   const deleteClass = useAdminDeleteClass({
@@ -168,6 +173,7 @@ export default function Classes({
         setDeleteTarget(null);
       },
     },
+    request,
   });
 
   const handleSort = (field: SortField) => {

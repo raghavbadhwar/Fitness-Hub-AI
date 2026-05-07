@@ -29,6 +29,19 @@ const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "post_workout", label: "Post-Workout" },
 ];
 
+type FoodAnalysisResult = {
+  dishName: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  cuisine?: string;
+  confidence?: "high" | "medium" | "low" | string;
+  healthTip?: string;
+};
+
 export default function AddMealScreen() {
   const router = useRouter();
   const { mealType: initialMealType } = useLocalSearchParams<{ mealType?: string }>();
@@ -38,7 +51,7 @@ export default function AddMealScreen() {
   const [mealType, setMealType] = useState<MealType>((initialMealType as MealType) || "lunch");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
   const [servings, setServings] = useState("1");
   const [mode, setMode] = useState<"photo" | "manual">("photo");
 
@@ -90,9 +103,9 @@ export default function AddMealScreen() {
         body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
       if (!response.ok) throw new Error("Analysis failed");
-      const result = await response.json();
+      const result = (await response.json()) as FoodAnalysisResult;
       setAnalysisResult(result);
-    } catch (err) {
+    } catch {
       Alert.alert("Analysis Failed", "Couldn't analyze the food. Please enter details manually.");
       setMode("manual");
     } finally {

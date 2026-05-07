@@ -441,7 +441,7 @@ export default function WorkoutSessionScreen() {
     addExerciseToSession(session.id, {
       exerciseId: ex.id,
       name: ex.name,
-      sets: Array.from({ length: ex.defaultSets }, (_, i) => ({
+      sets: Array.from({ length: ex.defaultSets }, () => ({
         id: generateId(),
         weight: 0,
         reps: parseInt(ex.defaultReps) || 10,

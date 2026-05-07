@@ -23,6 +23,8 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_PER_WINDOW = 20;
 const ACTIVITY_SNAPSHOT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ACTIVITY_SNAPSHOT_CHARS = 8_000;
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 const rateLimit = createFixedWindowRateLimiter({
   windowMs: RATE_LIMIT_WINDOW_MS,
   maxRequests: RATE_LIMIT_MAX_PER_WINDOW,
@@ -105,6 +107,15 @@ ${JSON.stringify({
 
 Latest activity snapshot:
 ${snapshotJson}`;
+}
+
+function parseModelJsonResponse(rawText: string): unknown {
+  const cleaned = rawText
+    .replace(/```json\n?/g, "")
+    .replace(/```\n?/g, "")
+    .trim();
+
+  return JSON.parse(cleaned);
 }
 
 router.use(requireAuth());
@@ -217,7 +228,7 @@ For the portion visible in the image, estimate a typical serving size and return
 Return only the JSON, no other text.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: GEMINI_MODEL,
       contents: [
         {
           role: "user",
@@ -226,29 +237,19 @@ Return only the JSON, no other text.`;
       ],
     });
 
-    const text = response.text ?? "";
-    const cleaned = text
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-
     try {
-      const parsed: unknown = JSON.parse(cleaned);
+      const parsed = parseModelJsonResponse(response.text ?? "");
       res.json(parsed);
-    } catch {
-      res.json({
-        dishName: "Unknown Food",
-        cuisine: "Unknown",
-        servingSize: "1 serving",
-        calories: 250,
-        protein: 10,
-        carbs: 30,
-        fat: 8,
-        fiber: 2,
-        confidence: "low",
-        ingredients: [],
-        healthTip: "Unable to analyze this food item accurately.",
-      });
+    } catch (parseErr) {
+      req.log.error(
+        {
+          err: parseErr,
+          model: GEMINI_MODEL,
+          rawText: response.text,
+        },
+        "Food analysis JSON parse error",
+      );
+      res.status(502).json({ error: "AI returned malformed food analysis JSON" });
     }
   } catch (err: unknown) {
     req.log.error({ err }, "Food analysis error");
@@ -314,7 +315,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     });
 
     const chatSession = ai.chats.create({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: GEMINI_MODEL,
       history,
       config: {
         systemInstruction: systemContext,
@@ -351,7 +352,7 @@ router.post("/chat", async (req: Request, res: Response) => {
 
     try {
       const memoryUpdateResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
+        model: GEMINI_MODEL,
         config: {
           responseMimeType: "application/json",
         },
@@ -474,7 +475,7 @@ router.post("/activity-snapshot", async (req: Request, res: Response) => {
 
     try {
       const memoryUpdateResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
+        model: GEMINI_MODEL,
         config: {
           responseMimeType: "application/json",
         },
@@ -601,21 +602,23 @@ Return ONLY this JSON (no markdown):
 }`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
 
-    const text = response.text ?? "";
-    const cleaned = text
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-
     try {
-      const parsed: unknown = JSON.parse(cleaned);
+      const parsed = parseModelJsonResponse(response.text ?? "");
       res.json(parsed);
-    } catch {
-      res.status(500).json({ error: "Failed to parse workout suggestion" });
+    } catch (parseErr) {
+      req.log.error(
+        {
+          err: parseErr,
+          model: GEMINI_MODEL,
+          rawText: response.text,
+        },
+        "Workout suggestion JSON parse error",
+      );
+      res.status(502).json({ error: "AI returned malformed workout suggestion JSON" });
     }
   } catch (err: unknown) {
     req.log.error({ err }, "Workout suggestion error");

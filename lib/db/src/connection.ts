@@ -1,6 +1,4 @@
-const DATABASE_URL_KEYS = ["DATABASE_URL", "DATABASE_ADMIN_URL"] as const;
-
-type DatabaseUrlKey = (typeof DATABASE_URL_KEYS)[number];
+type DatabaseUrlKey = "DATABASE_URL" | "DATABASE_ADMIN_URL";
 
 function readDatabaseUrl(key: DatabaseUrlKey): string | undefined {
   const value = process.env[key];

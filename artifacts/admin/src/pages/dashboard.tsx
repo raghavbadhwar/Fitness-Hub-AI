@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 import {
   Empty,
   EmptyDescription,
@@ -113,18 +114,22 @@ function getClassLabel(gymClass?: GymClass) {
 }
 
 export default function Dashboard() {
+  const request = useAuthenticatedRequest();
   const {
     data: stats,
     isLoading,
     error,
   } = useAdminGetDashboard({
     query: { queryKey: getAdminGetDashboardQueryKey() },
+    request,
   });
   const { data: classes, isLoading: classesLoading } = useAdminListClasses({
     query: { queryKey: getAdminListClassesQueryKey() },
+    request,
   });
   const { data: members, isLoading: membersLoading } = useAdminListMembers({
     query: { queryKey: getAdminListMembersQueryKey() },
+    request,
   });
 
   const upcomingClasses = React.useMemo(

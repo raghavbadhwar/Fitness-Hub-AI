@@ -11,6 +11,8 @@
     "build:vercel": "sh -c 'set -a; [ -f ./.env.local ] && . ./.env.local; set +a; pnpm run preflight:node && node scripts/vercel-build.mjs'",
     "format": "prettier --cache --write .",
     "format:check": "prettier --cache --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preflight:node": "pnpm --filter @workspace/scripts run node-version-preflight",
     "preflight:beta-secrets": "pnpm --filter @workspace/scripts run beta-secrets-preflight",
     "preflight:beta-secrets:init": "pnpm --filter @workspace/scripts run beta-secrets-preflight:init",
@@ -29,8 +31,12 @@
   },
   "private": true,
   "devDependencies": {
+    "@eslint/js": "^9.38.0",
     "@playwright/test": "^1.55.0",
+    "eslint": "^9.38.0",
+    "globals": "^15.15.0",
     "prettier": "^3.8.1",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.46.3"
   }
 }

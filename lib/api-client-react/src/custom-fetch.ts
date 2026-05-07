@@ -1,5 +1,6 @@
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
+  authToken?: string | null | AuthTokenGetter;
 };
 
 export type ErrorType<T = unknown> = ApiError<T>;
@@ -11,12 +12,7 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
-// ---------------------------------------------------------------------------
-// Module-level configuration
-// ---------------------------------------------------------------------------
-
 let _baseUrl: string | null = null;
-let _authTokenGetter: AuthTokenGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -27,21 +23,6 @@ let _authTokenGetter: AuthTokenGetter | null = null;
  */
 export function setBaseUrl(url: string | null): void {
   _baseUrl = url ? url.replace(/\/+$/, "") : null;
-}
-
-/**
- * Register a getter that supplies a bearer auth token.  Before every fetch
- * the getter is invoked; when it returns a non-null string, an
- * `Authorization: Bearer <token>` header is attached to the request.
- *
- * Useful for Expo bundles making token-gated API calls.
- * Pass `null` to clear the getter.
- *
- * NOTE: This function should never be used in web applications where session
- * token cookies are automatically associated with API calls by the browser.
- */
-export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
-  _authTokenGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -322,7 +303,7 @@ export async function customFetch<T = unknown>(
   options: CustomFetchOptions = {},
 ): Promise<T> {
   input = applyBaseUrl(input);
-  const { responseType = "auto", headers: headersInit, ...init } = options;
+  const { responseType = "auto", headers: headersInit, authToken, ...init } = options;
 
   const method = resolveMethod(input, init.method);
 
@@ -340,10 +321,8 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  // Attach bearer token when an auth getter is configured and no
-  // Authorization header has been explicitly provided.
-  if (_authTokenGetter && !headers.has("authorization")) {
-    const token = await _authTokenGetter();
+  if (!headers.has("authorization") && authToken) {
+    const token = typeof authToken === "function" ? await authToken() : authToken;
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }

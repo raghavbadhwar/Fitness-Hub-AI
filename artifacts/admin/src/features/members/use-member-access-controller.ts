@@ -1,18 +1,22 @@
 import { useState, type FormEvent } from "react";
-import { getAdminListMembersQueryKey, useAdminSetMemberAccess } from "@workspace/api-client-react";
+import {
+  getAdminListMembersQueryKey,
+  useAdminSetMemberAccess,
+  type CustomFetchOptions,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeMemberEmail } from "./member-utils";
 import type { DraftMemberRoles, MemberRole, SetMemberAccessInput } from "./types";
 
-export function useMemberAccessController() {
+export function useMemberAccessController(request?: Pick<CustomFetchOptions, "authToken">) {
   const [draftRoles, setDraftRoles] = useState<DraftMemberRoles>({});
   const [savingEmail, setSavingEmail] = useState<string | null>(null);
   const [grantEmail, setGrantEmail] = useState("");
   const [grantRole, setGrantRole] = useState<MemberRole>("member");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const setMemberAccessMutation = useAdminSetMemberAccess();
+  const setMemberAccessMutation = useAdminSetMemberAccess({ request });
 
   const refreshMembers = async () => {
     await queryClient.invalidateQueries({ queryKey: getAdminListMembersQueryKey() });

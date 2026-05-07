@@ -21,12 +21,12 @@ export function MacroRing({ calories, target, protein, carbs, fat, size = 160 }:
   const cx = size / 2;
   const cy = size / 2;
 
-  const totalMacros = protein + carbs + fat;
-  const proteinAngle = totalMacros > 0 ? (protein / totalMacros) * 360 : 0;
-  const carbsAngle = totalMacros > 0 ? (carbs / totalMacros) * 360 : 0;
-
+  const totalMacros = Math.max(1, protein + carbs + fat);
+  const proteinShare = Math.round((protein / totalMacros) * 100);
+  const carbsShare = Math.round((carbs / totalMacros) * 100);
+  const fatShare = Math.round((fat / totalMacros) * 100);
   const remaining = Math.max(0, target - calories);
-  const percentage = Math.round(progress * 100);
+  const macroSummary = `Protein ${proteinShare}%, Carbs ${carbsShare}%, Fat ${fatShare}%`;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -45,7 +45,11 @@ export function MacroRing({ calories, target, protein, carbs, fat, size = 160 }:
           transform={`rotate(-90 ${cx} ${cy})`}
         />
       </Svg>
-      <View style={styles.center}>
+      <View
+        style={styles.center}
+        accessible
+        accessibilityLabel={`Daily calories and macro split. ${macroSummary}`}
+      >
         <Text style={[styles.calText, { color: colors.text }]}>{calories.toLocaleString()}</Text>
         <Text style={[styles.calLabel, { color: colors.mutedForeground }]}>kcal</Text>
         <Text

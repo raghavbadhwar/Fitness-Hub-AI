@@ -18,6 +18,8 @@ import { requireApprovedAccess } from "../lib/user-access.ts";
 const router = Router();
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const MAX_AI_INPUT_CHARS = 12_000;
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 
 type ApprovedAccess = NonNullable<Awaited<ReturnType<typeof requireApprovedAccess>>>;
 
@@ -323,7 +325,7 @@ ${JSON.stringify({
 }).slice(0, MAX_AI_INPUT_CHARS)}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17",
+      model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: { responseMimeType: "application/json" },
     });

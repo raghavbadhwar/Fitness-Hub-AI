@@ -77,11 +77,14 @@ test("uses EXPO_PUBLIC_API_BASE_URL when it already has http", async () => {
   assert.equal(getApiBase(), "http://localhost:4000");
 });
 
-test("prepends https:// for scheme-less EXPO_PUBLIC_API_BASE_URL (intentional mismatch)", async () => {
+test("throws for scheme-less EXPO_PUBLIC_API_BASE_URL", async () => {
   process.env.EXPO_PUBLIC_API_BASE_URL = "localhost:4000";
 
   const getApiBase = await loadGetApiBase("ios");
-  assert.equal(getApiBase(), "https://localhost:4000");
+  assert.throws(
+    () => getApiBase(),
+    /EXPO_PUBLIC_API_BASE_URL must include an explicit protocol \(http:\/\/ or https:\/\/\)/,
+  );
 });
 
 test("trims whitespace around EXPO_PUBLIC_API_BASE_URL", async () => {
@@ -106,11 +109,14 @@ test("uses EXPO_PUBLIC_DOMAIN with existing https scheme", async () => {
   assert.equal(getApiBase(), "https://domain.example.com");
 });
 
-test("prepends https:// for scheme-less EXPO_PUBLIC_DOMAIN", async () => {
+test("throws for scheme-less EXPO_PUBLIC_DOMAIN", async () => {
   process.env.EXPO_PUBLIC_DOMAIN = "domain.example.com";
 
   const getApiBase = await loadGetApiBase("android");
-  assert.equal(getApiBase(), "https://domain.example.com");
+  assert.throws(
+    () => getApiBase(),
+    /EXPO_PUBLIC_DOMAIN must include an explicit protocol \(http:\/\/ or https:\/\/\)/,
+  );
 });
 
 test("EXPO_PUBLIC_API_BASE_URL takes precedence over EXPO_PUBLIC_DOMAIN", async () => {

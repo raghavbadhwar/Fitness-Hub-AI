@@ -10,13 +10,13 @@ import {
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -38,9 +38,11 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 export default function Settings({ previewSettings }: { previewSettings?: GymSettings }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const request = useAuthenticatedRequest();
 
   const { data: settings, isLoading } = useAdminGetSettings({
     query: { enabled: !previewSettings, queryKey: getAdminGetSettingsQueryKey() },
+    request,
   });
   const activeSettings = previewSettings ?? settings;
   const settingsLoading = !previewSettings && isLoading;
@@ -78,6 +80,7 @@ export default function Settings({ previewSettings }: { previewSettings?: GymSet
         toast({ title: "Failed to update settings", variant: "destructive" });
       },
     },
+    request,
   });
 
   function onSubmit(data: SettingsFormValues) {

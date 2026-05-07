@@ -1,5 +1,5 @@
 import { createClerkClient } from "@clerk/backend";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   db,
   memberAiProfiles,
@@ -53,6 +53,37 @@ export type AdminMemberPayload = {
   aiLastUpdatedAt: string | null;
   aiRecentMessageCount: number;
 };
+
+type AdminMemberListCacheEntry = {
+  expiresAt: number;
+  promise: Promise<AdminMemberPayload[]>;
+};
+
+const DEFAULT_MEMBER_LIST_CACHE_TTL_MS = 15_000;
+const memberListCache = new Map<string, AdminMemberListCacheEntry>();
+
+function getMemberListCacheTtlMs() {
+  const raw = process.env.ADMIN_MEMBER_LIST_CACHE_TTL_MS;
+  if (!raw) {
+    return DEFAULT_MEMBER_LIST_CACHE_TTL_MS;
+  }
+
+  const ttl = Number.parseInt(raw, 10);
+  return Number.isFinite(ttl) && ttl >= 0 ? ttl : DEFAULT_MEMBER_LIST_CACHE_TTL_MS;
+}
+
+function cloneAdminMembers(members: AdminMemberPayload[]) {
+  return members.map((member) => ({ ...member }));
+}
+
+export function clearAdminMemberListCache(gymId?: string) {
+  if (gymId) {
+    memberListCache.delete(gymId);
+    return;
+  }
+
+  memberListCache.clear();
+}
 
 function isOwnerAccount(
   profile: { role?: string | null } | undefined,
@@ -128,6 +159,35 @@ function buildEmailOnlyAccessPayload(accessControl: AccessControlSummary): Admin
 export async function listAdminMembers(
   secretKey: string,
   gymId = "gymos-main",
+): Promise<AdminMemberPayload[]> {
+  const ttlMs = getMemberListCacheTtlMs();
+  const now = Date.now();
+  const cached = memberListCache.get(gymId);
+
+  if (ttlMs > 0 && cached && cached.expiresAt > now) {
+    return cloneAdminMembers(await cached.promise);
+  }
+
+  const promise = listAdminMembersUncached(secretKey, gymId);
+  const cacheEntry = { expiresAt: now + ttlMs, promise };
+
+  if (ttlMs > 0) {
+    memberListCache.set(gymId, cacheEntry);
+  }
+
+  try {
+    return cloneAdminMembers(await promise);
+  } catch (error) {
+    if (memberListCache.get(gymId) === cacheEntry) {
+      memberListCache.delete(gymId);
+    }
+    throw error;
+  }
+}
+
+async function listAdminMembersUncached(
+  secretKey: string,
+  gymId: string,
 ): Promise<AdminMemberPayload[]> {
   const users = await listAllClerkUsers(secretKey);
   const [profiles, aiProfiles, accessControls] = await Promise.all([
@@ -222,24 +282,25 @@ async function syncExistingUserAccess({
   gymId,
   role,
   status,
+  existingProfile,
 }: {
   clerkClient: ClerkClient;
   user: ClerkUserAccessIdentity;
   gymId: string;
   role: GrantableUserRole;
   status: "approved" | "revoked";
+  existingProfile?: { name: string; role: string; gymId?: string | null } | null;
 }) {
-  const [existingProfile] = await db
-    .select()
-    .from(userProfiles)
-    .where(eq(userProfiles.clerkId, user.id))
-    .limit(1);
+  const existingUserProfile =
+    existingProfile === undefined
+      ? (await db.select().from(userProfiles).where(eq(userProfiles.clerkId, user.id)).limit(1))[0]
+      : existingProfile;
 
-  if (isOwnerAccount(existingProfile, user)) {
+  if (isOwnerAccount(existingUserProfile ?? undefined, user)) {
     throw new Error("Owner accounts must be managed separately");
   }
 
-  if (existingProfile?.gymId && existingProfile.gymId !== gymId) {
+  if (existingUserProfile?.gymId && existingUserProfile.gymId !== gymId) {
     throw new Error("This account already belongs to another gym");
   }
 
@@ -251,7 +312,7 @@ async function syncExistingUserAccess({
     },
   });
 
-  const nextName = existingProfile?.name?.trim() || displayNameForClerkUser(user);
+  const nextName = existingUserProfile?.name?.trim() || displayNameForClerkUser(user);
   const [profile] = await db
     .insert(userProfiles)
     .values({
@@ -291,43 +352,63 @@ export async function setAdminMemberAccess({
 }): Promise<AdminMemberPayload> {
   const clerkClient = createClerkClient({ secretKey });
   const user = await findClerkUserByEmail(clerkClient, email);
-  const accessControl = await upsertEmailAccessControl({
-    gymId,
-    email,
-    role,
-    status: accessStatus,
-    createdByClerkId,
-  });
+  const [existingProfile] = user
+    ? await db.select().from(userProfiles).where(eq(userProfiles.clerkId, user.id)).limit(1)
+    : [null];
+  let accessControl: AccessControlSummary | null = null;
 
-  if (!user) {
-    return buildEmailOnlyAccessPayload(accessControl);
+  try {
+    if (user && isOwnerAccount(existingProfile ?? undefined, user)) {
+      throw new Error("Owner accounts must be managed separately");
+    }
+
+    if (user && existingProfile?.gymId && existingProfile.gymId !== gymId) {
+      throw new Error("This account already belongs to another gym");
+    }
+
+    accessControl = await upsertEmailAccessControl({
+      gymId,
+      email,
+      role,
+      status: accessStatus,
+      createdByClerkId,
+    });
+
+    if (!user) {
+      return buildEmailOnlyAccessPayload(accessControl);
+    }
+
+    const updatedProfile = await syncExistingUserAccess({
+      clerkClient,
+      user,
+      gymId,
+      role,
+      status: accessStatus,
+      existingProfile,
+    });
+    const [aiProfile] = await db
+      .select()
+      .from(memberAiProfiles)
+      .where(eq(memberAiProfiles.memberClerkId, user.id))
+      .limit(1);
+    const updatedUser: ClerkUserSummary = {
+      id: user.id,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      emailAddresses: [{ emailAddress: email }],
+      publicMetadata: {
+        ...(user.publicMetadata ?? {}),
+        role: accessStatus === "approved" ? role : "member",
+      },
+      createdAt: user.createdAt ?? Date.now(),
+    };
+
+    return buildAdminMemberPayload(updatedUser, updatedProfile, aiProfile, accessControl);
+  } finally {
+    if (accessControl) {
+      clearAdminMemberListCache(gymId);
+    }
   }
-
-  const updatedProfile = await syncExistingUserAccess({
-    clerkClient,
-    user,
-    gymId,
-    role,
-    status: accessStatus,
-  });
-  const [aiProfile] = await db
-    .select()
-    .from(memberAiProfiles)
-    .where(eq(memberAiProfiles.memberClerkId, user.id))
-    .limit(1);
-  const updatedUser: ClerkUserSummary = {
-    id: user.id,
-    firstName: user.firstName ?? null,
-    lastName: user.lastName ?? null,
-    emailAddresses: [{ emailAddress: email }],
-    publicMetadata: {
-      ...(user.publicMetadata ?? {}),
-      role: accessStatus === "approved" ? role : "member",
-    },
-    createdAt: user.createdAt ?? Date.now(),
-  };
-
-  return buildAdminMemberPayload(updatedUser, updatedProfile, aiProfile, accessControl);
 }
 
 export async function updateAdminMemberRole({
@@ -354,7 +435,7 @@ export async function updateAdminMemberRole({
     .from(userProfiles)
     .where(eq(userProfiles.clerkId, userId))
     .limit(1);
-  if (isOwnerAccount(existingProfile, user)) {
+  if (isOwnerAccount(existingProfile ?? undefined, user)) {
     throw new Error("Owner accounts must be managed separately");
   }
 
@@ -374,7 +455,9 @@ export async function updateAdminMemberRole({
 
   let updatedProfile;
   let accessControl: AccessControlSummary;
+  let shouldClearCache = false;
   try {
+    shouldClearCache = true;
     [updatedProfile, accessControl] = await Promise.all([
       db
         .insert(userProfiles)
@@ -408,6 +491,10 @@ export async function updateAdminMemberRole({
       publicMetadata: previousPublicMetadata,
     });
     throw dbError;
+  } finally {
+    if (shouldClearCache) {
+      clearAdminMemberListCache(gymId);
+    }
   }
 
   const [aiProfile] = await db

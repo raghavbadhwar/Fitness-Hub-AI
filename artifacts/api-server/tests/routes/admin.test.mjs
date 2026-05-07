@@ -9,6 +9,7 @@ const userProfilesByClerkId = new Map();
 const memberAiProfilesByClerkId = new Map();
 const accessControlsByEmail = new Map();
 const adminClassesById = new Map();
+let getUserListCalls = 0;
 
 const userProfiles = {
   id: Symbol("id"),
@@ -84,9 +85,20 @@ function seedAdminClass(overrides = {}) {
   return {
     id: 1,
     gymId: "gymos-main",
+    name: "Morning Yoga",
+    category: "Yoga",
+    date: "2099-04-25",
+    startTime: "06:30",
+    duration: 60,
+    maxParticipants: 20,
+    enrolledCount: 2,
     enrolledMemberIds: ["member_1", "missing_user"],
     waitlistedMemberIds: [],
     attendanceRecords: [],
+    room: "Studio A",
+    status: "scheduled",
+    color: "#22C55E",
+    createdAt: new Date("2026-04-20T10:00:00.000Z"),
     updatedAt: new Date("2026-04-20T10:00:00.000Z"),
     ...overrides,
   };
@@ -169,6 +181,7 @@ mock.module("@clerk/backend", {
       return {
         users: {
           async getUserList({ userId = [], emailAddress = [], limit = 200, offset = 0 } = {}) {
+            getUserListCalls += 1;
             let users = [];
             if (userId.length > 0) {
               users = userId.map((id) => clerkUsers.get(id)).filter(Boolean);
@@ -208,65 +221,73 @@ mock.module("@clerk/backend", {
 mock.module("@workspace/db", {
   namedExports: {
     db: {
-      select(selection) {
+      select() {
+        function selectRows(table, condition, count = Number.POSITIVE_INFINITY) {
+          if (table === userProfiles) {
+            const rows = [...userProfilesByClerkId.values()]
+              .map(withDefaultGym)
+              .filter((row) => matchesCondition(row, condition, profileFieldMap));
+            return rows.slice(0, count).map((row) => ({ ...row }));
+          }
+
+          if (table === gymClassesTable) {
+            const rows = [...adminClassesById.values()]
+              .map(cloneAdminClass)
+              .filter((row) => matchesCondition(row, condition, gymClassFieldMap));
+
+            if (rows.some((row) => row.id === 2)) {
+              const ids = Array.from({ length: 101 }, (_, i) => `u_${i}`);
+              ids.forEach((id) => clerkUsers.set(id, defaultClerkUser({ id })));
+            }
+
+            return rows.slice(0, count).map((row) => ({ ...row }));
+          }
+
+          if (table === memberAiProfiles) {
+            const rows =
+              condition?.op === "eq"
+                ? [memberAiProfilesByClerkId.get(condition.value)].filter(Boolean)
+                : [...memberAiProfilesByClerkId.values()];
+
+            return rows.slice(0, count).map((row) => ({
+              ...row,
+              recentMessages: Array.isArray(row.recentMessages)
+                ? [...row.recentMessages]
+                : row.recentMessages,
+            }));
+          }
+
+          if (table === userAccessControls) {
+            const rows = [...accessControlsByEmail.values()]
+              .map(withDefaultGym)
+              .filter((row) => matchesCondition(row, condition, accessControlFieldMap));
+            return rows.slice(0, count).map((row) => ({
+              ...row,
+              updatedAt: new Date(row.updatedAt),
+              createdAt: new Date(row.createdAt),
+            }));
+          }
+
+          return [];
+        }
+
         return {
           from(table) {
+            const makeQuery = (condition) => ({
+              limit(count) {
+                return Promise.resolve(selectRows(table, condition, count));
+              },
+              then(resolve, reject) {
+                return Promise.resolve(selectRows(table, condition)).then(resolve, reject);
+              },
+            });
+
             return {
               where(condition) {
-                return {
-                  limit(count) {
-                    if (table === userProfiles) {
-                      const rows = [...userProfilesByClerkId.values()]
-                        .map(withDefaultGym)
-                        .filter((row) => matchesCondition(row, condition, profileFieldMap));
-                      return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
-                    }
-
-                    if (table === gymClassesTable) {
-                      const rows = [...adminClassesById.values()]
-                        .map(cloneAdminClass)
-                        .filter((row) => matchesCondition(row, condition, gymClassFieldMap));
-
-                      if (rows.some((row) => row.id === 2)) {
-                        const ids = Array.from({ length: 101 }, (_, i) => `u_${i}`);
-                        ids.forEach((id) => clerkUsers.set(id, defaultClerkUser({ id })));
-                      }
-
-                      return Promise.resolve(rows.slice(0, count).map((row) => ({ ...row })));
-                    }
-
-                    if (table === memberAiProfiles) {
-                      const profile =
-                        condition?.op === "eq"
-                          ? memberAiProfilesByClerkId.get(condition.value)
-                          : null;
-                      const rows = profile ? [profile] : [];
-                      return Promise.resolve(
-                        rows.slice(0, count).map((row) => ({
-                          ...row,
-                          recentMessages: Array.isArray(row.recentMessages)
-                            ? [...row.recentMessages]
-                            : row.recentMessages,
-                        })),
-                      );
-                    }
-
-                    if (table === userAccessControls) {
-                      const rows = [...accessControlsByEmail.values()]
-                        .map(withDefaultGym)
-                        .filter((row) => matchesCondition(row, condition, accessControlFieldMap));
-                      return Promise.resolve(
-                        rows.slice(0, count).map((row) => ({
-                          ...row,
-                          updatedAt: new Date(row.updatedAt),
-                          createdAt: new Date(row.createdAt),
-                        })),
-                      );
-                    }
-
-                    return Promise.resolve([]);
-                  },
-                };
+                return makeQuery(condition);
+              },
+              then(resolve, reject) {
+                return Promise.resolve(selectRows(table)).then(resolve, reject);
               },
             };
           },
@@ -397,7 +418,7 @@ mock.module("@workspace/api-zod", {
 
 mock.module("../../src/lib/admin-access.ts", {
   namedExports: {
-    async resolveAdminAccess(req) {
+    async resolveAdminAccess() {
       const userId = authState.userId;
       if (!userId) {
         return {
@@ -442,6 +463,7 @@ mock.module("../../src/lib/admin-access.ts", {
   },
 });
 
+const { clearAdminMemberListCache } = await import("../../src/lib/admin-members.ts");
 const { default: adminRouter } = await import("../../src/routes/admin.ts");
 
 const app = express();
@@ -455,6 +477,8 @@ beforeEach(() => {
   memberAiProfilesByClerkId.clear();
   accessControlsByEmail.clear();
   adminClassesById.clear();
+  getUserListCalls = 0;
+  clearAdminMemberListCache();
 
   clerkUsers.set("member_1", defaultClerkUser());
   userProfilesByClerkId.set("member_1", {
@@ -528,8 +552,90 @@ describe("admin routes", () => {
     assert.equal(accessControlsByEmail.get("alex@example.com").role, "trainer");
   });
 
+  it("dedupes concurrent admin member listing calls", async () => {
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      request(app).get("/admin/members"),
+      request(app).get("/admin/members"),
+    ]);
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(secondResponse.status, 200);
+    assert.equal(firstResponse.body.length, 2);
+    assert.equal(secondResponse.body.length, 2);
+    assert.equal(getUserListCalls, 1);
+  });
+
+  it("invalidates cached admin member listing after role changes", async () => {
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const cachedResponse = await request(app).get("/admin/members");
+    assert.equal(cachedResponse.status, 200);
+    assert.equal(getUserListCalls, 1);
+
+    const roleResponse = await request(app)
+      .patch("/admin/members/member_2")
+      .send({ role: "trainer" });
+    assert.equal(roleResponse.status, 200);
+
+    const refreshedResponse = await request(app).get("/admin/members");
+    assert.equal(refreshedResponse.status, 200);
+    assert.equal(getUserListCalls, 2);
+    assert.equal(
+      refreshedResponse.body.find((member) => member.id === "member_2")?.role,
+      "trainer",
+    );
+  });
+
   it("does not mutate owner accounts when Clerk metadata marks them as owner", async () => {
     const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "Owner accounts must be managed separately" });
+    assert.equal(clerkUsers.get("member_1").publicMetadata.role, "owner");
+    assert.equal(userProfilesByClerkId.get("member_1").role, "member");
+    assert.equal(accessControlsByEmail.has("morgan@example.com"), false);
+  });
+
+  it("does not create access-control rows when member-access targets an owner", async () => {
+    const response = await request(app).post("/admin/member-access").send({
+      email: "morgan@example.com",
+      role: "trainer",
+      accessStatus: "approved",
+    });
 
     assert.equal(response.status, 400);
     assert.deepEqual(response.body, { error: "Owner accounts must be managed separately" });

@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAuthenticatedRequest } from "@/lib/use-authenticated-request";
 import { cn } from "@/lib/utils";
 
 type NotificationCenterProps = {
@@ -104,11 +105,14 @@ function buildNotifications(classes: GymClass[] = [], members: Member[] = []) {
 }
 
 export function NotificationCenter({ classesOverride, membersOverride }: NotificationCenterProps) {
+  const request = useAuthenticatedRequest();
   const { data: classes } = useAdminListClasses({
     query: { enabled: !classesOverride, queryKey: getAdminListClassesQueryKey() },
+    request,
   });
   const { data: members } = useAdminListMembers({
     query: { enabled: !membersOverride, queryKey: getAdminListMembersQueryKey() },
+    request,
   });
   const notifications = buildNotifications(classesOverride ?? classes, membersOverride ?? members);
   const attentionCount = notifications.reduce((sum, item) => sum + item.count, 0);

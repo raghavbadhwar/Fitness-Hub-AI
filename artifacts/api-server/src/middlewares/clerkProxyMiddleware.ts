@@ -7,7 +7,7 @@
  * See: https://clerk.com/docs/guides/dashboard/dns-domains/proxy-fapi
  *
  * IMPORTANT:
- * - Only active in production (Clerk proxying doesn't work for dev instances)
+ * - Controlled by CLERK_PROXY_ENABLED=true|false
  * - Must be mounted BEFORE express.json() middleware
  *
  * Usage in app.ts:
@@ -21,15 +21,28 @@ import type { RequestHandler } from "express";
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
+function parseClerkProxyEnabled(): boolean {
+  const raw = process.env.CLERK_PROXY_ENABLED;
+
+  if (raw == null) {
+    throw new Error("CLERK_PROXY_ENABLED must be set to 'true' or 'false'.");
+  }
+
+  if (raw !== "true" && raw !== "false") {
+    throw new Error("CLERK_PROXY_ENABLED must be either 'true' or 'false'.");
+  }
+
+  return raw === "true";
+}
+
 export function clerkProxyMiddleware(): RequestHandler {
-  // Only run proxy in production — Clerk proxying doesn't work for dev instances
-  if (process.env.NODE_ENV !== "production") {
+  if (!parseClerkProxyEnabled()) {
     return (_req, _res, next) => next();
   }
 
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
-    return (_req, _res, next) => next();
+    throw new Error("CLERK_SECRET_KEY is required when CLERK_PROXY_ENABLED=true.");
   }
 
   return createProxyMiddleware({
