@@ -60,7 +60,7 @@ function seedClass(id, overrides = {}) {
     category: "strength",
     description: "Structured test class",
     trainer: "Coach Riley",
-    date: "2026-04-25",
+    date: new Date().toISOString().split("T")[0],
     startTime: "09:00:00",
     duration: 45,
     maxParticipants: 2,
@@ -259,7 +259,7 @@ beforeEach(() => {
   classesById.set(
     2,
     seedClass(2, {
-      date: "2026-04-26",
+      date: new Date(Date.now() + 86400000).toISOString().split("T")[0],
       startTime: "08:30:00",
       enrolledCount: 1,
       enrolledMemberIds: ["member_1"],
