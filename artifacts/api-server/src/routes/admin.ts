@@ -35,6 +35,18 @@ const router = Router();
 
 router.use(requireAuth());
 
+const DASHBOARD_MEMBER_COUNT_CACHE_TTL_MS = 5 * 60 * 1_000;
+const dashboardMemberCountCache = new Map<string, { value: number; expiresAt: number }>();
+
+export function clearDashboardMemberCountCache(gymId?: string) {
+  if (gymId) {
+    dashboardMemberCountCache.delete(gymId);
+    return;
+  }
+
+  dashboardMemberCountCache.clear();
+}
+
 function logRouteError(req: Request, err: unknown, message: string) {
   req.log?.error?.({ err }, message);
 }
@@ -91,6 +103,31 @@ async function requireOwner(req: Request, res: Response): Promise<OwnerAccess | 
     req.log.error({ err }, "Failed to verify owner role");
     res.status(500).json({ error: "Failed to verify access" });
     return null;
+  }
+}
+
+async function getDashboardActiveMemberCount(secretKey: string, gymId: string): Promise<number> {
+  const now = Date.now();
+  const cached = dashboardMemberCountCache.get(gymId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  try {
+    const value = (await listAdminMembers(secretKey, gymId)).filter(
+      (member) => member.accessStatus === "approved",
+    ).length;
+    dashboardMemberCountCache.set(gymId, {
+      value,
+      expiresAt: now + DASHBOARD_MEMBER_COUNT_CACHE_TTL_MS,
+    });
+    return value;
+  } catch (error) {
+    if (cached) {
+      return cached.value;
+    }
+
+    throw error;
   }
 }
 
@@ -450,10 +487,12 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
-    } catch {
+      totalActiveMembers = await getDashboardActiveMemberCount(
+        process.env.CLERK_SECRET_KEY!,
+        access.gymId,
+      );
+    } catch (err) {
+      req.log?.warn?.({ err }, "Failed to fetch dashboard member count");
       totalActiveMembers = 0;
     }
 

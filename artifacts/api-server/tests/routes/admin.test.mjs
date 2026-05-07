@@ -10,6 +10,10 @@ const memberAiProfilesByClerkId = new Map();
 const accessControlsByEmail = new Map();
 const adminClassesById = new Map();
 let getUserListCalls = 0;
+let getUserListShouldFail = false;
+let nowMs = Date.parse("2026-05-07T00:00:00.000Z");
+
+mock.method(Date, "now", () => nowMs);
 
 const userProfiles = {
   id: Symbol("id"),
@@ -182,6 +186,10 @@ mock.module("@clerk/backend", {
         users: {
           async getUserList({ userId = [], emailAddress = [], limit = 200, offset = 0 } = {}) {
             getUserListCalls += 1;
+            if (getUserListShouldFail) {
+              throw new Error("Clerk list unavailable");
+            }
+
             let users = [];
             if (userId.length > 0) {
               users = userId.map((id) => clerkUsers.get(id)).filter(Boolean);
@@ -464,7 +472,9 @@ mock.module("../../src/lib/admin-access.ts", {
 });
 
 const { clearAdminMemberListCache } = await import("../../src/lib/admin-members.ts");
-const { default: adminRouter } = await import("../../src/routes/admin.ts");
+const { clearDashboardMemberCountCache, default: adminRouter } = await import(
+  "../../src/routes/admin.ts"
+);
 
 const app = express();
 app.use(express.json());
@@ -478,7 +488,10 @@ beforeEach(() => {
   accessControlsByEmail.clear();
   adminClassesById.clear();
   getUserListCalls = 0;
+  getUserListShouldFail = false;
+  nowMs = Date.parse("2026-05-07T00:00:00.000Z");
   clearAdminMemberListCache();
+  clearDashboardMemberCountCache();
 
   clerkUsers.set("member_1", defaultClerkUser());
   userProfilesByClerkId.set("member_1", {
@@ -618,6 +631,68 @@ describe("admin routes", () => {
       refreshedResponse.body.find((member) => member.id === "member_2")?.role,
       "trainer",
     );
+  });
+
+  it("caches dashboard active member counts for five minutes", async () => {
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const firstResponse = await request(app).get("/admin/dashboard");
+    const secondResponse = await request(app).get("/admin/dashboard");
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(secondResponse.status, 200);
+    assert.equal(firstResponse.body.totalActiveMembers, 2);
+    assert.equal(secondResponse.body.totalActiveMembers, 2);
+    assert.equal(getUserListCalls, 1);
+
+    nowMs += 5 * 60 * 1_000 + 1;
+
+    const refreshedResponse = await request(app).get("/admin/dashboard");
+
+    assert.equal(refreshedResponse.status, 200);
+    assert.equal(refreshedResponse.body.totalActiveMembers, 2);
+    assert.equal(getUserListCalls, 2);
+  });
+
+  it("uses the last valid dashboard member-count cache when Clerk fails", async () => {
+    const firstResponse = await request(app).get("/admin/dashboard");
+    assert.equal(firstResponse.status, 200);
+    assert.equal(firstResponse.body.totalActiveMembers, 1);
+    assert.equal(getUserListCalls, 1);
+
+    nowMs += 5 * 60 * 1_000 + 1;
+    getUserListShouldFail = true;
+
+    const staleCacheResponse = await request(app).get("/admin/dashboard");
+
+    assert.equal(staleCacheResponse.status, 200);
+    assert.equal(staleCacheResponse.body.totalActiveMembers, 1);
+    assert.equal(getUserListCalls, 2);
+  });
+
+  it("does not crash dashboard when Clerk member count fails without cache", async () => {
+    getUserListShouldFail = true;
+
+    const response = await request(app).get("/admin/dashboard");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.totalActiveMembers, 0);
   });
 
   it("does not mutate owner accounts when Clerk metadata marks them as owner", async () => {

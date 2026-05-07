@@ -63,6 +63,28 @@ Commands run:
 Blockers:
 - None.
 
+### T03 - Add admin dashboard Clerk member-count cache
+
+Status: PASS.
+
+Summary:
+- Added a dashboard-specific `totalActiveMembers` cache with a 5-minute TTL.
+- Reused the existing Clerk-backed `listAdminMembers()` helper instead of creating a separate Clerk client.
+- Preserved the last valid cached member count if Clerk fails after a prior successful fetch.
+- Kept dashboard responses non-crashing when no cached count exists by returning `0` for that metric only.
+
+Files changed:
+- `artifacts/api-server/src/routes/admin.ts`
+- `artifacts/api-server/tests/routes/admin.test.mjs`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+- `pnpm --dir artifacts/api-server test -- tests/routes/admin.test.mjs` - pass, 15 tests.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+
+Blockers:
+- None.
+
 ### T02 - Replace weak Math.random ID generation in gymapp
 
 Status: PASS.
