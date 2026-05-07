@@ -60,6 +60,7 @@ export * from "./monthlyReviewSuggestedAdjustment";
 export * from "./monthlyReviewSuggestedAdjustmentCategory";
 export * from "./monthlyReviewSuggestedAdjustmentPriority";
 export * from "./monthlyReviewSuggestedAdjustmentSource";
+export * from "./notificationPreferences";
 export * from "./nutritionEntry";
 export * from "./nutritionListLogsParams";
 export * from "./nutritionLog";

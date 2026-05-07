@@ -662,6 +662,15 @@ export interface UpsertProgressEntryBody {
   thighs?: number;
 }
 
+export interface NotificationPreferences {
+  classRemindersEnabled: boolean;
+  workoutRemindersEnabled: boolean;
+  reminderLeadMinutes: number;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  updatedAt?: string;
+}
+
 export interface WorkoutMember {
   id: string;
   name: string;

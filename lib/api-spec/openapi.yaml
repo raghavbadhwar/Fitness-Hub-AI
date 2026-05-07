@@ -24,6 +24,8 @@ tags:
     description: Member nutrition log synchronization operations
   - name: progress
     description: Member progress and body measurement synchronization operations
+  - name: notifications
+    description: Member notification preference operations
   - name: monthly-reviews
     description: Saved member monthly progress review operations
 paths:
@@ -1355,6 +1357,66 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Failed to delete progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /notifications/preferences:
+    get:
+      operationId: notificationsGetPreferences
+      tags: [notifications]
+      summary: Get signed-in member notification preferences
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: notificationsUpdatePreferences
+      tags: [notifications]
+      summary: Update signed-in member notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: Updated notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "400":
+          description: Invalid notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update notification preferences
           content:
             application/json:
               schema:
@@ -3065,6 +3127,28 @@ components:
           type: number
         thighs:
           type: number
+
+    NotificationPreferences:
+      type: object
+      properties:
+        classRemindersEnabled:
+          type: boolean
+        workoutRemindersEnabled:
+          type: boolean
+        reminderLeadMinutes:
+          type: integer
+        emailEnabled:
+          type: boolean
+        pushEnabled:
+          type: boolean
+        updatedAt:
+          type: string
+      required:
+        - classRemindersEnabled
+        - workoutRemindersEnabled
+        - reminderLeadMinutes
+        - emailEnabled
+        - pushEnabled
 
     WorkoutMember:
       type: object

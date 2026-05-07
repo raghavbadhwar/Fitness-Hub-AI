@@ -8,6 +8,7 @@ export * from "./member_workout_plans";
 export * from "./member_workout_sessions";
 export * from "./member_nutrition_logs";
 export * from "./member_progress_entries";
+export * from "./member_notification_preferences";
 export * from "./member_ai_profiles";
 export * from "./monthly_reviews";
 export * from "./user_profiles";

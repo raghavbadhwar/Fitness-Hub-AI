@@ -1,15 +1,41 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
+import { getApiBase } from "@/lib/api-base";
+
+interface NotificationPreferences {
+  classRemindersEnabled: boolean;
+  workoutRemindersEnabled: boolean;
+  reminderLeadMinutes: number;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+}
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  classRemindersEnabled: true,
+  workoutRemindersEnabled: true,
+  reminderLeadMinutes: 60,
+  emailEnabled: true,
+  pushEnabled: false,
+};
 
 export default function ProfileScreen() {
   const { user } = useUser();
-  const { signOut } = useAuth();
+  const { getToken, isSignedIn, signOut } = useAuth();
   const { profile, updateProfile } = useApp();
   const router = useRouter();
   const colors = useColors();
@@ -21,6 +47,82 @@ export default function ProfileScreen() {
     height: profile.height.toString(),
     targetWeight: profile.targetWeight.toString(),
   });
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(
+    DEFAULT_NOTIFICATION_PREFERENCES,
+  );
+  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+
+    let cancelled = false;
+    const loadNotificationPreferences = async () => {
+      try {
+        const apiBase = getApiBase();
+        if (!apiBase) return;
+        const token = await getToken();
+        if (!token) return;
+
+        const response = await fetch(`${apiBase}/api/notifications/preferences`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load notification preferences (${response.status})`);
+        }
+
+        const payload = (await response.json()) as Partial<NotificationPreferences>;
+        if (!cancelled) {
+          setNotificationPreferences({
+            ...DEFAULT_NOTIFICATION_PREFERENCES,
+            ...payload,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load notification preferences", error);
+        if (!cancelled) setNotificationStatus("Reminder preferences are using local defaults.");
+      }
+    };
+
+    void loadNotificationPreferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isSignedIn]);
+
+  const saveNotificationPreferences = async (updates: Partial<NotificationPreferences>) => {
+    const nextPreferences = { ...notificationPreferences, ...updates };
+    setNotificationPreferences(nextPreferences);
+    setNotificationStatus("Saving reminder preferences...");
+
+    try {
+      const apiBase = getApiBase();
+      const token = await getToken();
+      if (!apiBase || !token) {
+        throw new Error("Missing API base URL or auth token");
+      }
+
+      const response = await fetch(`${apiBase}/api/notifications/preferences`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(nextPreferences),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to save notification preferences (${response.status})`);
+      }
+
+      const payload = (await response.json()) as Partial<NotificationPreferences>;
+      setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...payload });
+      setNotificationStatus("Reminder preferences saved.");
+    } catch (error) {
+      console.error("Failed to save notification preferences", error);
+      setNotificationStatus(
+        "Could not sync reminder preferences. Changes are not sending messages.",
+      );
+    }
+  };
 
   const handleSave = async () => {
     await updateProfile({
@@ -139,6 +241,92 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.cardHeader}>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Reminder Preferences</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
+                Stores preferences only. Push/email delivery is not enabled yet.
+              </Text>
+            </View>
+          </View>
+          {(
+            [
+              {
+                key: "classRemindersEnabled" as const,
+                label: "Class reminders",
+                detail: "Notify before booked classes",
+              },
+              {
+                key: "workoutRemindersEnabled" as const,
+                label: "Workout reminders",
+                detail: "Nudge planned training sessions",
+              },
+              {
+                key: "emailEnabled" as const,
+                label: "Email channel",
+                detail: "Allowed once an email provider is configured",
+              },
+              {
+                key: "pushEnabled" as const,
+                label: "Push channel",
+                detail: "Allowed once Expo push is configured",
+              },
+            ] as const
+          ).map((item) => (
+            <View key={item.key} style={styles.preferenceRow}>
+              <View style={styles.preferenceCopy}>
+                <Text style={[styles.preferenceLabel, { color: colors.text }]}>{item.label}</Text>
+                <Text style={[styles.preferenceDetail, { color: colors.mutedForeground }]}>
+                  {item.detail}
+                </Text>
+              </View>
+              <Switch
+                value={notificationPreferences[item.key]}
+                onValueChange={(value) => void saveNotificationPreferences({ [item.key]: value })}
+                accessibilityLabel={item.label}
+                trackColor={{ false: colors.border, true: colors.primary + "80" }}
+                thumbColor={notificationPreferences[item.key] ? colors.primary : colors.surface}
+              />
+            </View>
+          ))}
+
+          <View style={styles.leadTimeRow}>
+            <View style={styles.preferenceCopy}>
+              <Text style={[styles.preferenceLabel, { color: colors.text }]}>
+                Reminder lead time
+              </Text>
+              <Text style={[styles.preferenceDetail, { color: colors.mutedForeground }]}>
+                Minutes before a class or workout reminder
+              </Text>
+            </View>
+            <TextInput
+              style={[
+                styles.leadTimeInput,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              value={String(notificationPreferences.reminderLeadMinutes)}
+              keyboardType="number-pad"
+              onChangeText={(value) => {
+                const parsed = parseInt(value, 10);
+                if (Number.isFinite(parsed)) {
+                  void saveNotificationPreferences({ reminderLeadMinutes: parsed });
+                }
+              }}
+              accessibilityLabel="Reminder lead time in minutes"
+            />
+          </View>
+          {notificationStatus ? (
+            <Text style={[styles.preferenceStatus, { color: colors.mutedForeground }]}>
+              {notificationStatus}
+            </Text>
+          ) : null}
         </View>
 
         {editing ? (
@@ -265,11 +453,41 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardTitle: { fontSize: 16, fontWeight: "700" },
+  cardSubtitle: { fontSize: 12, marginTop: 2 },
   targetsGrid: { flexDirection: "row", gap: 10, alignSelf: "stretch" },
   targetItem: { flex: 1, borderRadius: 12, padding: 12, borderWidth: 1, alignItems: "center" },
   targetVal: { fontSize: 20, fontWeight: "700" },
   targetUnit: { fontSize: 11 },
   targetLabel: { fontSize: 11, marginTop: 2 },
+  preferenceRow: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 6,
+  },
+  preferenceCopy: { flex: 1, gap: 2 },
+  preferenceLabel: { fontSize: 14, fontWeight: "700" },
+  preferenceDetail: { fontSize: 12, lineHeight: 16 },
+  leadTimeRow: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: 12,
+    paddingTop: 8,
+  },
+  leadTimeInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    minWidth: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+  preferenceStatus: { alignSelf: "stretch", fontSize: 12, marginTop: 4 },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",

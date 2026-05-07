@@ -956,6 +956,39 @@ export const ProgressDeleteEntryResponse = zod.object({
 });
 
 /**
+ * @summary Get signed-in member notification preferences
+ */
+export const NotificationsGetPreferencesResponse = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Update signed-in member notification preferences
+ */
+export const NotificationsUpdatePreferencesBody = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
+});
+
+export const NotificationsUpdatePreferencesResponse = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
  * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
  * @summary Generate or refresh a monthly review
  */

@@ -72,6 +72,50 @@ Blockers:
 
 - None.
 
+### T14 - Add notification/reminder preferences foundation
+
+Status: PASS.
+
+Summary:
+
+- Added `member_notification_preferences` DB schema and SQL migration for class reminders, workout reminders, lead time, email preference, and push preference.
+- Added authenticated `/api/notifications/preferences` get/update routes with approved-access checks and user isolation.
+- Added member profile UI controls for reminder preferences with clear copy that no real push/email delivery is enabled yet.
+- Documented provider, scheduling, Expo push, consent, idempotency, and audit requirements in `docs/notifications.md`.
+- Updated OpenAPI and regenerated React client/Zod outputs.
+- Added route tests for defaults, update, user isolation, unauthenticated callers, and revoked access.
+
+Files changed:
+
+- `lib/db/src/schema/member_notification_preferences.ts`
+- `lib/db/src/schema/index.ts`
+- `lib/db/migrations/0010_member_notification_preferences.sql`
+- `artifacts/api-server/src/routes/notifications.ts`
+- `artifacts/api-server/src/routes/index.ts`
+- `artifacts/api-server/tests/routes/notifications.test.mjs`
+- `artifacts/gymapp/app/profile.tsx`
+- `docs/notifications.md`
+- `lib/api-spec/openapi.yaml`
+- `lib/api-client-react/src/generated/api.ts`
+- `lib/api-client-react/src/generated/api.schemas.ts`
+- `lib/api-zod/src/generated/api.ts`
+- `lib/api-zod/src/generated/types/index.ts`
+- `lib/api-zod/src/generated/types/notificationPreferences.ts`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass.
+- `pnpm --dir artifacts/api-server test -- tests/routes/notifications.test.mjs` - pass, 4 tests.
+- `pnpm --dir artifacts/api-server test` - pass, 87 tests.
+- `pnpm --filter @workspace/gymapp run typecheck` - pass.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - initially failed on changed notification/profile files; formatted and reran successfully.
+
+Blockers:
+
+- None.
+
 ### T13 - Resolve Binance Codex plugin placeholders
 
 Status: PASS.
