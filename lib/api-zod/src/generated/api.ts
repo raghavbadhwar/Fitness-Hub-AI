@@ -1189,6 +1189,196 @@ export const WorkoutsCreateMemberPlanBody = zod.object({
 });
 
 /**
+ * @summary List signed-in member workout sessions
+ */
+export const workoutsListSessionsResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsListSessionsResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsListSessionsResponseDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const WorkoutsListSessionsResponse = zod.array(WorkoutsListSessionsResponseItem);
+
+/**
+ * @summary Create or upsert a signed-in member workout session
+ */
+export const workoutsCreateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsCreateSessionBody = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsCreateSessionBodyDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Update a signed-in member workout session
+ */
+export const WorkoutsUpdateSessionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const workoutsUpdateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsUpdateSessionBody = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsUpdateSessionBodyDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+export const workoutsUpdateSessionResponseSessionDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsUpdateSessionResponse = zod.object({
+  session: zod.object({
+    id: zod.string(),
+    name: zod.string(),
+    date: zod.string().regex(workoutsUpdateSessionResponseSessionDateRegExp),
+    startTime: zod.number(),
+    endTime: zod.number().optional(),
+    duration: zod.number().optional(),
+    exercises: zod.array(
+      zod.object({
+        id: zod.string(),
+        exerciseId: zod.string(),
+        name: zod.string(),
+        sets: zod.array(
+          zod.object({
+            id: zod.string(),
+            weight: zod.number(),
+            reps: zod.number(),
+            completed: zod.boolean(),
+          }),
+        ),
+        notes: zod.string().nullish(),
+      }),
+    ),
+    notes: zod.string().nullish(),
+    totalVolume: zod.number(),
+    caloriesBurned: zod.number(),
+    completed: zod.boolean(),
+    aiGenerated: zod.boolean().optional(),
+    createdAt: zod.string().optional(),
+    updatedAt: zod.string().optional(),
+  }),
+  personalRecords: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      weight: zod.number(),
+      reps: zod.number(),
+      date: zod.string(),
+      sessionId: zod.string().optional(),
+      updatedAt: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete a signed-in member workout session
+ */
+export const WorkoutsDeleteSessionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const WorkoutsDeleteSessionResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List signed-in member personal records
+ */
+export const WorkoutsListPersonalRecordsResponse = zod.record(
+  zod.string(),
+  zod.object({
+    exerciseId: zod.string(),
+    name: zod.string(),
+    weight: zod.number(),
+    reps: zod.number(),
+    date: zod.string(),
+    sessionId: zod.string().optional(),
+    updatedAt: zod.string().optional(),
+  }),
+);
+
+/**
  * @summary Update a member workout plan
  */
 export const WorkoutsUpdateMemberPlanParams = zod.object({

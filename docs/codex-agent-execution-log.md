@@ -72,6 +72,51 @@ Blockers:
 
 - None.
 
+### T11 - Add backend sync for workout sessions and personal records
+
+Status: PASS.
+
+Summary:
+
+- Added `member_workout_sessions` and `member_personal_records` DB schema plus SQL migration for authenticated workout history and PR storage.
+- Added authenticated `/api/workouts/sessions`, `/api/workouts/sessions/:id`, and `/api/workouts/personal-records` routes with approved-access checks, user isolation, duplicate session-id protection, and PR calculation from completed sets.
+- Updated the member app workout context to keep guest behavior local-only while syncing authenticated completed sessions and personal records with AsyncStorage cache fallback.
+- Updated OpenAPI and regenerated React client/Zod outputs.
+- Expanded workout route tests to cover saved plans, session CRUD, user isolation, PR persistence, duplicate prevention, and deletes.
+
+Files changed:
+
+- `lib/db/src/schema/member_workout_sessions.ts`
+- `lib/db/src/schema/index.ts`
+- `lib/db/migrations/0008_member_workout_sessions.sql`
+- `artifacts/api-server/src/routes/workouts.ts`
+- `artifacts/api-server/tests/routes/workouts.test.mjs`
+- `artifacts/gymapp/contexts/WorkoutContext.tsx`
+- `lib/api-spec/openapi.yaml`
+- `lib/api-client-react/src/generated/api.ts`
+- `lib/api-client-react/src/generated/api.schemas.ts`
+- `lib/api-zod/src/generated/api.ts`
+- `lib/api-zod/src/generated/types/index.ts`
+- `lib/api-zod/src/generated/types/personalRecord.ts`
+- `lib/api-zod/src/generated/types/personalRecordsResponse.ts`
+- `lib/api-zod/src/generated/types/workoutSession.ts`
+- `lib/api-zod/src/generated/types/workoutSessionExercise.ts`
+- `lib/api-zod/src/generated/types/workoutSessionMutationResponse.ts`
+- `lib/api-zod/src/generated/types/workoutSessionSet.ts`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass.
+- `pnpm --dir artifacts/api-server test -- tests/routes/workouts.test.mjs` - pass, 7 tests.
+- `pnpm --filter @workspace/gymapp run typecheck` - initially failed on strict optional-property inference in `WorkoutContext.tsx`; fixed and reran successfully.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - initially failed on changed workout files; formatted and reran successfully.
+
+Blockers:
+
+- None.
+
 ### T02 - Replace weak Math.random ID generation in gymapp
 
 Status: PASS.

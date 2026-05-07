@@ -3,9 +3,15 @@ import { randomUUID } from "node:crypto";
 import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
+  memberPersonalRecords,
+  memberWorkoutSessions,
   memberWorkoutPlans,
   workoutAssignments,
   workoutTemplates,
+  type MemberPersonalRecord,
+  type MemberWorkoutSession,
+  type MemberWorkoutSessionExercise,
+  type MemberWorkoutSessionSet,
   type MemberWorkoutPlanExercise,
 } from "@workspace/db/schema";
 import { userProfiles, type TemplateExercise } from "@workspace/db";
@@ -16,6 +22,23 @@ import { listAllClerkUsers } from "../lib/clerk-request.ts";
 const router = Router();
 
 router.use(requireAuth());
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+interface NormalizedWorkoutSession {
+  id: string;
+  name: string;
+  date: string;
+  startTime: Date;
+  endTime: Date | null;
+  duration: number | null;
+  exercises: MemberWorkoutSessionExercise[];
+  notes: string | null;
+  totalVolume: number;
+  caloriesBurned: number;
+  completed: boolean;
+  aiGenerated: boolean;
+}
 
 function parsePlanExercises(exercises: unknown): MemberWorkoutPlanExercise[] | null {
   if (!Array.isArray(exercises) || exercises.length === 0) {
@@ -56,11 +79,254 @@ function serializeMemberWorkoutPlan(plan: typeof memberWorkoutPlans.$inferSelect
   };
 }
 
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function asNonNegativeInteger(value: unknown, fallback = 0): number {
+  const parsed = asFiniteNumber(value);
+  return parsed === null ? fallback : Math.max(0, Math.round(parsed));
+}
+
+function asDateFromEpoch(value: unknown): Date | null {
+  const parsed = asFiniteNumber(value);
+  if (parsed === null || parsed <= 0) return null;
+  const date = new Date(parsed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseWorkoutSets(value: unknown): MemberWorkoutSessionSet[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const parsed: MemberWorkoutSessionSet[] = [];
+  for (const set of value) {
+    if (!set || typeof set !== "object") continue;
+    const record = set as Record<string, unknown>;
+    const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : randomUUID();
+    const reps = asNonNegativeInteger(record.reps, 0);
+    const weight = asNonNegativeInteger(record.weight, 0);
+    parsed.push({
+      id,
+      weight,
+      reps,
+      completed: Boolean(record.completed),
+    });
+  }
+
+  return parsed;
+}
+
+function parseWorkoutExercises(value: unknown): MemberWorkoutSessionExercise[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const parsed: MemberWorkoutSessionExercise[] = [];
+  for (const exercise of value) {
+    if (!exercise || typeof exercise !== "object") continue;
+    const record = exercise as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    if (!name) continue;
+    const sets = parseWorkoutSets(record.sets);
+    if (!sets) continue;
+
+    parsed.push({
+      id: typeof record.id === "string" && record.id.trim() ? record.id.trim() : randomUUID(),
+      exerciseId:
+        typeof record.exerciseId === "string" && record.exerciseId.trim()
+          ? record.exerciseId.trim()
+          : name,
+      name,
+      sets,
+      ...(typeof record.notes === "string" && record.notes.trim()
+        ? { notes: record.notes.trim() }
+        : {}),
+    });
+  }
+
+  return parsed;
+}
+
+function parseWorkoutSessionPayload(
+  payload: unknown,
+  fallback?: MemberWorkoutSession,
+): NormalizedWorkoutSession | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const id =
+    typeof record.id === "string" && record.id.trim()
+      ? record.id.trim()
+      : (fallback?.id ?? randomUUID());
+  const name =
+    typeof record.name === "string" && record.name.trim()
+      ? record.name.trim()
+      : (fallback?.name ?? "");
+  const date =
+    typeof record.date === "string" && DATE_RE.test(record.date) ? record.date : fallback?.date;
+  const startTime = asDateFromEpoch(record.startTime) ?? fallback?.startTime;
+  const endTime =
+    record.endTime === null ? null : (asDateFromEpoch(record.endTime) ?? fallback?.endTime ?? null);
+  const exercises = parseWorkoutExercises(record.exercises) ?? fallback?.exercises;
+
+  if (!id || !name || !date || !startTime || !exercises) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    date,
+    startTime,
+    endTime,
+    duration:
+      record.duration === null
+        ? null
+        : typeof record.duration === "undefined"
+          ? (fallback?.duration ?? null)
+          : asNonNegativeInteger(record.duration, fallback?.duration ?? 0),
+    exercises,
+    notes:
+      typeof record.notes === "string" && record.notes.trim()
+        ? record.notes.trim()
+        : (fallback?.notes ?? null),
+    totalVolume: asNonNegativeInteger(record.totalVolume, fallback?.totalVolume ?? 0),
+    caloriesBurned: asNonNegativeInteger(record.caloriesBurned, fallback?.caloriesBurned ?? 0),
+    completed:
+      typeof record.completed === "boolean" ? record.completed : (fallback?.completed ?? false),
+    aiGenerated:
+      typeof record.aiGenerated === "boolean"
+        ? record.aiGenerated
+        : (fallback?.aiGenerated ?? false),
+  };
+}
+
+function serializeWorkoutSession(row: MemberWorkoutSession) {
+  return {
+    id: row.id,
+    name: row.name,
+    date: row.date,
+    startTime: row.startTime.getTime(),
+    endTime: row.endTime ? row.endTime.getTime() : undefined,
+    duration: row.duration ?? undefined,
+    exercises: row.exercises,
+    notes: row.notes ?? undefined,
+    totalVolume: row.totalVolume,
+    caloriesBurned: row.caloriesBurned,
+    completed: row.completed,
+    aiGenerated: row.aiGenerated,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function serializePersonalRecord(row: MemberPersonalRecord) {
+  return {
+    exerciseId: row.exerciseId,
+    name: row.name,
+    weight: row.weight,
+    reps: row.reps,
+    date: row.date,
+    sessionId: row.sessionId ?? undefined,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function oneRepMaxEstimate(weight: number, reps: number) {
+  return Math.round(weight * (1 + reps / 30));
+}
+
+async function findWorkoutSessionById(id: string) {
+  const [row] = await db
+    .select()
+    .from(memberWorkoutSessions)
+    .where(eq(memberWorkoutSessions.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+async function persistSessionPersonalRecords(
+  gymId: string,
+  memberClerkId: string,
+  session: NormalizedWorkoutSession,
+) {
+  if (!session.completed) {
+    return [];
+  }
+
+  const existingRows = await db
+    .select()
+    .from(memberPersonalRecords)
+    .where(
+      and(
+        eq(memberPersonalRecords.gymId, gymId),
+        eq(memberPersonalRecords.memberClerkId, memberClerkId),
+      ),
+    );
+  const bestByExercise = new Map(existingRows.map((row) => [row.exerciseId, row]));
+  const improvedRecords: MemberPersonalRecord[] = [];
+
+  for (const exercise of session.exercises) {
+    for (const set of exercise.sets) {
+      if (!set.completed || set.weight <= 0 || set.reps <= 0) continue;
+      const current = bestByExercise.get(exercise.exerciseId);
+      const nextOneRepMax = oneRepMaxEstimate(set.weight, set.reps);
+      const currentOneRepMax = current ? oneRepMaxEstimate(current.weight, current.reps) : 0;
+      if (current && nextOneRepMax <= currentOneRepMax) continue;
+
+      const now = new Date();
+      const [record] = await db
+        .insert(memberPersonalRecords)
+        .values({
+          id: current?.id ?? randomUUID(),
+          gymId,
+          memberClerkId,
+          exerciseId: exercise.exerciseId,
+          name: exercise.name,
+          weight: set.weight,
+          reps: set.reps,
+          date: session.date,
+          sessionId: session.id,
+        })
+        .onConflictDoUpdate({
+          target: [
+            memberPersonalRecords.gymId,
+            memberPersonalRecords.memberClerkId,
+            memberPersonalRecords.exerciseId,
+          ],
+          set: {
+            name: exercise.name,
+            weight: set.weight,
+            reps: set.reps,
+            date: session.date,
+            sessionId: session.id,
+            updatedAt: now,
+          },
+        })
+        .returning();
+
+      bestByExercise.set(exercise.exerciseId, record);
+      improvedRecords.push(record);
+    }
+  }
+
+  return improvedRecords;
+}
+
 async function requireTrainerOrOwner(
   req: Request,
   res: Response,
 ): Promise<Awaited<ReturnType<typeof requireApprovedAccess>> | null> {
   return requireApprovedAccess(req, res, ["trainer", "owner"]);
+}
+
+async function requireWorkoutMemberAccess(
+  req: Request,
+  res: Response,
+): Promise<Awaited<ReturnType<typeof requireApprovedAccess>> | null> {
+  return requireApprovedAccess(req, res, ["member", "trainer", "owner"]);
 }
 
 router.get("/members", async (req: Request, res: Response) => {
@@ -265,6 +531,230 @@ router.post("/assign", async (req: Request, res: Response) => {
   } catch (err) {
     req.log.error({ err }, "Error assigning workout");
     res.status(500).json({ error: "Failed to assign workout" });
+  }
+});
+
+router.get("/sessions", async (req: Request, res: Response) => {
+  try {
+    const access = await requireWorkoutMemberAccess(req, res);
+    if (!access) return;
+
+    const rows = await db
+      .select()
+      .from(memberWorkoutSessions)
+      .where(
+        and(
+          eq(memberWorkoutSessions.gymId, access.gymId),
+          eq(memberWorkoutSessions.memberClerkId, access.userId),
+        ),
+      )
+      .orderBy(desc(memberWorkoutSessions.updatedAt));
+
+    res.json(rows.map(serializeWorkoutSession));
+  } catch (err) {
+    req.log.error({ err }, "Error fetching member workout sessions");
+    res.status(500).json({ error: "Failed to fetch workout sessions" });
+  }
+});
+
+router.post("/sessions", async (req: Request, res: Response) => {
+  try {
+    const access = await requireWorkoutMemberAccess(req, res);
+    if (!access) return;
+
+    const payload = parseWorkoutSessionPayload(req.body);
+    if (!payload) {
+      res.status(400).json({ error: "Invalid workout session payload" });
+      return;
+    }
+
+    const existingSession = await findWorkoutSessionById(payload.id);
+    if (
+      existingSession &&
+      (existingSession.gymId !== access.gymId || existingSession.memberClerkId !== access.userId)
+    ) {
+      res.status(409).json({ error: "Workout session id already exists" });
+      return;
+    }
+
+    const now = new Date();
+    const values = {
+      id: payload.id,
+      gymId: access.gymId,
+      memberClerkId: access.userId,
+      name: payload.name,
+      date: payload.date,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      duration: payload.duration,
+      exercises: payload.exercises,
+      notes: payload.notes,
+      totalVolume: payload.totalVolume,
+      caloriesBurned: payload.caloriesBurned,
+      completed: payload.completed,
+      aiGenerated: payload.aiGenerated,
+    };
+
+    const [session] = existingSession
+      ? await db
+          .update(memberWorkoutSessions)
+          .set({ ...values, updatedAt: now })
+          .where(
+            and(
+              eq(memberWorkoutSessions.id, payload.id),
+              eq(memberWorkoutSessions.gymId, access.gymId),
+              eq(memberWorkoutSessions.memberClerkId, access.userId),
+            ),
+          )
+          .returning()
+      : await db.insert(memberWorkoutSessions).values(values).returning();
+
+    const improvedRecords = await persistSessionPersonalRecords(access.gymId, access.userId, {
+      ...payload,
+      id: session.id,
+    });
+
+    res.status(existingSession ? 200 : 201).json({
+      session: serializeWorkoutSession(session),
+      personalRecords: improvedRecords.map(serializePersonalRecord),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error saving member workout session");
+    res.status(500).json({ error: "Failed to save workout session" });
+  }
+});
+
+router.patch("/sessions/:id", async (req: Request, res: Response) => {
+  try {
+    const access = await requireWorkoutMemberAccess(req, res);
+    if (!access) return;
+
+    const sessionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!sessionId || !sessionId.trim()) {
+      res.status(400).json({ error: "Invalid workout session id" });
+      return;
+    }
+
+    const [existingSession] = await db
+      .select()
+      .from(memberWorkoutSessions)
+      .where(
+        and(
+          eq(memberWorkoutSessions.id, sessionId),
+          eq(memberWorkoutSessions.gymId, access.gymId),
+          eq(memberWorkoutSessions.memberClerkId, access.userId),
+        ),
+      )
+      .limit(1);
+
+    if (!existingSession) {
+      res.status(404).json({ error: "Workout session not found" });
+      return;
+    }
+
+    const payload = parseWorkoutSessionPayload({ ...req.body, id: sessionId }, existingSession);
+    if (!payload) {
+      res.status(400).json({ error: "Invalid workout session payload" });
+      return;
+    }
+
+    const [session] = await db
+      .update(memberWorkoutSessions)
+      .set({
+        name: payload.name,
+        date: payload.date,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        duration: payload.duration,
+        exercises: payload.exercises,
+        notes: payload.notes,
+        totalVolume: payload.totalVolume,
+        caloriesBurned: payload.caloriesBurned,
+        completed: payload.completed,
+        aiGenerated: payload.aiGenerated,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(memberWorkoutSessions.id, sessionId),
+          eq(memberWorkoutSessions.gymId, access.gymId),
+          eq(memberWorkoutSessions.memberClerkId, access.userId),
+        ),
+      )
+      .returning();
+
+    const improvedRecords = await persistSessionPersonalRecords(access.gymId, access.userId, {
+      ...payload,
+      id: session.id,
+    });
+
+    res.json({
+      session: serializeWorkoutSession(session),
+      personalRecords: improvedRecords.map(serializePersonalRecord),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error updating member workout session");
+    res.status(500).json({ error: "Failed to update workout session" });
+  }
+});
+
+router.delete("/sessions/:id", async (req: Request, res: Response) => {
+  try {
+    const access = await requireWorkoutMemberAccess(req, res);
+    if (!access) return;
+
+    const sessionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!sessionId || !sessionId.trim()) {
+      res.status(400).json({ error: "Invalid workout session id" });
+      return;
+    }
+
+    const deleted = await db
+      .delete(memberWorkoutSessions)
+      .where(
+        and(
+          eq(memberWorkoutSessions.id, sessionId),
+          eq(memberWorkoutSessions.gymId, access.gymId),
+          eq(memberWorkoutSessions.memberClerkId, access.userId),
+        ),
+      )
+      .returning({ id: memberWorkoutSessions.id });
+
+    if (!deleted.length) {
+      res.status(404).json({ error: "Workout session not found" });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Error deleting member workout session");
+    res.status(500).json({ error: "Failed to delete workout session" });
+  }
+});
+
+router.get("/personal-records", async (req: Request, res: Response) => {
+  try {
+    const access = await requireWorkoutMemberAccess(req, res);
+    if (!access) return;
+
+    const rows = await db
+      .select()
+      .from(memberPersonalRecords)
+      .where(
+        and(
+          eq(memberPersonalRecords.gymId, access.gymId),
+          eq(memberPersonalRecords.memberClerkId, access.userId),
+        ),
+      );
+
+    res.json(
+      Object.fromEntries(
+        rows.map((record) => [record.exerciseId, serializePersonalRecord(record)]),
+      ),
+    );
+  } catch (err) {
+    req.log.error({ err }, "Error fetching member personal records");
+    res.status(500).json({ error: "Failed to fetch personal records" });
   }
 });
 

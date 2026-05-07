@@ -683,6 +683,60 @@ export interface WorkoutAssignBody {
   memberId: string;
 }
 
+export interface WorkoutSessionSet {
+  id: string;
+  weight: number;
+  reps: number;
+  completed: boolean;
+}
+
+export interface WorkoutSessionExercise {
+  id: string;
+  exerciseId: string;
+  name: string;
+  sets: WorkoutSessionSet[];
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface WorkoutSession {
+  id: string;
+  name: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  exercises: WorkoutSessionExercise[];
+  /** @nullable */
+  notes?: string | null;
+  totalVolume: number;
+  caloriesBurned: number;
+  completed: boolean;
+  aiGenerated?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PersonalRecord {
+  exerciseId: string;
+  name: string;
+  weight: number;
+  reps: number;
+  date: string;
+  sessionId?: string;
+  updatedAt?: string;
+}
+
+export interface PersonalRecordsResponse {
+  [key: string]: PersonalRecord;
+}
+
+export interface WorkoutSessionMutationResponse {
+  session: WorkoutSession;
+  personalRecords: PersonalRecord[];
+}
+
 export interface MemberWorkoutPlanExercise {
   exerciseId: string;
   name: string;
