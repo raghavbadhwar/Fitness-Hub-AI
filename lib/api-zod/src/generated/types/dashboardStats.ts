@@ -5,12 +5,18 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DashboardLowAttendanceClass } from "./dashboardLowAttendanceClass";
 import type { WeeklyClassCount } from "./weeklyClassCount";
 
 export interface DashboardStats {
   totalClassesThisWeek: number;
   totalEnrollments: number;
+  totalEnrollmentsThisWeek: number;
+  /** @minimum 0 */
+  averageClassOccupancy: number;
+  upcomingClassesCount: number;
   mostPopularCategory: string;
   totalActiveMembers: number;
+  lowAttendanceClasses: DashboardLowAttendanceClass[];
   weeklyClassCounts: WeeklyClassCount[];
 }

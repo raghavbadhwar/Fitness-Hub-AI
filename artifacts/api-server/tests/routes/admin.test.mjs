@@ -489,6 +489,7 @@ beforeEach(() => {
   getUserListCalls = 0;
   getUserListShouldFail = false;
   nowMs = Date.parse("2026-05-07T00:00:00.000Z");
+  process.env.CLERK_SECRET_KEY = "test_secret_key";
   clearAdminMemberListCache();
   clearDashboardMemberCountCache();
 
@@ -669,6 +670,115 @@ describe("admin routes", () => {
     assert.equal(getUserListCalls, 2);
   });
 
+  it("computes dashboard owner analytics from existing class rows", async () => {
+    adminClassesById.clear();
+    adminClassesById.set(
+      1,
+      seedAdminClass({
+        id: 1,
+        name: "Yoga Reset",
+        category: "Yoga",
+        date: "2026-05-05",
+        startTime: "08:00",
+        enrolledCount: 4,
+        maxParticipants: 10,
+      }),
+    );
+    adminClassesById.set(
+      2,
+      seedAdminClass({
+        id: 2,
+        name: "Strength Intro",
+        category: "Strength",
+        date: "2026-05-07",
+        startTime: "09:00",
+        enrolledCount: 2,
+        maxParticipants: 10,
+      }),
+    );
+    adminClassesById.set(
+      3,
+      seedAdminClass({
+        id: 3,
+        name: "Strength Prime",
+        category: "Strength",
+        date: "2026-05-08",
+        startTime: "18:00",
+        enrolledCount: 8,
+        maxParticipants: 10,
+      }),
+    );
+    adminClassesById.set(
+      4,
+      seedAdminClass({
+        id: 4,
+        name: "Room Setup",
+        category: "Other",
+        date: "2026-05-09",
+        startTime: "12:00",
+        enrolledCount: 0,
+        maxParticipants: 0,
+      }),
+    );
+    adminClassesById.set(
+      5,
+      seedAdminClass({
+        id: 5,
+        name: "Pilates Control",
+        category: "Pilates",
+        date: "2026-05-10",
+        startTime: "10:00",
+        enrolledCount: 1,
+        maxParticipants: 10,
+      }),
+    );
+    adminClassesById.set(
+      6,
+      seedAdminClass({
+        id: 6,
+        name: "Cancelled Boxing",
+        category: "Boxing",
+        date: "2026-05-07",
+        startTime: "17:00",
+        enrolledCount: 3,
+        maxParticipants: 10,
+        status: "cancelled",
+      }),
+    );
+
+    const response = await request(app).get("/admin/dashboard");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.totalClassesThisWeek, 4);
+    assert.equal(response.body.totalEnrollments, 18);
+    assert.equal(response.body.totalEnrollmentsThisWeek, 14);
+    assert.equal(response.body.averageClassOccupancy, 47);
+    assert.equal(response.body.upcomingClassesCount, 4);
+    assert.equal(response.body.mostPopularCategory, "Strength");
+    assert.equal(response.body.totalActiveMembers, 1);
+    assert.deepEqual(response.body.lowAttendanceClasses, [
+      {
+        id: 2,
+        name: "Strength Intro",
+        date: "2026-05-07",
+        startTime: "09:00",
+        enrolledCount: 2,
+        maxParticipants: 10,
+        occupancyPercent: 20,
+      },
+      {
+        id: 5,
+        name: "Pilates Control",
+        date: "2026-05-10",
+        startTime: "10:00",
+        enrolledCount: 1,
+        maxParticipants: 10,
+        occupancyPercent: 10,
+      },
+    ]);
+    assert.equal(getUserListCalls, 1);
+  });
+
   it("uses the last valid dashboard member-count cache when Clerk fails", async () => {
     const firstResponse = await request(app).get("/admin/dashboard");
     assert.equal(firstResponse.status, 200);
@@ -692,6 +802,16 @@ describe("admin routes", () => {
 
     assert.equal(response.status, 200);
     assert.equal(response.body.totalActiveMembers, 0);
+  });
+
+  it("skips dashboard member counts when Clerk is not configured", async () => {
+    delete process.env.CLERK_SECRET_KEY;
+
+    const response = await request(app).get("/admin/dashboard");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.totalActiveMembers, 0);
+    assert.equal(getUserListCalls, 0);
   });
 
   it("does not mutate owner accounts when Clerk metadata marks them as owner", async () => {

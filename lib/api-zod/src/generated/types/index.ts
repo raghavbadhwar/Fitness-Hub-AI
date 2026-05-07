@@ -31,6 +31,7 @@ export * from "./createGymClassBody";
 export * from "./createGymClassBodyCategory";
 export * from "./createGymClassBodyStatus";
 export * from "./createWorkoutTemplateBody";
+export * from "./dashboardLowAttendanceClass";
 export * from "./dashboardStats";
 export * from "./enrolledClassIdsResponse";
 export * from "./errorResponse";

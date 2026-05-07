@@ -498,11 +498,31 @@ export const AdminSetMemberAccessResponse = zod.object({
  * Returns at-a-glance dashboard statistics (owner-only)
  * @summary Get dashboard stats
  */
+export const adminGetDashboardResponseAverageClassOccupancyMin = 0;
+
+export const adminGetDashboardResponseLowAttendanceClassesItemOccupancyPercentMin = 0;
+
 export const AdminGetDashboardResponse = zod.object({
   totalClassesThisWeek: zod.number(),
   totalEnrollments: zod.number(),
+  totalEnrollmentsThisWeek: zod.number(),
+  averageClassOccupancy: zod.number().min(adminGetDashboardResponseAverageClassOccupancyMin),
+  upcomingClassesCount: zod.number(),
   mostPopularCategory: zod.string(),
   totalActiveMembers: zod.number(),
+  lowAttendanceClasses: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      date: zod.coerce.date(),
+      startTime: zod.string(),
+      enrolledCount: zod.number(),
+      maxParticipants: zod.number(),
+      occupancyPercent: zod
+        .number()
+        .min(adminGetDashboardResponseLowAttendanceClassesItemOccupancyPercentMin),
+    }),
+  ),
   weeklyClassCounts: zod.array(
     zod.object({
       day: zod.string(),

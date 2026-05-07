@@ -21,8 +21,22 @@ const today = "2099-05-05";
 const previewStats: DashboardStats = {
   totalClassesThisWeek: 18,
   totalEnrollments: 142,
+  totalEnrollmentsThisWeek: 64,
+  averageClassOccupancy: 74,
+  upcomingClassesCount: 12,
   totalActiveMembers: 86,
   mostPopularCategory: "Strength",
+  lowAttendanceClasses: [
+    {
+      id: 5,
+      name: "Pilates Control",
+      date: "2099-05-06",
+      startTime: "10:00",
+      enrolledCount: 3,
+      maxParticipants: 12,
+      occupancyPercent: 25,
+    },
+  ],
   weeklyClassCounts: [
     { day: "Mon", count: 4 },
     { day: "Tue", count: 3 },

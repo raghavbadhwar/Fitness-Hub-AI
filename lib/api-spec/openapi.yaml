@@ -2559,6 +2559,34 @@ components:
         - day
         - count
 
+    DashboardLowAttendanceClass:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        enrolledCount:
+          type: integer
+        maxParticipants:
+          type: integer
+        occupancyPercent:
+          type: integer
+          minimum: 0
+      required:
+        - id
+        - name
+        - date
+        - startTime
+        - enrolledCount
+        - maxParticipants
+        - occupancyPercent
+
     DashboardStats:
       type: object
       properties:
@@ -2566,10 +2594,21 @@ components:
           type: integer
         totalEnrollments:
           type: integer
+        totalEnrollmentsThisWeek:
+          type: integer
+        averageClassOccupancy:
+          type: integer
+          minimum: 0
+        upcomingClassesCount:
+          type: integer
         mostPopularCategory:
           type: string
         totalActiveMembers:
           type: integer
+        lowAttendanceClasses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardLowAttendanceClass"
         weeklyClassCounts:
           type: array
           items:
@@ -2577,8 +2616,12 @@ components:
       required:
         - totalClassesThisWeek
         - totalEnrollments
+        - totalEnrollmentsThisWeek
+        - averageClassOccupancy
+        - upcomingClassesCount
         - mostPopularCategory
         - totalActiveMembers
+        - lowAttendanceClasses
         - weeklyClassCounts
 
     AiMemoryMessage:

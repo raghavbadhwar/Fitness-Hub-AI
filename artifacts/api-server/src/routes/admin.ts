@@ -85,8 +85,88 @@ type AttendanceRecord = {
   updatedAt: string;
   updatedBy: string | null;
 };
+type DashboardClassRow = {
+  id: number;
+  name: string;
+  category: string;
+  date: string;
+  startTime: string;
+  maxParticipants: number;
+  enrolledCount: number;
+  status: string;
+};
 
 const attendanceStatuses = new Set<AttendanceStatus>(["booked", "checked_in", "no_show"]);
+const LOW_ATTENDANCE_OCCUPANCY_THRESHOLD = 35;
+
+function getDateKey(date: Date) {
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function getDashboardWeekBounds(now = new Date(Date.now())) {
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+  return {
+    weekStart: getDateKey(startOfWeek),
+    weekEnd: getDateKey(endOfWeek),
+    today: getDateKey(now),
+    startOfWeek,
+  };
+}
+
+function isOperationalClass(gymClass: Pick<DashboardClassRow, "status">) {
+  return gymClass.status !== "cancelled";
+}
+
+function getClassOccupancyPercent(
+  gymClass: Pick<DashboardClassRow, "enrolledCount" | "maxParticipants">,
+) {
+  if (gymClass.maxParticipants <= 0) return 0;
+  return Math.round((gymClass.enrolledCount / gymClass.maxParticipants) * 100);
+}
+
+function getAverageOccupancyPercent(classes: DashboardClassRow[]) {
+  const capacityClasses = classes.filter((gymClass) => gymClass.maxParticipants > 0);
+  const totalCapacity = capacityClasses.reduce(
+    (sum, gymClass) => sum + gymClass.maxParticipants,
+    0,
+  );
+  if (totalCapacity <= 0) return 0;
+
+  const totalEnrolled = capacityClasses.reduce((sum, gymClass) => sum + gymClass.enrolledCount, 0);
+  return Math.round((totalEnrolled / totalCapacity) * 100);
+}
+
+function getMostPopularCategory(classes: DashboardClassRow[]) {
+  const categoryEnrollmentCounts: Record<string, number> = {};
+  const categoryClassCounts: Record<string, number> = {};
+
+  for (const gymClass of classes) {
+    categoryEnrollmentCounts[gymClass.category] =
+      (categoryEnrollmentCounts[gymClass.category] ?? 0) + gymClass.enrolledCount;
+    categoryClassCounts[gymClass.category] = (categoryClassCounts[gymClass.category] ?? 0) + 1;
+  }
+
+  return (
+    Object.keys(categoryClassCounts).sort((left, right) => {
+      const enrollmentDelta =
+        (categoryEnrollmentCounts[right] ?? 0) - (categoryEnrollmentCounts[left] ?? 0);
+      if (enrollmentDelta !== 0) return enrollmentDelta;
+
+      const classDelta = (categoryClassCounts[right] ?? 0) - (categoryClassCounts[left] ?? 0);
+      if (classDelta !== 0) return classDelta;
+
+      return left.localeCompare(right);
+    })[0] ?? "None"
+  );
+}
 
 function normalizeAttendanceRecords(value: unknown): AttendanceRecord[] {
   if (!Array.isArray(value)) return [];
@@ -479,41 +559,54 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
   if (!access) return;
 
   try {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const weekStart = startOfWeek.toISOString().split("T")[0];
-
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    const weekEnd = endOfWeek.toISOString().split("T")[0];
+    const { weekStart, weekEnd, today, startOfWeek } = getDashboardWeekBounds();
 
     const allClasses = await db
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+    const operationalClasses = allClasses.filter(isOperationalClass);
+    const thisWeekClasses = operationalClasses.filter(
+      (gymClass) => gymClass.date >= weekStart && gymClass.date <= weekEnd,
+    );
+    const upcomingClasses = operationalClasses.filter((gymClass) => gymClass.date >= today);
 
     const totalClassesThisWeek = thisWeekClasses.length;
     const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
-    const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
-    }
-    const mostPopularCategory =
-      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
+    const totalEnrollmentsThisWeek = thisWeekClasses.reduce(
+      (sum, gymClass) => sum + gymClass.enrolledCount,
+      0,
+    );
+    const averageClassOccupancy = getAverageOccupancyPercent(thisWeekClasses);
+    const upcomingClassesCount = upcomingClasses.length;
+    const lowAttendanceClasses = upcomingClasses
+      .filter(
+        (gymClass) =>
+          gymClass.maxParticipants > 0 &&
+          getClassOccupancyPercent(gymClass) <= LOW_ATTENDANCE_OCCUPANCY_THRESHOLD,
+      )
+      .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`))
+      .slice(0, 5)
+      .map((gymClass) => ({
+        id: gymClass.id,
+        name: gymClass.name,
+        date: gymClass.date,
+        startTime: gymClass.startTime,
+        enrolledCount: gymClass.enrolledCount,
+        maxParticipants: gymClass.maxParticipants,
+        occupancyPercent: getClassOccupancyPercent(gymClass),
+      }));
+    const mostPopularCategory = getMostPopularCategory(operationalClasses);
 
     let totalActiveMembers = 0;
-    try {
-      totalActiveMembers = await getDashboardActiveMemberCount(
-        process.env.CLERK_SECRET_KEY!,
-        access.gymId,
-      );
-    } catch (err) {
-      req.log?.warn?.({ err }, "Failed to fetch dashboard member count");
-      totalActiveMembers = 0;
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (clerkSecretKey) {
+      try {
+        totalActiveMembers = await getDashboardActiveMemberCount(clerkSecretKey, access.gymId);
+      } catch (err) {
+        req.log?.warn?.({ err }, "Failed to fetch dashboard member count");
+        totalActiveMembers = 0;
+      }
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -528,8 +621,12 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     res.json({
       totalClassesThisWeek,
       totalEnrollments,
+      totalEnrollmentsThisWeek,
+      averageClassOccupancy,
+      upcomingClassesCount,
       mostPopularCategory,
       totalActiveMembers,
+      lowAttendanceClasses,
       weeklyClassCounts,
     });
   } catch (err) {

@@ -326,11 +326,27 @@ export interface WeeklyClassCount {
   count: number;
 }
 
+export interface DashboardLowAttendanceClass {
+  id: number;
+  name: string;
+  date: string;
+  startTime: string;
+  enrolledCount: number;
+  maxParticipants: number;
+  /** @minimum 0 */
+  occupancyPercent: number;
+}
+
 export interface DashboardStats {
   totalClassesThisWeek: number;
   totalEnrollments: number;
+  totalEnrollmentsThisWeek: number;
+  /** @minimum 0 */
+  averageClassOccupancy: number;
+  upcomingClassesCount: number;
   mostPopularCategory: string;
   totalActiveMembers: number;
+  lowAttendanceClasses: DashboardLowAttendanceClass[];
   weeklyClassCounts: WeeklyClassCount[];
 }
 

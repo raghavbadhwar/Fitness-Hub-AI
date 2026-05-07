@@ -105,6 +105,47 @@ Blockers:
 
 - No product-code blocker. Residual UI-preview failures appear scoped to the existing member preview route/test harness and were not caused by changed files in this task; command is allowed to fail by the task verifier.
 
+### T17 - Improve admin analytics foundation
+
+Status: PASS.
+
+Summary:
+
+- Expanded `/api/admin/dashboard` with additive owner analytics: upcoming class count, current-week enrollments, weighted average occupancy, enrollment-weighted popular category, low-attendance watchlist, and cached active member count.
+- Kept the existing dashboard fields for compatibility and avoided revenue analytics because no billing data exists.
+- Kept the Clerk member-count call behind the existing five-minute cache and skipped it entirely when `CLERK_SECRET_KEY` is not configured.
+- Fixed dashboard week boundary calculation to use local `YYYY-MM-DD` keys instead of UTC ISO dates, preventing timezone shifts in weekly metrics.
+- Updated the admin dashboard UI and E2E preview fixture to display the new decision metrics and low-attendance watchlist.
+- Updated OpenAPI and regenerated React client/Zod outputs.
+- Added admin route edge-case tests for calculated metrics, cancelled classes, zero-capacity classes, low-attendance rows, and missing Clerk configuration.
+
+Files changed:
+
+- `artifacts/api-server/src/routes/admin.ts`
+- `artifacts/api-server/tests/routes/admin.test.mjs`
+- `artifacts/admin/src/pages/dashboard.tsx`
+- `artifacts/admin/src/pages/e2e-previews.tsx`
+- `lib/api-spec/openapi.yaml`
+- `lib/api-client-react/src/generated/api.schemas.ts`
+- `lib/api-zod/src/generated/api.ts`
+- `lib/api-zod/src/generated/types/dashboardLowAttendanceClass.ts`
+- `lib/api-zod/src/generated/types/dashboardStats.ts`
+- `lib/api-zod/src/generated/types/index.ts`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass.
+- `pnpm --dir artifacts/api-server test -- tests/routes/admin.test.mjs` - initially failed on a weekly count expectation, exposing the UTC date-key bug; fixed and reran.
+- `pnpm --dir artifacts/api-server test -- tests/routes/admin.test.mjs` - pass, 17 tests.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - initially failed on `dashboard.tsx` and `admin.ts`; formatted changed files.
+- `pnpm run format:check` - pass.
+
+Blockers:
+
+- None.
+
 ### T15 - Add billing/membership foundation without real charges
 
 Status: PASS.
