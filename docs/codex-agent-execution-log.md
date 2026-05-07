@@ -236,3 +236,35 @@ Commands run:
 Blockers:
 
 - None.
+
+### T08 - Improve production deployment readiness
+
+Status: PASS with expected local build blocker documented.
+
+Summary:
+
+- Added a production environment preflight script that enforces required Vercel production variables only when running a production deploy.
+- Wired the production env preflight into `pnpm run build:vercel`.
+- Kept local development compatible by skipping production env enforcement outside `VERCEL=1` and `VERCEL_ENV=production`.
+- Clarified `.env.example` that Gemini base URL is required.
+- Expanded deployment docs for Vercel vars, Clerk production setup, database migration, Gemini, Expo/EAS, and smoke checks.
+
+Files changed:
+
+- `scripts/src/production-env-preflight.ts`
+- `scripts/package.json`
+- `package.json`
+- `.env.example`
+- `docs/deployment.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm run build:vercel || true` - attempted; local Node preflight failed because current runtime is Node `25.8.0` and release gates require Node `22.x`.
+- `pnpm run preflight:production-env` - pass, skipped outside Vercel production.
+- `pnpm run format:check` - pass.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+
+Blockers:
+
+- Local Vercel-style build remains blocked on this shell by Node `25.8.0`; run under Node `22.x` for a real release build.
