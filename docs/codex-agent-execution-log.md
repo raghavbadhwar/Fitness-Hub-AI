@@ -41,3 +41,24 @@ Preflight search notes:
 
 Blockers:
 - None. `corepack enable` permission failure and Node engine mismatch are recorded as environment notes, not blockers, because pnpm install succeeded.
+
+### T01 - Fix AI API authenticated rate limiting
+
+Status: PASS.
+
+Summary:
+- Updated AI route rate-limit keying to use Clerk `getAuth(req).userId` after `requireAuth()`.
+- Removed the previous IP/remote-address fallback for authenticated AI route buckets.
+- Expanded AI route tests for spoofed `x-forwarded-for` prevention, separate authenticated user buckets, and unauthenticated rejection before AI generation.
+
+Files changed:
+- `artifacts/api-server/src/routes/ai.ts`
+- `artifacts/api-server/tests/routes/ai.test.mjs`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+- `pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs` - pass, 6 tests.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+
+Blockers:
+- None.

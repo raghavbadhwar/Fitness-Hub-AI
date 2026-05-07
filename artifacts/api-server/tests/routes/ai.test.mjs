@@ -11,6 +11,7 @@ const dbState = {
   lastUpdate: null,
 };
 const memoryExtractionState = { value: null };
+const aiState = { generateContentCalls: 0 };
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -23,7 +24,14 @@ mock.module("drizzle-orm", {
 mock.module("@clerk/express", {
   namedExports: {
     requireAuth() {
-      return (_req, _res, next) => next();
+      return (_req, res, next) => {
+        if (!authState.userId) {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+
+        next();
+      };
     },
     getAuth() {
       return { userId: authState.userId };
@@ -108,6 +116,7 @@ mock.module("@workspace/integrations-gemini-ai", {
     ai: {
       models: {
         async generateContent() {
+          aiState.generateContentCalls += 1;
           return {
             text: JSON.stringify({
               workoutName: "Upper Body Strength",
@@ -185,6 +194,7 @@ beforeEach(() => {
   dbState.lastInsert = null;
   dbState.lastUpdate = null;
   memoryExtractionState.value = null;
+  aiState.generateContentCalls = 0;
 });
 
 describe("ai routes", () => {
@@ -290,5 +300,46 @@ describe("ai routes", () => {
     assert.deepEqual(response.body, {
       error: "Too many requests. Please wait a moment and try again.",
     });
+  });
+
+  it("keeps separate rate-limit buckets for different authenticated users", async () => {
+    authState.userId = "member_with_full_bucket";
+
+    for (let i = 0; i < 20; i += 1) {
+      const response = await request(app).post("/ai/workout-suggestion").send({
+        recentWorkouts: [],
+        goals: "build strength",
+      });
+
+      assert.equal(response.status, 200);
+    }
+
+    const limitedResponse = await request(app).post("/ai/workout-suggestion").send({
+      recentWorkouts: [],
+      goals: "build strength",
+    });
+
+    assert.equal(limitedResponse.status, 429);
+
+    authState.userId = "member_with_fresh_bucket";
+    const freshUserResponse = await request(app).post("/ai/workout-suggestion").send({
+      recentWorkouts: [],
+      goals: "build strength",
+    });
+
+    assert.equal(freshUserResponse.status, 200);
+  });
+
+  it("rejects unauthenticated AI requests before AI generation", async () => {
+    authState.userId = null;
+
+    const response = await request(app).post("/ai/workout-suggestion").send({
+      recentWorkouts: [],
+      goals: "build strength",
+    });
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+    assert.equal(aiState.generateContentCalls, 0);
   });
 });

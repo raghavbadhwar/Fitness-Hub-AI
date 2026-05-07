@@ -1,10 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { requireAuth } from "@clerk/express";
+import { getAuth, requireAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
 import { requireApprovedAccess } from "../lib/user-access.ts";
-import { getRequestUserId } from "../lib/clerk-request.ts";
 import { createFixedWindowRateLimiter } from "../lib/fixed-window-rate-limit.ts";
 import {
   appendRecentMessages,
@@ -34,12 +33,8 @@ const rateLimit = createFixedWindowRateLimiter({
 });
 
 function getAiRateLimitKey(req: Request) {
-  const userId = getRequestUserId(req);
-  if (userId) {
-    return `user:${userId}`;
-  }
-
-  return `ip:${req.ip || req.socket.remoteAddress || "unknown"}`;
+  const userId = getAuth(req)?.userId;
+  return `user:${userId ?? "unauthenticated"}`;
 }
 
 async function requireApprovedAiAccess(
