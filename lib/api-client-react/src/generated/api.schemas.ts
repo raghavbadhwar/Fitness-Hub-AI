@@ -636,6 +636,32 @@ export interface UpsertNutritionLogBody {
   waterIntake: number;
 }
 
+export interface ProgressEntry {
+  id: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  weight?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  biceps?: number;
+  thighs?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertProgressEntryBody {
+  id?: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date?: string;
+  weight?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  biceps?: number;
+  thighs?: number;
+}
+
 export interface WorkoutMember {
   id: string;
   name: string;

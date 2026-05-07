@@ -48,6 +48,7 @@ import type {
   OkResponse,
   PersonalRecordsResponse,
   Profile,
+  ProgressEntry,
   SetMemberAccessBody,
   SuccessResponse,
   SyncProfileBody,
@@ -57,6 +58,7 @@ import type {
   UpdateMemberBody,
   UpsertMemberWorkoutPlanBody,
   UpsertNutritionLogBody,
+  UpsertProgressEntryBody,
   WaitlistedClassIdsResponse,
   WorkoutAssignBody,
   WorkoutAssignment,
@@ -2509,6 +2511,319 @@ export const useNutritionPutLog = <
   TContext
 > => {
   return useMutation(getNutritionPutLogMutationOptions(options));
+};
+
+/**
+ * @summary List signed-in member progress entries
+ */
+export const getProgressListEntriesUrl = () => {
+  return `/api/progress/entries`;
+};
+
+export const progressListEntries = async (options?: RequestInit): Promise<ProgressEntry[]> => {
+  return customFetch<ProgressEntry[]>(getProgressListEntriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getProgressListEntriesQueryKey = () => {
+  return [`/api/progress/entries`] as const;
+};
+
+export const getProgressListEntriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof progressListEntries>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof progressListEntries>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getProgressListEntriesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof progressListEntries>>> = ({ signal }) =>
+    progressListEntries({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof progressListEntries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ProgressListEntriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof progressListEntries>>
+>;
+export type ProgressListEntriesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List signed-in member progress entries
+ */
+
+export function useProgressListEntries<
+  TData = Awaited<ReturnType<typeof progressListEntries>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof progressListEntries>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getProgressListEntriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const getProgressCreateEntryUrl = () => {
+  return `/api/progress/entries`;
+};
+
+export const progressCreateEntry = async (
+  upsertProgressEntryBody: UpsertProgressEntryBody,
+  options?: RequestInit,
+): Promise<ProgressEntry> => {
+  return customFetch<ProgressEntry>(getProgressCreateEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertProgressEntryBody),
+  });
+};
+
+export const getProgressCreateEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    TError,
+    { data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressCreateEntry>>,
+  TError,
+  { data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["progressCreateEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    { data: BodyType<UpsertProgressEntryBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return progressCreateEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressCreateEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressCreateEntry>>
+>;
+export type ProgressCreateEntryMutationBody = BodyType<UpsertProgressEntryBody>;
+export type ProgressCreateEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const useProgressCreateEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    TError,
+    { data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressCreateEntry>>,
+  TError,
+  { data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  return useMutation(getProgressCreateEntryMutationOptions(options));
+};
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const getProgressUpdateEntryUrl = (id: string) => {
+  return `/api/progress/entries/${id}`;
+};
+
+export const progressUpdateEntry = async (
+  id: string,
+  upsertProgressEntryBody: UpsertProgressEntryBody,
+  options?: RequestInit,
+): Promise<ProgressEntry> => {
+  return customFetch<ProgressEntry>(getProgressUpdateEntryUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertProgressEntryBody),
+  });
+};
+
+export const getProgressUpdateEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    TError,
+    { id: string; data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressUpdateEntry>>,
+  TError,
+  { id: string; data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["progressUpdateEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    { id: string; data: BodyType<UpsertProgressEntryBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return progressUpdateEntry(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressUpdateEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressUpdateEntry>>
+>;
+export type ProgressUpdateEntryMutationBody = BodyType<UpsertProgressEntryBody>;
+export type ProgressUpdateEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const useProgressUpdateEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    TError,
+    { id: string; data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressUpdateEntry>>,
+  TError,
+  { id: string; data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  return useMutation(getProgressUpdateEntryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const getProgressDeleteEntryUrl = (id: string) => {
+  return `/api/progress/entries/${id}`;
+};
+
+export const progressDeleteEntry = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getProgressDeleteEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getProgressDeleteEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressDeleteEntry>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["progressDeleteEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return progressDeleteEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressDeleteEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressDeleteEntry>>
+>;
+
+export type ProgressDeleteEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const useProgressDeleteEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressDeleteEntry>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getProgressDeleteEntryMutationOptions(options));
 };
 
 /**

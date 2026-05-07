@@ -7,6 +7,7 @@ import workoutsRouter from "./workouts";
 import profilesRouter from "./profiles";
 import monthlyReviewsRouter from "./monthly-reviews";
 import nutritionRouter from "./nutrition";
+import progressRouter from "./progress";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,7 @@ router.use(classesRouter);
 router.use("/admin", adminRouter);
 router.use("/workouts", workoutsRouter);
 router.use("/nutrition", nutritionRouter);
+router.use("/progress", progressRouter);
 router.use("/profiles", profilesRouter);
 router.use("/monthly-reviews", monthlyReviewsRouter);
 

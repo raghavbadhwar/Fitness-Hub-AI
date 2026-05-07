@@ -72,6 +72,49 @@ Blockers:
 
 - None.
 
+### T12 - Add backend sync for progress and body measurements
+
+Status: PASS.
+
+Summary:
+
+- Identified the member app progress fields in `AppContext`: weight entries plus chest, waist, hips, biceps, and thighs measurements.
+- Added `member_progress_entries` DB schema and SQL migration with one user-scoped row per member/date.
+- Added authenticated `/api/progress/entries` CRUD routes with approved-access checks and user isolation.
+- Updated the member app app context to hydrate authenticated progress from the backend, write weight/measurement changes back to the server, and keep AsyncStorage local fallback for guests/offline use.
+- Updated OpenAPI and regenerated React client/Zod outputs.
+- Added progress route tests for authorization, create/update, patch/delete, and user isolation.
+
+Files changed:
+
+- `lib/db/src/schema/member_progress_entries.ts`
+- `lib/db/src/schema/index.ts`
+- `lib/db/migrations/0009_member_progress_entries.sql`
+- `artifacts/api-server/src/routes/progress.ts`
+- `artifacts/api-server/src/routes/index.ts`
+- `artifacts/api-server/tests/routes/progress.test.mjs`
+- `artifacts/gymapp/contexts/AppContext.tsx`
+- `lib/api-spec/openapi.yaml`
+- `lib/api-client-react/src/generated/api.ts`
+- `lib/api-client-react/src/generated/api.schemas.ts`
+- `lib/api-zod/src/generated/api.ts`
+- `lib/api-zod/src/generated/types/index.ts`
+- `lib/api-zod/src/generated/types/progressEntry.ts`
+- `lib/api-zod/src/generated/types/upsertProgressEntryBody.ts`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass.
+- `pnpm --dir artifacts/api-server test` - pass, 83 tests.
+- `pnpm --filter @workspace/gymapp run typecheck` - pass.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - initially failed on changed progress/app-context files; formatted and reran successfully.
+
+Blockers:
+
+- None.
+
 ### T11 - Add backend sync for workout sessions and personal records
 
 Status: PASS.

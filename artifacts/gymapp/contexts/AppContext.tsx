@@ -168,6 +168,53 @@ async function readScopedValue(
   return AsyncStorage.getItem(legacyKey);
 }
 
+interface ProgressEntryPayload extends Partial<Omit<BodyMeasurement, "date">> {
+  date: string;
+  weight?: number;
+}
+
+function parsePositiveNumber(value: unknown): number | undefined {
+  if (value === null || typeof value === "undefined" || value === "") return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 10) / 10 : undefined;
+}
+
+function normalizeProgressEntry(value: unknown): ProgressEntryPayload | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const date = typeof record.date === "string" && record.date.trim() ? record.date.trim() : "";
+  if (!date) return null;
+
+  const entry: ProgressEntryPayload = { date };
+  const weight = parsePositiveNumber(record.weight);
+  const chest = parsePositiveNumber(record.chest);
+  const waist = parsePositiveNumber(record.waist);
+  const hips = parsePositiveNumber(record.hips);
+  const biceps = parsePositiveNumber(record.biceps);
+  const thighs = parsePositiveNumber(record.thighs);
+
+  if (typeof weight === "number") entry.weight = weight;
+  if (typeof chest === "number") entry.chest = chest;
+  if (typeof waist === "number") entry.waist = waist;
+  if (typeof hips === "number") entry.hips = hips;
+  if (typeof biceps === "number") entry.biceps = biceps;
+  if (typeof thighs === "number") entry.thighs = thighs;
+
+  return entry;
+}
+
+function mergeWeightLogs(localEntries: WeightEntry[], remoteEntries: WeightEntry[]) {
+  const byDate = new Map(localEntries.map((entry) => [entry.date, entry]));
+  for (const entry of remoteEntries) byDate.set(entry.date, entry);
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function mergeBodyMeasurements(localEntries: BodyMeasurement[], remoteEntries: BodyMeasurement[]) {
+  const byDate = new Map(localEntries.map((entry) => [entry.date, entry]));
+  for (const entry of remoteEntries) byDate.set(entry.date, entry);
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded: authLoaded, isSignedIn, userId } = useAuth();
   const { user } = useUser();
@@ -177,6 +224,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [weightLog, setWeightLog] = useState<WeightEntry[]>([]);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
   const profileRef = useRef(profile);
+  const weightLogRef = useRef<WeightEntry[]>([]);
+  const bodyMeasurementsRef = useRef<BodyMeasurement[]>([]);
   const lastSyncedUserIdRef = useRef<string | null>(null);
 
   const storageKeys = useMemo(
@@ -191,6 +240,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
+
+  const replaceWeightLog = useCallback(
+    async (nextWeightLog: WeightEntry[]) => {
+      weightLogRef.current = nextWeightLog;
+      setWeightLog(nextWeightLog);
+      await AsyncStorage.setItem(storageKeys.weightLog, JSON.stringify(nextWeightLog));
+    },
+    [storageKeys.weightLog],
+  );
+
+  const replaceBodyMeasurements = useCallback(
+    async (nextMeasurements: BodyMeasurement[]) => {
+      bodyMeasurementsRef.current = nextMeasurements;
+      setBodyMeasurements(nextMeasurements);
+      await AsyncStorage.setItem(storageKeys.measurements, JSON.stringify(nextMeasurements));
+    },
+    [storageKeys.measurements],
+  );
 
   const clerkFallbackName = useMemo(
     () =>
@@ -210,6 +277,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastSyncedUserIdRef.current = null;
       setProfile(DEFAULT_PROFILE);
       setAccessState(DEFAULT_ACCESS_STATE);
+      weightLogRef.current = [];
+      bodyMeasurementsRef.current = [];
       setWeightLog([]);
       setBodyMeasurements([]);
       setIsLoading(false);
@@ -234,8 +303,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setProfile(
           storedProfile ? { ...DEFAULT_PROFILE, ...JSON.parse(storedProfile) } : DEFAULT_PROFILE,
         );
-        setWeightLog(storedWeightLog ? JSON.parse(storedWeightLog) : []);
-        setBodyMeasurements(storedMeasurements ? JSON.parse(storedMeasurements) : []);
+        const parsedWeightLog = storedWeightLog ? JSON.parse(storedWeightLog) : [];
+        const parsedMeasurements = storedMeasurements ? JSON.parse(storedMeasurements) : [];
+        weightLogRef.current = parsedWeightLog;
+        bodyMeasurementsRef.current = parsedMeasurements;
+        setWeightLog(parsedWeightLog);
+        setBodyMeasurements(parsedMeasurements);
       } catch (e) {
         console.error("Failed to load profile", e);
       } finally {
@@ -261,10 +334,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const persistProfile = useCallback(
     async (nextProfile: UserProfile) => {
+      profileRef.current = nextProfile;
       setProfile(nextProfile);
       await AsyncStorage.setItem(storageKeys.profile, JSON.stringify(nextProfile));
     },
     [storageKeys.profile],
+  );
+
+  const syncProgressFromServer = useCallback(async () => {
+    if (!isSignedIn || !userId) {
+      return;
+    }
+
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) return;
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(`${apiBase}/api/progress/entries`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch progress entries (${response.status})`);
+      }
+
+      const payload = (await response.json()) as unknown[];
+      const entries = payload
+        .map(normalizeProgressEntry)
+        .filter((entry): entry is ProgressEntryPayload => Boolean(entry));
+
+      const remoteWeightLog: WeightEntry[] = entries
+        .filter((entry) => typeof entry.weight === "number")
+        .map((entry) => ({ date: entry.date, weight: entry.weight as number }));
+      const remoteMeasurements: BodyMeasurement[] = entries
+        .map((entry) => {
+          const measurement: BodyMeasurement = {
+            date: entry.date,
+            ...(typeof entry.chest === "number" ? { chest: entry.chest } : {}),
+            ...(typeof entry.waist === "number" ? { waist: entry.waist } : {}),
+            ...(typeof entry.hips === "number" ? { hips: entry.hips } : {}),
+            ...(typeof entry.biceps === "number" ? { biceps: entry.biceps } : {}),
+            ...(typeof entry.thighs === "number" ? { thighs: entry.thighs } : {}),
+          };
+          return Object.keys(measurement).length > 1 ? measurement : null;
+        })
+        .filter((entry): entry is BodyMeasurement => Boolean(entry));
+
+      const mergedWeightLog = mergeWeightLogs(weightLogRef.current, remoteWeightLog);
+      const mergedMeasurements = mergeBodyMeasurements(
+        bodyMeasurementsRef.current,
+        remoteMeasurements,
+      );
+
+      await Promise.all([
+        replaceWeightLog(mergedWeightLog),
+        replaceBodyMeasurements(mergedMeasurements),
+      ]);
+
+      const latestWeight = mergedWeightLog.at(-1);
+      if (latestWeight && latestWeight.weight !== profileRef.current.weight) {
+        await persistProfile({ ...profileRef.current, weight: latestWeight.weight });
+      }
+    } catch (error) {
+      console.error("Failed to sync progress entries", error);
+    }
+  }, [getToken, isSignedIn, persistProfile, replaceBodyMeasurements, replaceWeightLog, userId]);
+
+  const syncProgressEntryToServer = useCallback(
+    async (entry: ProgressEntryPayload) => {
+      if (!isSignedIn || !userId) {
+        return;
+      }
+
+      try {
+        const apiBase = getApiBase();
+        if (!apiBase) return;
+        const token = await getToken();
+        if (!token) return;
+
+        const response = await fetch(`${apiBase}/api/progress/entries`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(entry),
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to sync progress entry (${response.status})`);
+        }
+      } catch (error) {
+        console.error("Failed to sync progress entry", error);
+      }
+    },
+    [getToken, isSignedIn, userId],
   );
 
   const updateProfile = useCallback(
@@ -376,6 +540,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [authLoaded, isLoading, isSignedIn, refreshProfile, userId]);
 
   useEffect(() => {
+    if (!authLoaded || !isSignedIn || !userId || isLoading) {
+      return;
+    }
+
+    void syncProgressFromServer();
+  }, [authLoaded, isLoading, isSignedIn, syncProgressFromServer, userId]);
+
+  useEffect(() => {
     if (!authLoaded || !isSignedIn || !userId) {
       return;
     }
@@ -412,14 +584,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = weightLog.filter((e) => e.date !== today);
       updated.push({ date: today, weight });
       updated.sort((a, b) => a.date.localeCompare(b.date));
-      setWeightLog(updated);
       const newProfile = { ...profile, weight };
-      await Promise.all([
-        AsyncStorage.setItem(storageKeys.weightLog, JSON.stringify(updated)),
-        persistProfile(newProfile),
-      ]);
+      await Promise.all([replaceWeightLog(updated), persistProfile(newProfile)]);
+      const existingMeasurement = bodyMeasurementsRef.current.find((entry) => entry.date === today);
+      await syncProgressEntryToServer({
+        date: today,
+        weight,
+        ...(existingMeasurement?.chest ? { chest: existingMeasurement.chest } : {}),
+        ...(existingMeasurement?.waist ? { waist: existingMeasurement.waist } : {}),
+        ...(existingMeasurement?.hips ? { hips: existingMeasurement.hips } : {}),
+        ...(existingMeasurement?.biceps ? { biceps: existingMeasurement.biceps } : {}),
+        ...(existingMeasurement?.thighs ? { thighs: existingMeasurement.thighs } : {}),
+      });
     },
-    [persistProfile, profile, storageKeys.weightLog, weightLog],
+    [persistProfile, profile, replaceWeightLog, syncProgressEntryToServer, weightLog],
   );
 
   const logMeasurement = useCallback(
@@ -428,10 +606,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = bodyMeasurements.filter((e) => e.date !== today);
       updated.push({ date: today, ...measurement });
       updated.sort((a, b) => a.date.localeCompare(b.date));
-      setBodyMeasurements(updated);
-      await AsyncStorage.setItem(storageKeys.measurements, JSON.stringify(updated));
+      await replaceBodyMeasurements(updated);
+      const existingWeight = weightLogRef.current.find((entry) => entry.date === today);
+      await syncProgressEntryToServer({
+        date: today,
+        ...(typeof existingWeight?.weight === "number" ? { weight: existingWeight.weight } : {}),
+        ...measurement,
+      });
     },
-    [bodyMeasurements, storageKeys.measurements],
+    [bodyMeasurements, replaceBodyMeasurements, syncProgressEntryToServer],
   );
 
   return (

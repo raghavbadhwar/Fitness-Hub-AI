@@ -875,6 +875,87 @@ export const NutritionPutLogResponse = zod.object({
 });
 
 /**
+ * @summary List signed-in member progress entries
+ */
+export const progressListEntriesResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressListEntriesResponseItem = zod.object({
+  id: zod.string(),
+  date: zod.string().regex(progressListEntriesResponseDateRegExp),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ProgressListEntriesResponse = zod.array(ProgressListEntriesResponseItem);
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const progressCreateEntryBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressCreateEntryBody = zod.object({
+  id: zod.string().optional(),
+  date: zod.string().regex(progressCreateEntryBodyDateRegExp).optional(),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+});
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const ProgressUpdateEntryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const progressUpdateEntryBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressUpdateEntryBody = zod.object({
+  id: zod.string().optional(),
+  date: zod.string().regex(progressUpdateEntryBodyDateRegExp).optional(),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+});
+
+export const progressUpdateEntryResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressUpdateEntryResponse = zod.object({
+  id: zod.string(),
+  date: zod.string().regex(progressUpdateEntryResponseDateRegExp),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const ProgressDeleteEntryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ProgressDeleteEntryResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
  * @summary Generate or refresh a monthly review
  */
