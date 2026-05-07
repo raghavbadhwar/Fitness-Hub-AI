@@ -72,6 +72,31 @@ Blockers:
 
 - None.
 
+### T13 - Resolve Binance Codex plugin placeholders
+
+Status: PASS.
+
+Summary:
+
+- Inspected `plugins/binance` and found only placeholder plugin metadata plus an empty MCP config.
+- Found no Fitness Hub AI runtime references to `plugins/binance`.
+- Deleted the unused Binance plugin files instead of replacing placeholders with invented metadata.
+
+Files changed:
+
+- `plugins/binance/.codex-plugin/plugin.json`
+- `plugins/binance/.mcp.json`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `grep -R "\\[TODO:" -n plugins || true` - pass, no placeholder output.
+- `pnpm run format:check` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+
+Blockers:
+
+- None.
+
 ### T12 - Add backend sync for progress and body measurements
 
 Status: PASS.
