@@ -472,9 +472,8 @@ mock.module("../../src/lib/admin-access.ts", {
 });
 
 const { clearAdminMemberListCache } = await import("../../src/lib/admin-members.ts");
-const { clearDashboardMemberCountCache, default: adminRouter } = await import(
-  "../../src/routes/admin.ts"
-);
+const { clearDashboardMemberCountCache, default: adminRouter } =
+  await import("../../src/routes/admin.ts");
 
 const app = express();
 app.use(express.json());

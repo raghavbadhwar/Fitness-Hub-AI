@@ -94,6 +94,17 @@ Notes:
 | `pnpm run test:e2e:ui`          | Runs the UI preview Playwright test suite                       |
 | `pnpm run verify:internal-beta` | Runs the internal beta verification flow with secret preflight  |
 
+## Continuous Integration
+
+Pull requests and pushes to `main` run GitHub Actions CI on Node 22 with Corepack-managed pnpm.
+The workflow installs with `pnpm install --frozen-lockfile`, checks formatting, typechecks the
+workspace, regenerates OpenAPI clients, fails on generated-client drift, and runs the API and gymapp
+test suites.
+
+Playwright smoke tests are not part of the default CI job yet because the current dev-server scripts
+load local Clerk/API environment from `.env.local`. Run `pnpm run test:e2e:smoke` and
+`pnpm run test:e2e:ui` locally or in an environment with the required mock/runtime variables.
+
 ## Development Conventions
 
 - Use `pnpm` only. The root preinstall script rejects npm and yarn.
