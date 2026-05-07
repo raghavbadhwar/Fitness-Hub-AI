@@ -301,3 +301,47 @@ Commands run:
 Blockers:
 
 - None.
+
+### T10 - Add backend sync for nutrition logs
+
+Status: PASS.
+
+Summary:
+
+- Added `member_nutrition_logs` DB schema and SQL migration with unique `gymId + memberClerkId + date` indexing.
+- Added authenticated `/api/nutrition/logs` and `/api/nutrition/logs/:date` routes with approved-access checks and user isolation.
+- Updated the member app nutrition context to keep guest behavior local-only and sync authenticated logs to the backend with AsyncStorage cache fallback.
+- Updated OpenAPI and regenerated React client/Zod outputs.
+- Added route tests for authorization, create/update, single-day fetch, date range fetch, and user isolation.
+
+Files changed:
+
+- `lib/db/src/schema/member_nutrition_logs.ts`
+- `lib/db/src/schema/index.ts`
+- `lib/db/migrations/0007_member_nutrition_logs.sql`
+- `artifacts/api-server/src/routes/nutrition.ts`
+- `artifacts/api-server/src/routes/index.ts`
+- `artifacts/api-server/tests/routes/nutrition.test.mjs`
+- `artifacts/gymapp/contexts/NutritionContext.tsx`
+- `lib/api-spec/openapi.yaml`
+- `lib/api-client-react/src/generated/api.ts`
+- `lib/api-client-react/src/generated/api.schemas.ts`
+- `lib/api-zod/src/generated/api.ts`
+- `lib/api-zod/src/generated/types/index.ts`
+- `lib/api-zod/src/generated/types/nutritionEntry.ts`
+- `lib/api-zod/src/generated/types/nutritionListLogsParams.ts`
+- `lib/api-zod/src/generated/types/nutritionLog.ts`
+- `lib/api-zod/src/generated/types/upsertNutritionLogBody.ts`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir lib/api-spec codegen` - pass.
+- `pnpm --dir artifacts/api-server test` - pass, 73 tests.
+- `pnpm --filter @workspace/gymapp run typecheck` - pass.
+- `pnpm run typecheck` - initially failed on a route cast in `nutrition.ts`; fixed and reran successfully.
+- `pnpm run format:check` - initially failed on `nutrition.ts`; formatted and reran successfully.
+
+Blockers:
+
+- None.

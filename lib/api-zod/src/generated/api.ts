@@ -745,6 +745,136 @@ export const MonthlyReviewsGetResponse = zod.object({
 });
 
 /**
+ * @summary List nutrition logs for the signed-in member
+ */
+export const nutritionListLogsQueryFromRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const nutritionListLogsQueryToRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionListLogsQueryParams = zod.object({
+  from: zod.coerce.string().regex(nutritionListLogsQueryFromRegExp).optional(),
+  to: zod.coerce.string().regex(nutritionListLogsQueryToRegExp).optional(),
+});
+
+export const NutritionListLogsResponseItem = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const NutritionListLogsResponse = zod.array(NutritionListLogsResponseItem);
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+export const nutritionGetLogPathDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionGetLogParams = zod.object({
+  date: zod.coerce.string().regex(nutritionGetLogPathDateRegExp),
+});
+
+export const NutritionGetLogResponse = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const nutritionPutLogPathDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionPutLogParams = zod.object({
+  date: zod.coerce.string().regex(nutritionPutLogPathDateRegExp),
+});
+
+export const NutritionPutLogBody = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+});
+
+export const NutritionPutLogResponse = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
  * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
  * @summary Generate or refresh a monthly review
  */

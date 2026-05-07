@@ -604,6 +604,38 @@ export interface MonthlyReviewReviewBody {
   status?: MonthlyReviewReviewBodyStatus;
 }
 
+export interface NutritionEntry {
+  id: string;
+  foodId?: string;
+  name: string;
+  mealType?: string;
+  servings?: number;
+  servingSize?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  timestamp?: number;
+  fromPhoto?: boolean;
+  photoUri?: string;
+  [key: string]: unknown;
+}
+
+export interface NutritionLog {
+  id?: string;
+  date: string;
+  entries: NutritionEntry[];
+  waterIntake: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertNutritionLogBody {
+  entries: NutritionEntry[];
+  waterIntake: number;
+}
+
 export interface WorkoutMember {
   id: string;
   name: string;
@@ -711,6 +743,17 @@ export type MonthlyReviewsGetParams = {
    * @pattern ^\d{4}-(0[1-9]|1[0-2])$
    */
   month: string;
+};
+
+export type NutritionListLogsParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  from?: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  to?: string;
 };
 
 export type WorkoutsListAssignedParams = {

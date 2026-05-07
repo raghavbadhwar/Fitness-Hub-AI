@@ -6,6 +6,7 @@ import adminRouter from "./admin";
 import workoutsRouter from "./workouts";
 import profilesRouter from "./profiles";
 import monthlyReviewsRouter from "./monthly-reviews";
+import nutritionRouter from "./nutrition";
 
 const router: IRouter = Router();
 
@@ -14,6 +15,7 @@ router.use("/ai", aiRouter);
 router.use(classesRouter);
 router.use("/admin", adminRouter);
 router.use("/workouts", workoutsRouter);
+router.use("/nutrition", nutritionRouter);
 router.use("/profiles", profilesRouter);
 router.use("/monthly-reviews", monthlyReviewsRouter);
 

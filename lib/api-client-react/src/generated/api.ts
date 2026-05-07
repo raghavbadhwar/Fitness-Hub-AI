@@ -43,6 +43,8 @@ import type {
   MonthlyReviewResponse,
   MonthlyReviewReviewBody,
   MonthlyReviewsGetParams,
+  NutritionListLogsParams,
+  NutritionLog,
   OkResponse,
   Profile,
   SetMemberAccessBody,
@@ -53,6 +55,7 @@ import type {
   UpdateGymSettingsBody,
   UpdateMemberBody,
   UpsertMemberWorkoutPlanBody,
+  UpsertNutritionLogBody,
   WaitlistedClassIdsResponse,
   WorkoutAssignBody,
   WorkoutAssignment,
@@ -2267,6 +2270,243 @@ export function useMonthlyReviewsGet<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List nutrition logs for the signed-in member
+ */
+export const getNutritionListLogsUrl = (params?: NutritionListLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/nutrition/logs?${stringifiedParams}`
+    : `/api/nutrition/logs`;
+};
+
+export const nutritionListLogs = async (
+  params?: NutritionListLogsParams,
+  options?: RequestInit,
+): Promise<NutritionLog[]> => {
+  return customFetch<NutritionLog[]>(getNutritionListLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNutritionListLogsQueryKey = (params?: NutritionListLogsParams) => {
+  return [`/api/nutrition/logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getNutritionListLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof nutritionListLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: NutritionListLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionListLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNutritionListLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nutritionListLogs>>> = ({ signal }) =>
+    nutritionListLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nutritionListLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NutritionListLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof nutritionListLogs>>
+>;
+export type NutritionListLogsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List nutrition logs for the signed-in member
+ */
+
+export function useNutritionListLogs<
+  TData = Awaited<ReturnType<typeof nutritionListLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: NutritionListLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionListLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNutritionListLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+export const getNutritionGetLogUrl = (date: string) => {
+  return `/api/nutrition/logs/${date}`;
+};
+
+export const nutritionGetLog = async (
+  date: string,
+  options?: RequestInit,
+): Promise<NutritionLog> => {
+  return customFetch<NutritionLog>(getNutritionGetLogUrl(date), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNutritionGetLogQueryKey = (date: string) => {
+  return [`/api/nutrition/logs/${date}`] as const;
+};
+
+export const getNutritionGetLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof nutritionGetLog>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionGetLog>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNutritionGetLogQueryKey(date);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nutritionGetLog>>> = ({ signal }) =>
+    nutritionGetLog(date, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!date, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nutritionGetLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NutritionGetLogQueryResult = NonNullable<Awaited<ReturnType<typeof nutritionGetLog>>>;
+export type NutritionGetLogQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+
+export function useNutritionGetLog<
+  TData = Awaited<ReturnType<typeof nutritionGetLog>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionGetLog>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNutritionGetLogQueryOptions(date, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const getNutritionPutLogUrl = (date: string) => {
+  return `/api/nutrition/logs/${date}`;
+};
+
+export const nutritionPutLog = async (
+  date: string,
+  upsertNutritionLogBody: UpsertNutritionLogBody,
+  options?: RequestInit,
+): Promise<NutritionLog> => {
+  return customFetch<NutritionLog>(getNutritionPutLogUrl(date), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertNutritionLogBody),
+  });
+};
+
+export const getNutritionPutLogMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    TError,
+    { date: string; data: BodyType<UpsertNutritionLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof nutritionPutLog>>,
+  TError,
+  { date: string; data: BodyType<UpsertNutritionLogBody> },
+  TContext
+> => {
+  const mutationKey = ["nutritionPutLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    { date: string; data: BodyType<UpsertNutritionLogBody> }
+  > = (props) => {
+    const { date, data } = props ?? {};
+
+    return nutritionPutLog(date, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NutritionPutLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof nutritionPutLog>>
+>;
+export type NutritionPutLogMutationBody = BodyType<UpsertNutritionLogBody>;
+export type NutritionPutLogMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const useNutritionPutLog = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    TError,
+    { date: string; data: BodyType<UpsertNutritionLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof nutritionPutLog>>,
+  TError,
+  { date: string; data: BodyType<UpsertNutritionLogBody> },
+  TContext
+> => {
+  return useMutation(getNutritionPutLogMutationOptions(options));
+};
 
 /**
  * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.

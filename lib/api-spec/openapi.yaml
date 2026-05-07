@@ -20,6 +20,8 @@ tags:
     description: AI coaching and analysis operations
   - name: workouts
     description: Workout templates, assignments, and saved plan operations
+  - name: nutrition
+    description: Member nutrition log synchronization operations
   - name: monthly-reviews
     description: Saved member monthly progress review operations
 paths:
@@ -1073,6 +1075,132 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Failed to fetch monthly review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /nutrition/logs:
+    get:
+      operationId: nutritionListLogs
+      tags: [nutrition]
+      summary: List nutrition logs for the signed-in member
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      responses:
+        "200":
+          description: Nutrition logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /nutrition/logs/{date}:
+    get:
+      operationId: nutritionGetLog
+      tags: [nutrition]
+      summary: Get one nutrition log for the signed-in member
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      responses:
+        "200":
+          description: Nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: nutritionPutLog
+      tags: [nutrition]
+      summary: Upsert one nutrition log for the signed-in member
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertNutritionLogBody"
+      responses:
+        "200":
+          description: Saved nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
           content:
             application/json:
               schema:
@@ -2478,6 +2606,77 @@ components:
         status:
           type: string
           enum: [generated, reviewed]
+
+    NutritionEntry:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        foodId:
+          type: string
+        name:
+          type: string
+        mealType:
+          type: string
+        servings:
+          type: number
+        servingSize:
+          type: string
+        calories:
+          type: number
+        protein:
+          type: number
+        carbs:
+          type: number
+        fat:
+          type: number
+        fiber:
+          type: number
+        timestamp:
+          type: number
+        fromPhoto:
+          type: boolean
+        photoUri:
+          type: string
+      required:
+        - id
+        - name
+
+    NutritionLog:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionEntry"
+        waterIntake:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - date
+        - entries
+        - waterIntake
+
+    UpsertNutritionLogBody:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionEntry"
+        waterIntake:
+          type: number
+      required:
+        - entries
+        - waterIntake
 
     WorkoutMember:
       type: object
