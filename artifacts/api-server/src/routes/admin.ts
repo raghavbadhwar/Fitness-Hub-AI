@@ -51,6 +51,23 @@ function logRouteError(req: Request, err: unknown, message: string) {
   req.log?.error?.({ err }, message);
 }
 
+function logAdminAccessDenied(
+  req: Request,
+  access: Extract<Awaited<ReturnType<typeof resolveAdminAccess>>, { allowed: false }>,
+  route: string,
+) {
+  req.log?.warn?.(
+    {
+      route,
+      userId: access.userId,
+      role: access.role,
+      statusCode: access.status,
+      allowlistConfigured: access.allowlistConfigured,
+    },
+    "Admin access denied",
+  );
+}
+
 type ClerkUserSummary = {
   id: string;
   firstName: string | null;
@@ -89,6 +106,7 @@ async function requireOwner(req: Request, res: Response): Promise<OwnerAccess | 
   try {
     const access = await resolveAdminAccess(req);
     if (!access.allowed) {
+      logAdminAccessDenied(req, access, "admin.requireOwner");
       res.status(access.status).json({
         error: access.reason,
         email: access.email,
@@ -136,6 +154,7 @@ router.get("/access", async (req: Request, res: Response): Promise<void> => {
     const access = await resolveAdminAccess(req);
 
     if (!access.allowed) {
+      logAdminAccessDenied(req, access, "admin.access");
       res.status(access.status).json({
         error: access.reason,
         email: access.email,
@@ -366,6 +385,7 @@ router.get("/members", async (req: Request, res: Response): Promise<void> => {
 router.post("/member-access", async (req: Request, res: Response): Promise<void> => {
   const access = await resolveAdminAccess(req);
   if (!access.allowed) {
+    logAdminAccessDenied(req, access, "admin.memberAccess");
     res.status(access.status).json({
       error: access.reason,
       email: access.email,

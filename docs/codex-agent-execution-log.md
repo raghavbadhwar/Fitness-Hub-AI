@@ -268,3 +268,36 @@ Commands run:
 Blockers:
 
 - Local Vercel-style build remains blocked on this shell by Node `25.8.0`; run under Node `22.x` for a real release build.
+
+### T09 - Add observability and AI cost controls
+
+Status: PASS.
+
+Summary:
+
+- Added configurable AI limits for per-user requests per minute, food image payload size, chat message count, and chat message length.
+- Added privacy-safe structured AI logs for chat, food analysis, workout suggestions, payload rejection, rate-limit hits, and failures.
+- Added admin access-denial warning logs without logging secrets.
+- Removed raw AI response text from JSON parse-error logs and replaced it with response length.
+- Documented observability and AI cost-control guidance.
+
+Files changed:
+
+- `artifacts/api-server/src/lib/fixed-window-rate-limit.ts`
+- `artifacts/api-server/src/routes/ai.ts`
+- `artifacts/api-server/src/routes/admin.ts`
+- `artifacts/api-server/tests/routes/ai.test.mjs`
+- `docs/observability.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs` - pass, 9 tests.
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - initially failed on `docs/observability.md`.
+- `pnpm exec prettier --write docs/observability.md` - pass.
+- `pnpm run format:check` - pass.
+
+Blockers:
+
+- None.

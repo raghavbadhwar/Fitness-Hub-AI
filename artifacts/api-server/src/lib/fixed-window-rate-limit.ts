@@ -6,6 +6,7 @@ export type FixedWindowRateLimiterOptions = {
   maxKeys?: number;
   pruneIntervalMs?: number;
   getKey: (req: Request) => string;
+  onLimitExceeded?: (args: { req: Request; key: string; count: number; resetAt: number }) => void;
 };
 
 type RateLimitEntry = {
@@ -21,6 +22,7 @@ export function createFixedWindowRateLimiter({
   maxKeys = DEFAULT_MAX_KEYS,
   pruneIntervalMs = Math.min(windowMs, 10_000),
   getKey,
+  onLimitExceeded,
 }: FixedWindowRateLimiterOptions): RequestHandler {
   const requestCounts = new Map<string, RateLimitEntry>();
   let lastPrunedAt = 0;
@@ -71,6 +73,7 @@ export function createFixedWindowRateLimiter({
     }
 
     if (entry.count >= maxRequests) {
+      onLimitExceeded?.({ req, key, count: entry.count, resetAt: entry.resetAt });
       res.status(429).json({ error: "Too many requests. Please wait a moment and try again." });
       return;
     }

@@ -3,6 +3,10 @@ import { beforeEach, describe, it, mock } from "node:test";
 import express from "express";
 import request from "supertest";
 
+process.env.AI_MAX_IMAGE_BASE64_BYTES = "12";
+process.env.AI_MAX_CHAT_MESSAGES = "2";
+process.env.AI_MAX_CHAT_MESSAGE_CHARS = "20";
+
 const authState = { userId: "member_1" };
 const accessState = { allowed: true };
 const dbState = {
@@ -271,6 +275,48 @@ describe("ai routes", () => {
     );
     assert.deepEqual(dbState.lastUpdate.goals, ["build strength"]);
     assert.deepEqual(dbState.lastUpdate.preferences, ["morning sessions", "repeatable plans"]);
+  });
+
+  it("rejects oversized food image payloads before AI generation", async () => {
+    authState.userId = "image_limit_member";
+
+    const response = await request(app)
+      .post("/ai/analyze-food")
+      .send({ imageBase64: "x".repeat(13), mimeType: "image/jpeg" });
+
+    assert.equal(response.status, 413);
+    assert.deepEqual(response.body, { error: "imageBase64 exceeds the maximum allowed size" });
+    assert.equal(aiState.generateContentCalls, 0);
+  });
+
+  it("rejects chat requests with too many messages", async () => {
+    authState.userId = "chat_limit_member";
+
+    const response = await request(app)
+      .post("/ai/chat")
+      .send({
+        messages: [
+          { role: "user", content: "one" },
+          { role: "assistant", content: "two" },
+          { role: "user", content: "three" },
+        ],
+      });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "Too many messages in history" });
+    assert.equal(aiState.generateContentCalls, 0);
+  });
+
+  it("rejects chat requests with too-long messages", async () => {
+    authState.userId = "chat_length_limit_member";
+
+    const response = await request(app)
+      .post("/ai/chat")
+      .send({ messages: [{ role: "user", content: "x".repeat(21) }] });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "Message is too long" });
+    assert.equal(aiState.generateContentCalls, 0);
   });
 
   it("rate limits by authenticated user instead of spoofed forwarded IP", async () => {

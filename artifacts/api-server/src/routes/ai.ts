@@ -18,10 +18,21 @@ import {
 
 const router = Router();
 
+function getPositiveIntegerEnv(key: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[key] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_PER_WINDOW = 20;
+const RATE_LIMIT_MAX_PER_WINDOW = getPositiveIntegerEnv("AI_RATE_LIMIT_MAX_PER_MINUTE", 20);
 const ACTIVITY_SNAPSHOT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ACTIVITY_SNAPSHOT_CHARS = 8_000;
+const MAX_IMAGE_BASE64_BYTES = getPositiveIntegerEnv("AI_MAX_IMAGE_BASE64_BYTES", 5_000_000);
+const MAX_CHAT_MESSAGES = getPositiveIntegerEnv(
+  "AI_MAX_CHAT_MESSAGES",
+  MAX_CLIENT_HISTORY_MESSAGES,
+);
+const MAX_CHAT_MESSAGE_CHARS = getPositiveIntegerEnv("AI_MAX_CHAT_MESSAGE_CHARS", 4_000);
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 const rateLimit = createFixedWindowRateLimiter({
@@ -29,6 +40,17 @@ const rateLimit = createFixedWindowRateLimiter({
   maxRequests: RATE_LIMIT_MAX_PER_WINDOW,
   getKey(req) {
     return getAiRateLimitKey(req);
+  },
+  onLimitExceeded({ req, key, count, resetAt }) {
+    req.log?.warn?.(
+      {
+        route: "ai",
+        rateLimitKey: key,
+        count,
+        resetAt: new Date(resetAt).toISOString(),
+      },
+      "AI rate limit exceeded",
+    );
   },
 });
 
@@ -45,6 +67,14 @@ async function requireApprovedAiAccess(
   try {
     const access = await requireApprovedAccess(req, res);
     if (!access) {
+      req.log?.warn?.(
+        {
+          route: "ai",
+          userId: getAuth(req)?.userId ?? null,
+          statusCode: res.statusCode,
+        },
+        "AI access denied",
+      );
       return;
     }
 
@@ -200,6 +230,32 @@ router.post("/analyze-food", async (req: Request, res: Response) => {
       return;
     }
 
+    const imageSizeBytes = Buffer.byteLength(imageBase64, "utf8");
+    if (imageSizeBytes > MAX_IMAGE_BASE64_BYTES) {
+      req.log?.warn?.(
+        {
+          route: "ai.analyzeFood",
+          userId: getAiUserId(res),
+          imageSizeBytes,
+          maxImageBase64Bytes: MAX_IMAGE_BASE64_BYTES,
+        },
+        "AI food image payload rejected",
+      );
+      res.status(413).json({ error: "imageBase64 exceeds the maximum allowed size" });
+      return;
+    }
+
+    req.log?.info?.(
+      {
+        route: "ai.analyzeFood",
+        userId: getAiUserId(res),
+        model: GEMINI_MODEL,
+        mimeType,
+        imageSizeBytes,
+      },
+      "AI food analysis request",
+    );
+
     const prompt = `You are an expert nutritionist specializing in Indian cuisine. Analyze this food image and provide detailed nutritional information.
 
 If this is an Indian dish, identify it accurately (e.g., Butter Chicken, Palak Paneer, Biryani, Roti, Dal Tadka, Idli, Dosa, Samosa, Chole Bhature, etc.).
@@ -240,7 +296,7 @@ Return only the JSON, no other text.`;
         {
           err: parseErr,
           model: GEMINI_MODEL,
-          rawText: response.text,
+          rawTextLength: response.text?.length ?? 0,
         },
         "Food analysis JSON parse error",
       );
@@ -275,10 +331,29 @@ router.post("/chat", async (req: Request, res: Response) => {
       return;
     }
 
-    if (sanitizedIncomingMessages.length > MAX_CLIENT_HISTORY_MESSAGES) {
+    if (sanitizedIncomingMessages.length > MAX_CHAT_MESSAGES) {
       res.status(400).json({ error: "Too many messages in history" });
       return;
     }
+
+    if (
+      sanitizedIncomingMessages.some(
+        (message) => Buffer.byteLength(message.content, "utf8") > MAX_CHAT_MESSAGE_CHARS,
+      )
+    ) {
+      res.status(400).json({ error: "Message is too long" });
+      return;
+    }
+
+    req.log?.info?.(
+      {
+        route: "ai.chat",
+        userId,
+        model: GEMINI_MODEL,
+        messageCount: sanitizedIncomingMessages.length,
+      },
+      "AI chat request",
+    );
 
     const [memoryProfile] = await db
       .select()
@@ -397,7 +472,7 @@ ${JSON.stringify({
         parseMemoryExtraction(memoryUpdateResponse.text),
       );
     } catch (memoryErr) {
-      req.log.error({ err: memoryErr }, "AI memory extraction error");
+      req.log.error({ err: memoryErr, route: "ai.chat", userId }, "AI memory extraction error");
     }
 
     await db
@@ -431,7 +506,7 @@ ${JSON.stringify({
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: unknown) {
-    req.log.error({ err }, "AI chat error");
+    req.log.error({ err, route: "ai.chat" }, "AI chat error");
     if (!res.headersSent) {
       res.status(500).json({ error: "AI chat failed" });
     } else {
@@ -487,7 +562,10 @@ router.post("/activity-snapshot", async (req: Request, res: Response) => {
         parseMemoryExtraction(memoryUpdateResponse.text),
       );
     } catch (memoryErr) {
-      req.log.error({ err: memoryErr }, "AI activity memory extraction error");
+      req.log.error(
+        { err: memoryErr, route: "ai.activitySnapshot", userId },
+        "AI activity memory extraction error",
+      );
     }
 
     const updatedAt = new Date();
@@ -596,6 +674,17 @@ Return ONLY this JSON (no markdown):
   "motivationalTip": "A motivating message"
 }`;
 
+    req.log?.info?.(
+      {
+        route: "ai.workoutSuggestion",
+        userId,
+        model: GEMINI_MODEL,
+        recentWorkoutCount: recentWorkouts?.length ?? 0,
+        savedPlanCount: savedPlans?.length ?? 0,
+      },
+      "AI workout suggestion request",
+    );
+
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -609,7 +698,7 @@ Return ONLY this JSON (no markdown):
         {
           err: parseErr,
           model: GEMINI_MODEL,
-          rawText: response.text,
+          rawTextLength: response.text?.length ?? 0,
         },
         "Workout suggestion JSON parse error",
       );
