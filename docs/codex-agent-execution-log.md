@@ -210,3 +210,29 @@ Commands run:
 Blockers:
 
 - None.
+
+### T07 - Clean repo hygiene and tracked local artifacts
+
+Status: PASS.
+
+Summary:
+
+- Checked tracked files for local/runtime artifact paths and found no tracked `.local/`, `.playwright-cli/`, `.codex/`, `.vercel/`, logs, dist, or test-result artifacts.
+- Preserved `artifacts/gymapp/assets/images/icon.png` as a legitimate source asset.
+- Added `docs/repo-hygiene.md` documenting ignored local artifacts and cleanup checks.
+
+Files changed:
+
+- `docs/repo-hygiene.md`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `git ls-files | rg '(^\\.local/|^\\.playwright-cli/|^\\.codex/|^\\.vercel/|\\.log$|^dist/|^test-results/|\\.png$)'` - pass; only matched `artifacts/gymapp/assets/images/icon.png`.
+- `du -sh .local .playwright-cli .codex .vercel dist test-results 2>/dev/null || true` - pass, local untracked paths identified but not deleted.
+- `git ls-files | grep -E '(^\\.local/|^\\.playwright-cli/|^\\.codex/|^\\.vercel/)' || true` - pass, no output.
+- `pnpm run format:check` - pass.
+
+Blockers:
+
+- None.
