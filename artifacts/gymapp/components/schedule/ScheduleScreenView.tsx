@@ -344,6 +344,14 @@ export function ScheduleScreenView({
                       onPress={() => onPressEnrollment(gymClass)}
                       disabled={isUpdating}
                       testID={`schedule-enroll-button-${gymClass.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${enrolled ? "Leave" : waitlisted ? "Leave waitlist for" : full ? "Join waitlist for" : "Enroll in"} ${gymClass.name}`}
+                      accessibilityHint={`${gymClass.startTime}, ${gymClass.duration} minutes with ${gymClass.trainer}`}
+                      accessibilityState={{
+                        busy: isUpdating,
+                        disabled: isUpdating,
+                        selected: enrolled || waitlisted,
+                      }}
                     >
                       {isUpdating ? (
                         <View style={{ marginRight: 6 }}>
@@ -421,6 +429,9 @@ export function ScheduleScreenView({
                 ]}
                 onPress={() => onSelectDate(gymClass.date)}
                 testID={`schedule-mini-class-${gymClass.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${gymClass.name} on ${gymClass.date}`}
+                accessibilityHint={`${gymClass.startTime}, ${gymClass.duration} minutes`}
               >
                 <View style={styles.miniClassLeft}>
                   <View style={[styles.miniIcon, { backgroundColor: `${gymClass.color}22` }]}>

@@ -72,6 +72,39 @@ Blockers:
 
 - None.
 
+### T16 - Improve accessibility and UX QA
+
+Status: PASS with documented UI-preview residual.
+
+Summary:
+
+- Added visible keyboard focus outlines for admin web interactive elements.
+- Added accessibility roles, labels, hints, and state metadata to member schedule enrollment/waitlist controls and upcoming-class shortcuts.
+- Added accessible labels for nutrition AI photo logging, water intake, meal add/remove, food search, serving input, and food result selection.
+- Added accessible labels/states for workout-session set steppers, set completion toggles, add-set/add-exercise actions, rest timer skip, and finish controls.
+- Added accessible labels/states for AI coach history clearing, mode selection, quick prompts, message input, and send button.
+
+Files changed:
+
+- `artifacts/admin/src/index.css`
+- `artifacts/gymapp/components/schedule/ScheduleScreenView.tsx`
+- `artifacts/gymapp/app/(tabs)/nutrition.tsx`
+- `artifacts/gymapp/app/workout-session.tsx`
+- `artifacts/gymapp/app/(tabs)/assistant.tsx`
+- `docs/codex-agent-execution-log.md`
+
+Commands run:
+
+- `pnpm run typecheck` - pass; local Node `v25.8.0` still warns against declared Node `22.x`.
+- `pnpm run format:check` - pass.
+- `pnpm run test:e2e:smoke || true` - pass, 2 tests.
+- `pnpm run test:e2e:ui || true` - first run collided with the parallel smoke run on port `4000` (`EADDRINUSE`); reran alone.
+- `pnpm run test:e2e:ui || true` - 6 passed, 2 failed in existing member preview routes: `Log first workout` click timed out and direct `__e2e/workout` did not find `Training Floor`.
+
+Blockers:
+
+- No product-code blocker. Residual UI-preview failures appear scoped to the existing member preview route/test harness and were not caused by changed files in this task; command is allowed to fail by the task verifier.
+
 ### T15 - Add billing/membership foundation without real charges
 
 Status: PASS.

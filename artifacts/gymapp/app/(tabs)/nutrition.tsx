@@ -184,6 +184,9 @@ export default function NutritionScreen() {
         <Pressable
           style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.push("/add-meal")}
+          accessibilityRole="button"
+          accessibilityLabel="Log food with AI photo analysis"
+          accessibilityHint="Opens the meal photo analysis screen"
         >
           <Feather name="camera" size={18} color="#fff" />
           <Text style={styles.cameraBtnText}>AI Photo Log</Text>
@@ -263,6 +266,9 @@ export default function NutritionScreen() {
                   styles.waterGlass,
                   { backgroundColor: i < todayLog.waterIntake ? colors.info : colors.border },
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Set water intake to ${i + 1} glass${i === 0 ? "" : "es"}`}
+                accessibilityState={{ selected: i < todayLog.waterIntake }}
               >
                 <Feather
                   name="droplet"
@@ -296,6 +302,9 @@ export default function NutritionScreen() {
                   setActiveMeal(meal.type);
                   setShowFoodSearch(true);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Add food to ${meal.label}`}
+                accessibilityHint={`${mealCals} calories logged in this meal`}
               >
                 <View style={styles.mealTitleRow}>
                   <View style={[styles.mealIconBg, { backgroundColor: meal.color + "20" }]}>
@@ -328,7 +337,12 @@ export default function NutritionScreen() {
                     </Text>
                     <Text style={[styles.calorieChipUnit, { color: meal.color + "90" }]}>kcal</Text>
                   </View>
-                  <Pressable onPress={() => removeFoodEntry(entry.id)} style={styles.deleteBtn}>
+                  <Pressable
+                    onPress={() => removeFoodEntry(entry.id)}
+                    style={styles.deleteBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${entry.name}`}
+                  >
                     <Feather name="trash-2" size={14} color={colors.error} />
                   </Pressable>
                 </View>
@@ -349,6 +363,8 @@ export default function NutritionScreen() {
                 setShowFoodSearch(false);
                 setSelectedFood(null);
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Close food search"
             >
               <Feather name="x" size={24} color={colors.text} />
             </Pressable>
@@ -364,6 +380,7 @@ export default function NutritionScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
+              accessibilityLabel="Search foods"
             />
           </View>
           {selectedFood ? (
@@ -396,6 +413,7 @@ export default function NutritionScreen() {
                   value={servings}
                   onChangeText={setServings}
                   keyboardType="decimal-pad"
+                  accessibilityLabel={`Servings for ${selectedFood.name}`}
                 />
                 <Text style={[styles.servingTotal, { color: colors.text }]}>
                   = {Math.round(selectedFood.calories * (parseFloat(servings) || 1))} kcal
@@ -405,6 +423,8 @@ export default function NutritionScreen() {
                 <Pressable
                   style={[styles.modalBtn, { borderColor: colors.border }]}
                   onPress={() => setSelectedFood(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to food search results"
                 >
                   <Text style={[styles.modalBtnText, { color: colors.text }]}>Back</Text>
                 </Pressable>
@@ -414,6 +434,8 @@ export default function NutritionScreen() {
                     { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
                   onPress={handleAddFood}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${selectedFood.name} to ${MEAL_SECTIONS.find((m) => m.type === activeMeal)?.label}`}
                 >
                   <Text style={[styles.modalBtnText, { color: "#fff" }]}>Add Food</Text>
                 </Pressable>
@@ -427,6 +449,8 @@ export default function NutritionScreen() {
                 <Pressable
                   style={[styles.foodResult, { borderBottomColor: colors.border }]}
                   onPress={() => setSelectedFood(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${item.name}, ${item.calories} calories`}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.foodResultName, { color: colors.text }]}>{item.name}</Text>

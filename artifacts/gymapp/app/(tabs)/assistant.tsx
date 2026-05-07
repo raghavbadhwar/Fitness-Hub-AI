@@ -567,6 +567,8 @@ export default function AssistantScreen() {
         <Pressable
           onPress={handleClearHistory}
           style={[styles.clearBtn, { borderColor: colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel="Clear AI coach chat history"
         >
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
         </Pressable>
@@ -629,6 +631,8 @@ export default function AssistantScreen() {
                   <Pressable
                     style={[styles.reviewProfileBtn, { borderColor: colors.border }]}
                     onPress={openProfile}
+                    accessibilityRole="button"
+                    accessibilityLabel="Review source profile used by AI coach"
                   >
                     <Feather name="edit-2" size={13} color={colors.primary} />
                     <Text style={[styles.reviewProfileText, { color: colors.text }]}>
@@ -651,6 +655,9 @@ export default function AssistantScreen() {
                           },
                         ]}
                         onPress={() => handleModeChange(mode.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Switch AI coach mode to ${mode.label}`}
+                        accessibilityState={{ selected }}
                       >
                         <Feather
                           name={mode.icon}
@@ -679,6 +686,8 @@ export default function AssistantScreen() {
                         { backgroundColor: colors.card, borderColor: colors.border },
                       ]}
                       onPress={() => handleQuickPrompt(p)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ask AI coach: ${p}`}
                     >
                       <Text style={[styles.quickPromptText, { color: colors.text }]}>{p}</Text>
                     </Pressable>
@@ -715,6 +724,7 @@ export default function AssistantScreen() {
               multiline
               maxLength={500}
               onSubmitEditing={() => sendMessage(inputText)}
+              accessibilityLabel="Message to AI coach"
             />
             <Pressable
               style={[
@@ -723,6 +733,9 @@ export default function AssistantScreen() {
               ]}
               onPress={() => sendMessage(inputText)}
               disabled={!inputText.trim() || isLoading}
+              accessibilityRole="button"
+              accessibilityLabel={isLoading ? "AI coach is thinking" : "Send message to AI coach"}
+              accessibilityState={{ disabled: !inputText.trim() || isLoading, busy: isLoading }}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
