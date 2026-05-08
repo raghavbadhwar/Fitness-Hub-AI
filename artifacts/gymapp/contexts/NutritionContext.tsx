@@ -37,9 +37,7 @@ export interface NutritionSummary {
   water: number;
 }
 
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
+import { generateId } from "@/lib/id";
 
 interface NutritionContextType {
   todayLog: DailyLog;

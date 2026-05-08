@@ -137,9 +137,7 @@ const DEFAULT_BEHAVIOR_PROFILE: WorkoutBehaviorProfile = {
   recoveryState: "fresh",
 };
 
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
+import { generateId } from "@/lib/id";
 
 function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
