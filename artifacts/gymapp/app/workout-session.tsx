@@ -18,12 +18,9 @@ import { useTypography } from "@/hooks/useTypography";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { EXERCISES } from "@/constants/exercises";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { generateId } from "@/lib/id";
 
 type Colors = ReturnType<typeof useColors>;
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 const DEFAULT_REST_DURATION = 90;
 const RING_SIZE = 140;

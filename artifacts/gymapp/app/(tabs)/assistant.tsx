@@ -80,9 +80,7 @@ const QUICK_PROMPTS: Record<CoachMode, string[]> = {
   ],
 };
 
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
+import { generateId } from "@/lib/id";
 
 function getScopedStorageKey(baseKey: string, userId?: string | null) {
   return userId ? `${baseKey}:${userId}` : baseKey;

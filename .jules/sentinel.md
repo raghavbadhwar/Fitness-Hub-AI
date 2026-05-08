@@ -1,0 +1,5 @@
+## 2024-05-08 - Insecure Random Number Generation for IDs
+
+**Vulnerability:** The application is using `Math.random()` to generate IDs across various parts of the gymapp (`workout-session.tsx`, `assistant.tsx`, `NutritionContext.tsx`, `WorkoutContext.tsx`). `Math.random()` is not cryptographically secure and the resulting IDs could be predictable, potentially leading to collision issues or vulnerabilities if IDs are guessable in contexts expecting uniqueness/unpredictability.
+**Learning:** Found multiple instances where unique IDs were required and developers resorted to a quick `Date.now() + Math.random()` string pattern instead of using a standard, secure identifier generation library. Memory indicates that `expo-crypto.randomUUID()` wrapped in `@/lib/id` should be used instead.
+**Prevention:** Establish a single source of truth for ID generation (`@/lib/id`) relying on `expo-crypto.randomUUID()`. Enforce its usage and avoid `Math.random()` for anything requiring uniqueness or unpredictability.
