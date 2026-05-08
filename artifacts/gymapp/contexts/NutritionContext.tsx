@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { getLocalDateKey, getMillisecondsUntilNextLocalDate } from "@/lib/date-key";
+import { generateId } from "@/lib/id";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
 
@@ -35,10 +36,6 @@ export interface NutritionSummary {
   fat: number;
   fiber: number;
   water: number;
-}
-
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
 interface NutritionContextType {
