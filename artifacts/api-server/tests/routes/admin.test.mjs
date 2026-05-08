@@ -9,6 +9,8 @@ const userProfilesByClerkId = new Map();
 const memberAiProfilesByClerkId = new Map();
 const accessControlsByEmail = new Map();
 const adminClassesById = new Map();
+const gymSettingsByGymId = new Map();
+const adminAuditLogsById = new Map();
 let getUserListCalls = 0;
 let getUserListShouldFail = false;
 let nowMs = Date.parse("2026-05-07T00:00:00.000Z");
@@ -50,7 +52,27 @@ const gymClassesTable = {
   attendanceRecords: Symbol("attendanceRecords"),
   updatedAt: Symbol("updatedAt"),
 };
-const gymSettingsTable = { id: Symbol("id") };
+const gymSettingsTable = {
+  id: Symbol("gymSettings.id"),
+  gymId: Symbol("gymSettings.gymId"),
+  gymName: Symbol("gymSettings.gymName"),
+  address: Symbol("gymSettings.address"),
+  phone: Symbol("gymSettings.phone"),
+  workingHours: Symbol("gymSettings.workingHours"),
+  description: Symbol("gymSettings.description"),
+  updatedAt: Symbol("gymSettings.updatedAt"),
+};
+
+const adminAuditLogs = {
+  id: Symbol("adminAuditLogs.id"),
+  gymId: Symbol("adminAuditLogs.gymId"),
+  actorClerkId: Symbol("adminAuditLogs.actorClerkId"),
+  action: Symbol("adminAuditLogs.action"),
+  targetType: Symbol("adminAuditLogs.targetType"),
+  targetId: Symbol("adminAuditLogs.targetId"),
+  metadata: Symbol("adminAuditLogs.metadata"),
+  createdAt: Symbol("adminAuditLogs.createdAt"),
+};
 
 const profileFieldMap = new Map([
   [userProfiles.id, "id"],
@@ -79,6 +101,28 @@ const gymClassFieldMap = new Map([
   [gymClassesTable.waitlistedMemberIds, "waitlistedMemberIds"],
   [gymClassesTable.attendanceRecords, "attendanceRecords"],
   [gymClassesTable.updatedAt, "updatedAt"],
+]);
+
+const gymSettingsFieldMap = new Map([
+  [gymSettingsTable.id, "id"],
+  [gymSettingsTable.gymId, "gymId"],
+  [gymSettingsTable.gymName, "gymName"],
+  [gymSettingsTable.address, "address"],
+  [gymSettingsTable.phone, "phone"],
+  [gymSettingsTable.workingHours, "workingHours"],
+  [gymSettingsTable.description, "description"],
+  [gymSettingsTable.updatedAt, "updatedAt"],
+]);
+
+const adminAuditLogFieldMap = new Map([
+  [adminAuditLogs.id, "id"],
+  [adminAuditLogs.gymId, "gymId"],
+  [adminAuditLogs.actorClerkId, "actorClerkId"],
+  [adminAuditLogs.action, "action"],
+  [adminAuditLogs.targetType, "targetType"],
+  [adminAuditLogs.targetId, "targetId"],
+  [adminAuditLogs.metadata, "metadata"],
+  [adminAuditLogs.createdAt, "createdAt"],
 ]);
 
 function withDefaultGym(row) {
@@ -115,6 +159,21 @@ function cloneAdminClass(row) {
     waitlistedMemberIds: [...(row.waitlistedMemberIds ?? [])],
     attendanceRecords: (row.attendanceRecords ?? []).map((record) => ({ ...record })),
     updatedAt: new Date(row.updatedAt),
+  };
+}
+
+function cloneGymSettings(row) {
+  return {
+    ...row,
+    updatedAt: new Date(row.updatedAt),
+  };
+}
+
+function cloneAuditLog(row) {
+  return {
+    ...row,
+    metadata: { ...(row.metadata ?? {}) },
+    createdAt: new Date(row.createdAt),
   };
 }
 
@@ -251,6 +310,22 @@ mock.module("@workspace/db", {
             return rows.slice(0, count).map((row) => ({ ...row }));
           }
 
+          if (table === gymSettingsTable) {
+            const rows = [...gymSettingsByGymId.values()]
+              .map(cloneGymSettings)
+              .filter((row) => matchesCondition(row, condition, gymSettingsFieldMap));
+
+            return rows.slice(0, count).map((row) => ({ ...row }));
+          }
+
+          if (table === adminAuditLogs) {
+            const rows = [...adminAuditLogsById.values()]
+              .map(cloneAuditLog)
+              .filter((row) => matchesCondition(row, condition, adminAuditLogFieldMap));
+
+            return rows.slice(0, count).map((row) => ({ ...row }));
+          }
+
           if (table === memberAiProfiles) {
             const rows =
               condition?.op === "eq"
@@ -285,6 +360,9 @@ mock.module("@workspace/db", {
               limit(count) {
                 return Promise.resolve(selectRows(table, condition, count));
               },
+              orderBy() {
+                return Promise.resolve(selectRows(table, condition));
+              },
               then(resolve, reject) {
                 return Promise.resolve(selectRows(table, condition)).then(resolve, reject);
               },
@@ -304,6 +382,38 @@ mock.module("@workspace/db", {
       insert(table) {
         return {
           values(values) {
+            if (table === adminAuditLogs) {
+              return {
+                returning() {
+                  const row = {
+                    createdAt: new Date("2026-05-07T10:00:00.000Z"),
+                    ...values,
+                  };
+                  adminAuditLogsById.set(row.id, cloneAuditLog(row));
+                  return Promise.resolve([cloneAuditLog(row)]);
+                },
+              };
+            }
+
+            if (table === gymSettingsTable) {
+              return {
+                returning() {
+                  const row = {
+                    id: gymSettingsByGymId.size + 1,
+                    gymId: values.gymId ?? "gymos-main",
+                    gymName: values.gymName ?? "GymOS",
+                    address: values.address ?? "",
+                    phone: values.phone ?? "",
+                    workingHours: values.workingHours ?? "Mon-Fri: 6am-10pm, Sat-Sun: 7am-8pm",
+                    description: values.description ?? "",
+                    updatedAt: new Date("2026-05-07T10:00:00.000Z"),
+                  };
+                  gymSettingsByGymId.set(row.gymId, cloneGymSettings(row));
+                  return Promise.resolve([cloneGymSettings(row)]);
+                },
+              };
+            }
+
             return {
               onConflictDoUpdate({ set }) {
                 return {
@@ -384,6 +494,21 @@ mock.module("@workspace/db", {
                       return Promise.resolve(rows);
                     }
 
+                    if (table === gymSettingsTable) {
+                      const rows = [...gymSettingsByGymId.values()]
+                        .filter((row) => matchesCondition(row, condition, gymSettingsFieldMap))
+                        .map((row) => {
+                          const nextSettings = {
+                            ...row,
+                            ...values,
+                            updatedAt: values.updatedAt ?? new Date("2026-05-07T10:05:00.000Z"),
+                          };
+                          gymSettingsByGymId.set(row.gymId, cloneGymSettings(nextSettings));
+                          return cloneGymSettings(nextSettings);
+                        });
+                      return Promise.resolve(rows);
+                    }
+
                     return Promise.resolve([]);
                   },
                 };
@@ -392,7 +517,29 @@ mock.module("@workspace/db", {
           },
         };
       },
+      delete(table) {
+        return {
+          where(condition) {
+            return {
+              returning() {
+                if (table === gymClassesTable) {
+                  const rows = [...adminClassesById.values()].filter((row) =>
+                    matchesCondition(row, condition, gymClassFieldMap),
+                  );
+                  for (const row of rows) {
+                    adminClassesById.delete(row.id);
+                  }
+                  return Promise.resolve(rows.map(cloneAdminClass));
+                }
+
+                return Promise.resolve([]);
+              },
+            };
+          },
+        };
+      },
     },
+    adminAuditLogs,
     gymClassesTable,
     gymSettingsTable,
     memberAiProfiles,
@@ -414,13 +561,40 @@ function makeSafeParse() {
   };
 }
 
+function makeDeleteClassParamsSafeParse() {
+  return {
+    safeParse(value) {
+      return Number.isInteger(value.id)
+        ? { success: true, data: value }
+        : { success: false, error: { message: "Invalid class ID" } };
+    },
+  };
+}
+
+function makeSettingsBodySafeParse() {
+  return {
+    safeParse(value) {
+      return {
+        success: true,
+        data: {
+          ...(typeof value.gymName === "string" && { gymName: value.gymName }),
+          ...(typeof value.address === "string" && { address: value.address }),
+          ...(typeof value.phone === "string" && { phone: value.phone }),
+          ...(typeof value.workingHours === "string" && { workingHours: value.workingHours }),
+          ...(typeof value.description === "string" && { description: value.description }),
+        },
+      };
+    },
+  };
+}
+
 mock.module("@workspace/api-zod", {
   namedExports: {
     AdminCreateClassBody: makeSafeParse(),
     AdminUpdateClassBody: makeSafeParse(),
     AdminUpdateClassParams: makeSafeParse(),
-    AdminDeleteClassParams: makeSafeParse(),
-    AdminUpdateSettingsBody: makeSafeParse(),
+    AdminDeleteClassParams: makeDeleteClassParamsSafeParse(),
+    AdminUpdateSettingsBody: makeSettingsBodySafeParse(),
   },
 });
 
@@ -486,6 +660,8 @@ beforeEach(() => {
   memberAiProfilesByClerkId.clear();
   accessControlsByEmail.clear();
   adminClassesById.clear();
+  gymSettingsByGymId.clear();
+  adminAuditLogsById.clear();
   getUserListCalls = 0;
   getUserListShouldFail = false;
   nowMs = Date.parse("2026-05-07T00:00:00.000Z");
@@ -518,6 +694,154 @@ beforeEach(() => {
 });
 
 describe("admin routes", () => {
+  it("returns authoritative class waitlist and checked-in counts", async () => {
+    adminClassesById.set(
+      1,
+      seedAdminClass({
+        waitlistedMemberIds: ["member_8", "member_9"],
+        attendanceRecords: [
+          {
+            memberId: "member_1",
+            status: "checked_in",
+            updatedAt: "2026-05-07T07:00:00.000Z",
+            updatedBy: "owner_1",
+          },
+          {
+            memberId: "missing_user",
+            status: "no_show",
+            updatedAt: "2026-05-07T07:05:00.000Z",
+            updatedBy: "owner_1",
+          },
+        ],
+      }),
+    );
+
+    const response = await request(app).get("/admin/classes");
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body[0].waitlistedCount, 2);
+    assert.equal(response.body[0].checkedInCount, 1);
+  });
+
+  it("keeps admin class reads and attendance writes scoped to the owner gym", async () => {
+    adminClassesById.set(
+      3,
+      seedAdminClass({
+        id: 3,
+        gymId: "other-gym",
+        name: "Other Gym Strength",
+        enrolledMemberIds: ["member_1"],
+        attendanceRecords: [
+          {
+            memberId: "member_1",
+            status: "booked",
+            updatedAt: "2026-05-07T07:00:00.000Z",
+            updatedBy: "owner_2",
+          },
+        ],
+      }),
+    );
+
+    const classesResponse = await request(app).get("/admin/classes");
+    assert.equal(classesResponse.status, 200);
+    assert.deepEqual(
+      classesResponse.body.map((cls) => cls.id),
+      [1, 2],
+    );
+
+    const enrollmentsResponse = await request(app).get("/admin/classes/3/enrollments");
+    assert.equal(enrollmentsResponse.status, 404);
+    assert.deepEqual(enrollmentsResponse.body, { error: "Class not found" });
+
+    const attendanceResponse = await request(app)
+      .patch("/admin/classes/3/enrollments/member_1")
+      .send({ attendanceStatus: "checked_in" });
+    assert.equal(attendanceResponse.status, 404);
+    assert.deepEqual(attendanceResponse.body, { error: "Class not found" });
+    assert.equal(adminClassesById.get(3).attendanceRecords[0].status, "booked");
+  });
+
+  it("records sanitized audit logs for sensitive admin actions", async () => {
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+    gymSettingsByGymId.set("gymos-main", {
+      id: 1,
+      gymId: "gymos-main",
+      gymName: "GymOS",
+      address: "",
+      phone: "",
+      workingHours: "Mon-Fri: 6am-10pm, Sat-Sun: 7am-8pm",
+      description: "",
+      updatedAt: new Date("2026-05-07T09:00:00.000Z"),
+    });
+
+    const accessResponse = await request(app).post("/admin/member-access").send({
+      email: "new.member@example.com",
+      role: "member",
+      accessStatus: "approved",
+      apiToken: "secret-token-that-must-not-persist",
+    });
+    assert.equal(accessResponse.status, 200);
+
+    const roleResponse = await request(app)
+      .patch("/admin/members/member_2")
+      .send({ role: "trainer" });
+    assert.equal(roleResponse.status, 200);
+
+    const settingsResponse = await request(app).put("/admin/settings").send({
+      gymName: "GymOS West",
+      address: "123 Main Street",
+      bearerToken: "Bearer should-never-persist",
+    });
+    assert.equal(settingsResponse.status, 200);
+
+    const attendanceResponse = await request(app)
+      .patch("/admin/classes/1/enrollments/member_1")
+      .send({ attendanceStatus: "checked_in" });
+    assert.equal(attendanceResponse.status, 200);
+
+    const deleteResponse = await request(app).delete("/admin/classes/2");
+    assert.equal(deleteResponse.status, 204);
+
+    const auditResponse = await request(app).get("/admin/audit-logs?limit=20");
+    assert.equal(auditResponse.status, 200);
+    const logsByAction = new Map(auditResponse.body.map((entry) => [entry.action, entry]));
+
+    assert.equal(logsByAction.get("access.grant").targetId, "new.member@example.com");
+    assert.equal(logsByAction.get("member.role.update").targetId, "member_2");
+    assert.deepEqual(logsByAction.get("settings.update").metadata.changedFields, [
+      "gymName",
+      "address",
+    ]);
+    assert.deepEqual(logsByAction.get("class.attendance.update").metadata, {
+      memberId: "member_1",
+      attendanceStatus: "checked_in",
+    });
+    assert.equal(logsByAction.get("class.delete").targetId, "2");
+
+    for (const log of auditResponse.body) {
+      assert.equal(log.gymId, "gymos-main");
+      assert.equal(log.actorClerkId, "member_1");
+      assert.match(log.createdAt, /^2026-05-07T10:00:00\.000Z$/);
+    }
+    assert.doesNotMatch(JSON.stringify(auditResponse.body), /secret-token|Bearer|apiToken/i);
+  });
+
   it("updates a member role and returns the normalized member payload", async () => {
     clerkUsers.set(
       "member_2",
@@ -908,12 +1232,8 @@ describe("admin routes", () => {
     const response = await request(app).patch("/admin/members/member_1").send({ role: "trainer" });
 
     assert.equal(response.status, 401);
-    assert.deepEqual(response.body, {
-      error: "Unauthorized",
-      email: null,
-      role: null,
-      allowlistConfigured: false,
-    });
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+    assert.equal(response.headers.location, undefined);
   });
 
   it("returns forbidden when the caller is not an owner", async () => {

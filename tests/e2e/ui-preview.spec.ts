@@ -35,6 +35,26 @@ test("admin members preview includes the real member timeline panel", async ({ p
   await expect(page.getByText("Latest AI context")).toBeVisible();
 });
 
+test("admin dashboard preview surfaces owner action queue from live data", async ({ page }) => {
+  await page.goto(`${ADMIN_BASE_URL}__e2e/dashboard`);
+
+  await expect(page.getByTestId("dashboard-action-queue")).toBeVisible();
+  await expect(page.getByText("Approve waiting members")).toBeVisible();
+  await expect(page.getByText("Open waitlist follow-up")).toBeVisible();
+});
+
+test("admin members preview confirms bulk approval before syncing", async ({ page }) => {
+  await page.goto(`${ADMIN_BASE_URL}__e2e/members`);
+
+  await expect(page.getByTestId("member-access-pending-queue")).toContainText("1 waiting member");
+  await page.getByTestId("button-bulk-approve-members").click();
+  await expect(page.getByText("Allow all waiting members?")).toBeVisible();
+  await page.getByTestId("button-confirm-bulk-approve-members").click();
+
+  await expect(page.getByTestId("member-access-queue-clear")).toBeVisible();
+  await expect(page.getByTestId("member-access-queue-clear")).toContainText("Access queue clear");
+});
+
 test("admin classes preview opens the check-in sheet without auth fetch noise", async ({
   page,
 }) => {
@@ -46,11 +66,24 @@ test("admin classes preview opens the check-in sheet without auth fetch noise", 
   });
 
   await page.goto(`${ADMIN_BASE_URL}__e2e/classes`);
+  await expect(page.getByText("Checked in")).toBeVisible();
+  await expect(page.getByText("Front-desk attendance")).toBeVisible();
+  await expect(page.getByText("Projected check-ins")).toHaveCount(0);
+  await expect(page.getByText("Estimated arrivals")).toHaveCount(0);
   await page.getByTestId("enrollments-class-1").click();
 
   await expect(page.getByText("Class Check-in")).toBeVisible();
   await expect(page.getByTestId("enrollment-member-member-1")).toBeVisible();
   expect(failedResponses.filter((entry) => entry.includes("/api/admin"))).toEqual([]);
+});
+
+test("admin classes preview exposes empty and sync-error states", async ({ page }) => {
+  await page.goto(`${ADMIN_BASE_URL}__e2e/classes?state=empty`);
+  await expect(page.getByTestId("classes-empty-state")).toBeVisible();
+
+  await page.goto(`${ADMIN_BASE_URL}__e2e/classes?state=error`);
+  await expect(page.getByTestId("classes-error-state")).toBeVisible();
+  await expect(page.getByText("Class schedule did not sync")).toBeVisible();
 });
 
 test("member schedule preview shows the loading state banner", async ({ page }) => {

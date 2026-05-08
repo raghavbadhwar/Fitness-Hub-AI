@@ -3,7 +3,7 @@ import { beforeEach, describe, it, mock } from "node:test";
 import express from "express";
 import request from "supertest";
 
-const authState = { userId: "member_1" };
+const authState = { userId: "member_1", gymId: "gymos-main" };
 const plansByMemberClerkId = new Map();
 const sessionsById = new Map();
 const personalRecordsByKey = new Map();
@@ -300,7 +300,7 @@ mock.module("../../src/lib/user-access.ts", {
         allowed: true,
         userId: authState.userId,
         email: "member@example.com",
-        gymId: "gymos-main",
+        gymId: authState.gymId,
         role: "member",
         profile: null,
         control: null,
@@ -343,6 +343,7 @@ function workoutSessionPayload(overrides = {}) {
 
 beforeEach(() => {
   authState.userId = "member_1";
+  authState.gymId = "gymos-main";
   plansByMemberClerkId.clear();
   sessionsById.clear();
   personalRecordsByKey.clear();
@@ -461,6 +462,37 @@ describe("workouts routes", () => {
     assert.equal(deleteResponse.status, 200);
     assert.deepEqual(deleteResponse.body, { success: true });
     assert.equal(sessionsById.size, 0);
+  });
+
+  it("keeps workout sessions and records isolated by gym for the same Clerk user", async () => {
+    await request(app).post("/workouts/sessions").send(workoutSessionPayload());
+
+    authState.gymId = "other-gym";
+
+    const otherGymSessions = await request(app).get("/workouts/sessions");
+    assert.equal(otherGymSessions.status, 200);
+    assert.deepEqual(otherGymSessions.body, []);
+
+    const otherGymRecords = await request(app).get("/workouts/personal-records");
+    assert.equal(otherGymRecords.status, 200);
+    assert.deepEqual(otherGymRecords.body, {});
+
+    const otherGymDelete = await request(app).delete("/workouts/sessions/session_1");
+    assert.equal(otherGymDelete.status, 404);
+    assert.deepEqual(otherGymDelete.body, { error: "Workout session not found" });
+    assert.equal(sessionsById.size, 1);
+
+    const duplicateSessionId = await request(app)
+      .post("/workouts/sessions")
+      .send(workoutSessionPayload());
+    assert.equal(duplicateSessionId.status, 409);
+    assert.deepEqual(duplicateSessionId.body, { error: "Workout session id already exists" });
+
+    authState.gymId = "gymos-main";
+    const mainGymSessions = await request(app).get("/workouts/sessions");
+    assert.equal(mainGymSessions.status, 200);
+    assert.equal(mainGymSessions.body.length, 1);
+    assert.equal(mainGymSessions.body[0].id, "session_1");
   });
 
   it("does not allow a caller to overwrite another user's session id", async () => {

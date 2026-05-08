@@ -22,7 +22,7 @@ import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedFetch, authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { impact, notifyWarning } from "@/lib/haptics";
 import { generateId } from "@/lib/id";
 
@@ -188,46 +188,42 @@ export default function AssistantScreen() {
     const loadHistory = async () => {
       try {
         if (isSignedIn && userId) {
-          const token = await getToken();
-          if (token) {
-            const response = await fetch(`${getApiBase()}/api/ai/history`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+          try {
+            const payload = await authenticatedJsonRequest<{
+              messages?: Array<{ role?: MessageRole; content?: string; timestamp?: string }>;
+            }>({
+              getToken,
+              path: "/api/ai/history",
             });
+            const serverMessages = Array.isArray(payload.messages)
+              ? payload.messages
+                  .map((message) => {
+                    if (
+                      (message.role !== "user" && message.role !== "assistant") ||
+                      typeof message.content !== "string"
+                    ) {
+                      return null;
+                    }
 
-            if (response.ok) {
-              const payload = (await response.json()) as {
-                messages?: Array<{ role?: MessageRole; content?: string; timestamp?: string }>;
-              };
-              const serverMessages = Array.isArray(payload.messages)
-                ? payload.messages
-                    .map((message) => {
-                      if (
-                        (message.role !== "user" && message.role !== "assistant") ||
-                        typeof message.content !== "string"
-                      ) {
-                        return null;
-                      }
+                    return {
+                      id: generateId(),
+                      role: message.role,
+                      content: message.content,
+                      timestamp: message.timestamp
+                        ? new Date(message.timestamp).getTime()
+                        : Date.now(),
+                    } satisfies Message;
+                  })
+                  .filter((message): message is Message => Boolean(message))
+              : [];
 
-                      return {
-                        id: generateId(),
-                        role: message.role,
-                        content: message.content,
-                        timestamp: message.timestamp
-                          ? new Date(message.timestamp).getTime()
-                          : Date.now(),
-                      } satisfies Message;
-                    })
-                    .filter((message): message is Message => Boolean(message))
-                : [];
-
-              if (serverMessages.length > 0) {
-                setMessages([WELCOME_MESSAGE, ...serverMessages]);
-                await AsyncStorage.setItem(storageKey, JSON.stringify(serverMessages));
-                return;
-              }
+            if (serverMessages.length > 0) {
+              setMessages([WELCOME_MESSAGE, ...serverMessages]);
+              await AsyncStorage.setItem(storageKey, JSON.stringify(serverMessages));
+              return;
             }
+          } catch {
+            // Fall back to local history when synced history is unavailable.
           }
         }
 
@@ -292,11 +288,6 @@ export default function AssistantScreen() {
       ]);
 
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Authentication required");
-        }
-
         const chatHistory = updatedMessages
           .slice(-10)
           .map((m) => ({ role: m.role, content: m.content }));
@@ -322,19 +313,17 @@ export default function AssistantScreen() {
           savedPlans: savedPlanSummaries,
         };
 
-        const response = await fetch(`${getApiBase()}/api/ai/chat`, {
+        const response = await authenticatedFetch({
+          getToken,
+          path: "/api/ai/chat",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+          body: {
             messages: chatHistory,
             userProfile,
             todayStats,
             behaviorProfile,
             savedPlans: savedPlanSummaries,
-          }),
+          },
         });
 
         if (!response.ok) throw new Error("Failed to get response");
@@ -415,15 +404,11 @@ export default function AssistantScreen() {
       setMessages([WELCOME_MESSAGE]);
       try {
         if (isSignedIn && userId) {
-          const token = await getToken();
-          if (token) {
-            await fetch(`${getApiBase()}/api/ai/history`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-          }
+          await authenticatedJsonRequest<unknown>({
+            getToken,
+            path: "/api/ai/history",
+            method: "DELETE",
+          });
         }
       } finally {
         await AsyncStorage.removeItem(storageKey);

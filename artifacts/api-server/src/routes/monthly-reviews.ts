@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { and, eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import {
@@ -13,6 +12,7 @@ import {
   type MonthlyReviewStatus,
   type MonthlyReviewSuggestedAdjustment,
 } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
@@ -29,7 +29,7 @@ interface AiReviewFields {
   suggestedAdjustments: MonthlyReviewSuggestedAdjustment[];
 }
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 function getSingleValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {

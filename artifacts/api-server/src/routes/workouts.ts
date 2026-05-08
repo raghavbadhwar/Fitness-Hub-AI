@@ -1,6 +1,5 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
-import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   memberPersonalRecords,
@@ -16,12 +15,13 @@ import {
 } from "@workspace/db/schema";
 import { userProfiles, type TemplateExercise } from "@workspace/db";
 import { eq, and, isNull, desc } from "drizzle-orm";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 import { listAllClerkUsers } from "../lib/clerk-request.ts";
 
 const router = Router();
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

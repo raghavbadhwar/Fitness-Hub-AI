@@ -1,0 +1,952 @@
+{
+  "schema_version": "1.0",
+  "plan_id": "fitness-hub-10-out-of-10-execution-contract",
+  "created_on": "2026-05-08",
+  "repo_root": "/Volumes/RAGHAV2/Projects/Fitness-Hub-AI",
+  "source_of_truth": {
+    "repo_contract": "AGENTS.md",
+    "qa_board": "docs/CODEX_TASKS.md",
+    "api_contract": "lib/api-spec/openapi.yaml",
+    "package_manager": "pnpm",
+    "node_runtime": "22.x",
+    "release_gate": "mise exec node@22 -- pnpm run verify:internal-beta"
+  },
+  "rating_goal": {
+    "current_assessed_score": 9.3,
+    "previous_static_assessment_score": 7.4,
+    "target_score": 10,
+    "definition_of_10": [
+      "No known broken core user flows in admin, member app, API, auth, access control, or AI.",
+      "All API behavior matches OpenAPI and generated clients.",
+      "No fake or estimated operational metrics are presented as authoritative data.",
+      "Owner, member, trainer, pending, revoked, and signed-out states are verified at API and browser levels.",
+      "AI features are authenticated, rate-limited, privacy-aware, medically bounded, and degrade clearly.",
+      "Production security checks, dependency audit, build, route tests, and E2E gates pass under Node 22.",
+      "External blockers are separated from repo defects with exact remediation steps."
+    ]
+  },
+  "latest_live_qa_evaluation": {
+    "evaluated_on": "2026-05-09",
+    "runtime": "mise exec node@22",
+    "live_score_after_browser_testing": 6.8,
+    "local_urls_verified": [
+      "http://localhost:4000/api/healthz",
+      "http://localhost:4173/admin/",
+      "http://localhost:3100/"
+    ],
+    "chrome_account_flow": {
+      "status": "blocked_before_credentials",
+      "blockers": [
+        "Real Chrome opened the member sign-in page but had no active app session.",
+        "Computer Use could not click page content in Chrome and returned noWindowsAvailable.",
+        "Chrome JavaScript from Apple Events is disabled, so scripted activation of Continue with Google was blocked.",
+        "No credentials were entered and no account approval action was taken without a real signed-in session."
+      ],
+      "next_required_step": "Complete sign-in manually or provide an already-authenticated test browser session, then rerun owner/member approval and signed-in user-flow checks."
+    },
+    "commands_run": [
+      {
+        "command": "mise exec node@22 -- pnpm run typecheck",
+        "exit_code": 0,
+        "result": "passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/admin.test.mjs tests/routes/ai.test.mjs tests/routes/profiles.test.mjs tests/routes/classes.test.mjs",
+        "exit_code": 0,
+        "result": "44 API route tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm exec playwright test tests/e2e/admin-api-smoke.spec.ts tests/e2e/ui-preview.spec.ts tests/e2e/member-flows.spec.ts --reporter=line --timeout=45000",
+        "exit_code": 1,
+        "result": "11 passed, 2 failed due member-web click timeouts"
+      }
+    ],
+    "browser_findings": [
+      {
+        "severity": "critical",
+        "summary": "Member web click interactions hang while the target elements are visible and enabled.",
+        "evidence": [
+          "tests/e2e/member-flows.spec.ts timed out clicking schedule-enroll-button-preview-open.",
+          "tests/e2e/ui-preview.spec.ts timed out clicking Log first workout.",
+          "Live Browser session also became unresponsive after clicking the schedule enrollment button."
+        ]
+      },
+      {
+        "severity": "high",
+        "summary": "Member web sign-in and preview routes emitted repeated Maximum update depth exceeded console errors.",
+        "evidence": [
+          "Browser console reported repeated Maximum update depth exceeded errors on http://localhost:3100/sign-in.",
+          "Similar console noise appeared on http://localhost:3100/__e2e/schedule."
+        ]
+      },
+      {
+        "severity": "high",
+        "summary": "Unauthenticated protected API calls return 302 redirects to / instead of JSON 401 or 403 responses.",
+        "evidence": [
+          "curl probes against /api/classes, /api/admin/access, /api/profiles/access, and /api/ai/analyze-food returned status=302."
+        ]
+      }
+    ]
+  },
+  "execution_update_2026_05_09": {
+    "status": "phase_1_through_phase_5_completed",
+    "final_score_after_gates": 9.3,
+    "second_plan_required": false,
+    "completed_task_ids": [
+      "P1-T0",
+      "P1-T0B",
+      "P1-T1",
+      "P1-T2",
+      "P2-T1",
+      "P2-T2",
+      "P2-T3",
+      "P3-T1",
+      "P3-T2",
+      "P3-T3",
+      "P4-T1",
+      "P4-T2",
+      "P4-T3",
+      "P5-T1",
+      "P5-T2"
+    ],
+    "new_or_updated_gates": [
+      {
+        "command": "mise exec node@22 -- pnpm run test:e2e:ci",
+        "result": "passed",
+        "evidence": "9 deterministic admin/API browser tests passed with placeholder CI env, no .env.local, and no real secrets"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run test:e2e:member",
+        "result": "passed locally under real local Clerk test env before CI quarantine",
+        "evidence": "5 member-flow tests passed after onboarding and approval-state polish"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run test:e2e:ui",
+        "result": "passed",
+        "evidence": "11 admin/member preview tests passed after admin workflow hardening"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/lib/logger.test.mjs",
+        "result": "passed",
+        "evidence": "2 logger context tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run format:check",
+        "result": "passed",
+        "evidence": "all matched files use Prettier code style"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run lint",
+        "result": "passed",
+        "evidence": "ESLint completed with no errors"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run typecheck",
+        "result": "passed",
+        "evidence": "libs, admin, API server, gymapp, and scripts typechecked"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm --dir artifacts/api-server test",
+        "result": "passed",
+        "evidence": "106 API tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm --dir artifacts/gymapp test",
+        "result": "passed",
+        "evidence": "36 gymapp tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm audit --audit-level high --prod",
+        "result": "passed",
+        "evidence": "no known production vulnerabilities found"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm --dir lib/api-spec codegen",
+        "result": "passed",
+        "evidence": "codegen rerun produced no additional generated-client diff"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run test:e2e:smoke",
+        "result": "passed",
+        "evidence": "2 smoke tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run build",
+        "result": "passed",
+        "evidence": "admin, API, and gymapp builds completed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run verify:internal-beta",
+        "result": "passed",
+        "evidence": "secret preflight, codegen, 64 targeted API tests, build, and 18 Playwright tests passed"
+      },
+      {
+        "command": "mise exec node@22 -- pnpm run build:vercel",
+        "result": "passed",
+        "evidence": "production-env preflight skipped outside Vercel production, API/admin/member Vercel output built"
+      }
+    ],
+    "quality_closures": [
+      "API auth failures normalized to JSON 401/403 for clients.",
+      "Member runtime API calls centralized behind authenticated helpers.",
+      "OpenAPI auth contract and generated clients regenerated.",
+      "Admin metrics now avoid fake estimated values and include tenant-isolation tests.",
+      "Sensitive admin actions now write sanitized audit logs.",
+      "AI limits, safety policy, and rate-limit store boundaries hardened.",
+      "Onboarding, pending, revoked, auth-expired, admin bulk approval, dashboard action queue, and class empty/error states have browser proof.",
+      "CI now has deterministic admin/API Playwright coverage with failure artifacts and no production secrets.",
+      "API logs now include safe route, request id, Clerk user id, gym id, and role context when available."
+    ],
+    "remaining_external_blockers": [
+      "Real Chrome account sign-in still requires a manually authenticated browser session or user-provided credentials; no credentials were entered automatically.",
+      "Full signed-in owner/member real-account validation remains a manual/pre-release browser gate separate from repo-side deterministic tests."
+    ]
+  },
+  "known_flaws_to_close": [
+    {
+      "id": "FH-007",
+      "severity": "critical",
+      "domain": "consumer_experience",
+      "summary": "Member web interactions can hang while visible enabled controls are clicked.",
+      "evidence_files": [
+        "artifacts/gymapp/components/schedule/ScheduleScreenView.tsx",
+        "artifacts/gymapp/app/(tabs)/index.tsx",
+        "tests/e2e/member-flows.spec.ts",
+        "tests/e2e/ui-preview.spec.ts"
+      ],
+      "required_fix": "Diagnose and fix the React Native Web press/click hang and repeated Maximum update depth errors before treating member web as usable.",
+      "minimum_tests": [
+        "Run: mise exec node@22 -- pnpm exec playwright test tests/e2e/member-flows.spec.ts tests/e2e/ui-preview.spec.ts --timeout=45000",
+        "Verify schedule Enroll Now changes to Enrolled without timeout.",
+        "Verify home Log first workout routes to /__e2e/workout without timeout.",
+        "Browser console must not emit repeated Maximum update depth exceeded errors on member sign-in or preview routes."
+      ]
+    },
+    {
+      "id": "FH-008",
+      "severity": "high",
+      "domain": "api_contracts",
+      "summary": "Protected API routes return 302 redirects for unauthenticated callers instead of structured JSON auth failures.",
+      "evidence_files": [
+        "artifacts/api-server/src/app.ts",
+        "artifacts/api-server/src/routes/classes.ts",
+        "artifacts/api-server/src/routes/admin.ts",
+        "artifacts/api-server/src/routes/profiles.ts",
+        "artifacts/api-server/src/routes/ai.ts"
+      ],
+      "required_fix": "Normalize API auth failures to 401 or 403 JSON responses for /api/* clients and keep browser-page redirects out of API route behavior.",
+      "minimum_tests": [
+        "Add API tests proving unauthenticated /api/classes, /api/admin/access, /api/profiles/access, and /api/ai/analyze-food return JSON 401 or 403, not 302.",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/admin.test.mjs tests/routes/ai.test.mjs tests/routes/profiles.test.mjs tests/routes/classes.test.mjs"
+      ]
+    },
+    {
+      "id": "FH-001",
+      "severity": "critical",
+      "domain": "api_calls",
+      "summary": "Food-photo AI call does not send Clerk Authorization even though /api/ai/* requires auth.",
+      "evidence_files": [
+        "artifacts/gymapp/app/add-meal.tsx",
+        "artifacts/api-server/src/routes/ai.ts"
+      ],
+      "required_fix": "Add authenticated member API wrapper or pass Clerk bearer token to analyze-food request.",
+      "minimum_tests": [
+        "Add or update a gymapp test proving authenticated AI requests attach Authorization.",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/gymapp test",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs"
+      ]
+    },
+    {
+      "id": "FH-002",
+      "severity": "high",
+      "domain": "api_integrity",
+      "summary": "OpenAPI describes /classes as public while the server requires Clerk auth and approved access.",
+      "evidence_files": ["lib/api-spec/openapi.yaml", "artifacts/api-server/src/routes/classes.ts"],
+      "required_fix": "Correct OpenAPI security/description for protected class routes and regenerate clients.",
+      "minimum_tests": [
+        "Run: mise exec node@22 -- pnpm --dir lib/api-spec codegen",
+        "Run: git diff --exit-code lib/api-client-react/src/generated lib/api-zod/src/generated after committing generated updates",
+        "Run: mise exec node@22 -- pnpm run typecheck",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/classes.test.mjs"
+      ]
+    },
+    {
+      "id": "FH-003",
+      "severity": "high",
+      "domain": "data_integrity",
+      "summary": "Admin class UI can display estimated waitlist/check-in values instead of backend-authoritative values.",
+      "evidence_files": ["artifacts/admin/src/pages/classes.tsx"],
+      "required_fix": "Add authoritative backend fields or show explicit unavailable states instead of estimates.",
+      "minimum_tests": [
+        "Add or update admin contract tests for waitlist/check-in display semantics.",
+        "Run: mise exec node@22 -- pnpm --filter @workspace/admin run typecheck",
+        "Run: mise exec node@22 -- pnpm run test:e2e:ui"
+      ]
+    },
+    {
+      "id": "FH-004",
+      "severity": "high",
+      "domain": "ai_safety",
+      "summary": "AI coach instructions are useful but not strict enough for injury, medical, eating-disorder, supplement, or extreme-dieting prompts.",
+      "evidence_files": [
+        "artifacts/api-server/src/lib/member-ai-memory.ts",
+        "artifacts/api-server/src/routes/ai.ts"
+      ],
+      "required_fix": "Add explicit health-safety policy instructions plus route/eval tests for unsafe prompts and degraded AI behavior.",
+      "minimum_tests": [
+        "Add AI safety route/eval tests covering injury pain, eating disorder language, rapid weight loss, supplements, and medical symptoms.",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs"
+      ]
+    },
+    {
+      "id": "FH-005",
+      "severity": "medium",
+      "domain": "production_security",
+      "summary": "API has CORS and auth middleware but lacks explicit Helmet-style production security headers.",
+      "evidence_files": [
+        "artifacts/api-server/src/app.ts",
+        "artifacts/api-server/src/lib/http-security.ts"
+      ],
+      "required_fix": "Add security headers with tests for CSP/frame/content-type/referrer behavior.",
+      "minimum_tests": [
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/lib/http-security.test.mjs"
+      ]
+    },
+    {
+      "id": "FH-006",
+      "severity": "medium",
+      "domain": "resilience",
+      "summary": "AI rate limiting is process-local and will not hold across multi-instance deployments.",
+      "evidence_files": ["artifacts/api-server/src/lib/fixed-window-rate-limit.ts"],
+      "required_fix": "Introduce a rate-limit storage abstraction and a production Redis/KV implementation while keeping in-memory storage for local tests.",
+      "minimum_tests": [
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/lib/fixed-window-rate-limit.test.mjs",
+        "Run: mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs"
+      ]
+    }
+  ],
+  "execution_policy": {
+    "mode": "phase_gated",
+    "default_runtime_prefix": "mise exec node@22 --",
+    "stop_conditions": [
+      "A command fails for a repo-side reason that must be fixed before continuing.",
+      "A required secret/provider/device/browser capability is unavailable and cannot be mocked safely.",
+      "A data migration would affect a live database without explicit approval.",
+      "A destructive cleanup, deploy, push, email, payment, or external action is required."
+    ],
+    "evidence_required_per_phase": [
+      "Commands run",
+      "Exit codes",
+      "Files changed",
+      "Screenshots or Playwright traces for UI phases",
+      "External blockers, if any"
+    ],
+    "generated_file_rule": "Do not hand-edit lib/api-client-react/src/generated or lib/api-zod/src/generated. Change lib/api-spec/openapi.yaml and run codegen."
+  },
+  "recommended_dev_server_start_order": [
+    {
+      "order": 1,
+      "name": "API server",
+      "command": "pnpm run dev:api",
+      "default_url": "http://localhost:4000/api/healthz",
+      "ready_check": "curl -fsS http://localhost:4000/api/healthz"
+    },
+    {
+      "order": 2,
+      "name": "Admin web",
+      "command": "pnpm run dev:admin",
+      "default_url": "http://localhost:4173/admin/",
+      "ready_check": "curl -I -fsS http://localhost:4173/admin/"
+    },
+    {
+      "order": 3,
+      "name": "Member web preview for E2E",
+      "command": "pnpm run dev:member:web",
+      "default_url": "http://localhost:3100/",
+      "ready_check": "curl -I -fsS http://localhost:3100/"
+    },
+    {
+      "order": 4,
+      "name": "Member native Metro when needed",
+      "command": "pnpm run dev:member",
+      "default_url": "http://localhost:8081/status",
+      "ready_check": "curl -fsS http://localhost:8081/status"
+    }
+  ],
+  "test_execution_order": [
+    {
+      "order": 1,
+      "gate_id": "GATE-001",
+      "name": "Repository and runtime sanity",
+      "command": "pwd && test -f pnpm-workspace.yaml && mise exec node@22 -- node -v && mise exec node@22 -- pnpm -v",
+      "proves": "Execution is happening from the canonical repo root with the release-supported Node major.",
+      "pass_criteria": [
+        "Current directory is /Volumes/RAGHAV2/Projects/Fitness-Hub-AI.",
+        "pnpm-workspace.yaml exists.",
+        "node -v prints v22.x."
+      ],
+      "if_blocked": "Stop and fix shell runtime with mise/nvm before release-style verification."
+    },
+    {
+      "order": 2,
+      "gate_id": "GATE-002",
+      "name": "Secret and production-preflight policy",
+      "command": "mise exec node@22 -- pnpm run preflight:beta-secrets",
+      "proves": "Internal beta secret posture is acknowledged, rotated, or explicitly accepted according to repo policy.",
+      "pass_criteria": ["Command exits 0.", "No placeholder required secret is accepted silently."],
+      "if_blocked": "Report exact missing/rotation-required variables and do not run external delivery/deploy gates."
+    },
+    {
+      "order": 3,
+      "gate_id": "GATE-003",
+      "name": "Static code quality",
+      "command": "mise exec node@22 -- pnpm run lint",
+      "proves": "ESLint accepts the workspace source.",
+      "pass_criteria": ["Command exits 0.", "No lint errors."],
+      "if_blocked": "Fix repo-side lint issues before typecheck/build gates."
+    },
+    {
+      "order": 4,
+      "gate_id": "GATE-004",
+      "name": "Workspace type safety",
+      "command": "mise exec node@22 -- pnpm run typecheck",
+      "proves": "Shared packages, admin, API, gymapp, and scripts typecheck together.",
+      "pass_criteria": ["Command exits 0.", "No TypeScript errors."],
+      "if_blocked": "Fix type errors before running E2E or release gates."
+    },
+    {
+      "order": 5,
+      "gate_id": "GATE-005",
+      "name": "OpenAPI codegen and generated drift",
+      "command": "mise exec node@22 -- pnpm --dir lib/api-spec codegen && git diff --exit-code lib/api-client-react/src/generated lib/api-zod/src/generated",
+      "proves": "OpenAPI source, generated React Query client, and generated Zod schemas are aligned.",
+      "pass_criteria": [
+        "Codegen exits 0.",
+        "Generated files have no uncommitted drift unless this phase intentionally changed the API contract."
+      ],
+      "if_blocked": "Commit regenerated files when OpenAPI changed; otherwise fix unintended contract drift."
+    },
+    {
+      "order": 6,
+      "gate_id": "GATE-006",
+      "name": "API route and security suite",
+      "command": "mise exec node@22 -- pnpm --dir artifacts/api-server test",
+      "proves": "API routes, admin access, classes, AI, nutrition, progress, monthly reviews, notifications, middleware, rate limiting, and HTTP security tests pass.",
+      "pass_criteria": ["Command exits 0.", "Node test summary reports 0 failures."],
+      "if_blocked": "Fix failing route/security behavior before any frontend/E2E claim."
+    },
+    {
+      "order": 7,
+      "gate_id": "GATE-007",
+      "name": "Gymapp unit and helper suite",
+      "command": "mise exec node@22 -- pnpm --dir artifacts/gymapp test",
+      "proves": "Member app API base handling, Clerk config, monthly review aggregation, versioned storage migration, and build helpers pass.",
+      "pass_criteria": ["Command exits 0.", "Node test summary reports 0 failures."],
+      "if_blocked": "Fix local-first storage/API helper regressions before UI gates."
+    },
+    {
+      "order": 8,
+      "gate_id": "GATE-008",
+      "name": "Production dependency audit",
+      "command": "mise exec node@22 -- pnpm audit --audit-level high --prod",
+      "proves": "No known high-or-critical vulnerabilities in production dependency graph.",
+      "pass_criteria": ["Command exits 0.", "Output reports no known high vulnerabilities."],
+      "if_blocked": "Patch, override, or remove vulnerable package before production readiness."
+    },
+    {
+      "order": 9,
+      "gate_id": "GATE-009",
+      "name": "Build gate",
+      "command": "mise exec node@22 -- pnpm run build",
+      "proves": "Workspace typecheck and package builds succeed in the supported runtime.",
+      "pass_criteria": [
+        "Command exits 0.",
+        "Admin, API, gymapp, scripts, and shared packages complete their build/typecheck steps."
+      ],
+      "if_blocked": "Fix build failure before Playwright or release gates."
+    },
+    {
+      "order": 10,
+      "gate_id": "GATE-010",
+      "name": "Admin/API smoke E2E",
+      "command": "mise exec node@22 -- pnpm run test:e2e:smoke",
+      "runtime_dependencies": [
+        "API server on http://localhost:4000",
+        "Admin web on http://localhost:4173/admin/"
+      ],
+      "proves": "Admin surface and API smoke behavior are browser-visible.",
+      "pass_criteria": ["Command exits 0.", "Playwright reports 0 failed tests."],
+      "if_blocked": "If browser/session/env is unavailable, report as external blocker only after API route tests pass."
+    },
+    {
+      "order": 11,
+      "gate_id": "GATE-011",
+      "name": "Admin/member UI preview E2E",
+      "command": "mise exec node@22 -- pnpm run test:e2e:ui",
+      "runtime_dependencies": [
+        "Admin web on http://localhost:4173/admin/",
+        "Member web on http://localhost:3100/"
+      ],
+      "proves": "Preview routes for admin and member flows render and interact correctly.",
+      "pass_criteria": [
+        "Command exits 0.",
+        "Playwright reports 0 failed tests.",
+        "Known member preview action 'Log first workout' no longer times out.",
+        "Known member schedule action 'Enroll Now' no longer times out.",
+        "Member web console is free of repeated Maximum update depth exceeded errors."
+      ],
+      "if_blocked": "Separate preview harness defects from product defects and keep a failing trace."
+    },
+    {
+      "order": 12,
+      "gate_id": "GATE-012",
+      "name": "Member authenticated flow E2E",
+      "command": "mise exec node@22 -- pnpm exec playwright test tests/e2e/member-flows.spec.ts",
+      "runtime_dependencies": [
+        "API server on http://localhost:4000",
+        "Member web on http://localhost:3100/"
+      ],
+      "proves": "Member flows involving auth/access/routing keep working across the web runtime.",
+      "pass_criteria": [
+        "Command exits 0.",
+        "Playwright reports 0 failed tests.",
+        "Approved member schedule preview can enroll and waitlist without click timeout."
+      ],
+      "if_blocked": "Report missing browser/auth fixture separately from code failures."
+    },
+    {
+      "order": 13,
+      "gate_id": "GATE-013",
+      "name": "Internal beta release gate",
+      "command": "mise exec node@22 -- pnpm run verify:internal-beta",
+      "proves": "The repo's strongest integrated gate passes: Node preflight, beta secrets, OpenAPI codegen, critical API route tests, build, and Playwright E2E.",
+      "pass_criteria": ["Command exits 0.", "No route, build, typecheck, or Playwright failures."],
+      "if_blocked": "This is the release blocker list. Fix repo-side failures; name exact external blockers if credentials/browser/device are unavailable."
+    },
+    {
+      "order": 14,
+      "gate_id": "GATE-014",
+      "name": "Production-like Vercel build guard",
+      "command": "mise exec node@22 -- pnpm run build:vercel",
+      "proves": "Production build refuses unsafe Clerk/env configuration and succeeds only with production-like provider-managed envs.",
+      "pass_criteria": [
+        "With production-like envs, command exits 0.",
+        "With missing/test Clerk live keys, command fails intentionally."
+      ],
+      "if_blocked": "Do not bypass guardrails; configure provider-managed production envs."
+    }
+  ],
+  "implementation_phases": [
+    {
+      "phase": 1,
+      "name": "Core correctness and contract repair",
+      "goal": "Close broken visible behavior and API/client drift before broader hardening.",
+      "tasks": [
+        {
+          "task_id": "P1-T0",
+          "title": "Fix member web click hang and render loop",
+          "files_to_modify": [
+            "artifacts/gymapp/components/schedule/ScheduleScreenView.tsx",
+            "artifacts/gymapp/app/(tabs)/index.tsx",
+            "artifacts/gymapp/components/AppAuthGate.tsx",
+            "artifacts/gymapp/contexts/AppContext.tsx"
+          ],
+          "files_to_create_or_modify_for_tests": [
+            "tests/e2e/member-flows.spec.ts",
+            "tests/e2e/ui-preview.spec.ts"
+          ],
+          "acceptance_criteria": [
+            "Member web sign-in and preview routes do not spam Maximum update depth exceeded.",
+            "Schedule Enroll Now click updates the button to Enrolled within the Playwright timeout.",
+            "Home Log first workout click routes to /__e2e/workout within the Playwright timeout.",
+            "Fix does not bypass real auth or preview-route auth isolation."
+          ],
+          "minimum_gates": ["GATE-004", "GATE-011", "GATE-012"]
+        },
+        {
+          "task_id": "P1-T0B",
+          "title": "Normalize API auth failures for clients",
+          "files_to_modify": [
+            "artifacts/api-server/src/app.ts",
+            "artifacts/api-server/src/routes/classes.ts",
+            "artifacts/api-server/src/routes/admin.ts",
+            "artifacts/api-server/src/routes/profiles.ts",
+            "artifacts/api-server/src/routes/ai.ts"
+          ],
+          "files_to_create_or_modify_for_tests": [
+            "artifacts/api-server/tests/routes/admin.test.mjs",
+            "artifacts/api-server/tests/routes/ai.test.mjs",
+            "artifacts/api-server/tests/routes/profiles.test.mjs",
+            "artifacts/api-server/tests/routes/classes.test.mjs"
+          ],
+          "acceptance_criteria": [
+            "Unauthenticated /api/* calls return JSON 401 or 403 rather than 302 redirects.",
+            "Admin/member browser sign-in redirects still work at the app-route level.",
+            "OpenAPI documents the protected responses that clients should expect."
+          ],
+          "minimum_gates": ["GATE-005", "GATE-006", "GATE-010"]
+        },
+        {
+          "task_id": "P1-T1",
+          "title": "Fix authenticated food-photo AI request",
+          "files_to_modify": ["artifacts/gymapp/app/add-meal.tsx"],
+          "files_to_create_or_modify_for_tests": ["artifacts/gymapp/lib/authenticated-api.test.ts"],
+          "acceptance_criteria": [
+            "analyze-food request includes Authorization: Bearer <Clerk token>.",
+            "If token or API base is missing, UI shows manual-entry fallback with a clear message.",
+            "No Gemini/API key is exposed to the client."
+          ],
+          "minimum_gates": ["GATE-004", "GATE-006", "GATE-007"]
+        },
+        {
+          "task_id": "P1-T2",
+          "title": "Correct OpenAPI auth description and generated clients",
+          "files_to_modify": [
+            "lib/api-spec/openapi.yaml",
+            "lib/api-client-react/src/generated",
+            "lib/api-zod/src/generated"
+          ],
+          "acceptance_criteria": [
+            "Protected class endpoints are not documented as public.",
+            "401/403 responses are documented where auth or approval gates apply.",
+            "Generated clients and schemas match the edited OpenAPI source."
+          ],
+          "minimum_gates": ["GATE-005", "GATE-006", "GATE-004"]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "API safety and production hardening",
+      "goal": "Make server behavior safe enough for production-like traffic and health-sensitive AI interactions.",
+      "tasks": [
+        {
+          "task_id": "P2-T1",
+          "title": "Add Helmet-style HTTP security headers",
+          "files_to_modify": [
+            "artifacts/api-server/src/app.ts",
+            "artifacts/api-server/src/lib/http-security.ts",
+            "artifacts/api-server/tests/lib/http-security.test.mjs"
+          ],
+          "acceptance_criteria": [
+            "Responses include production-safe content-type, frame, referrer, and CSP-related headers.",
+            "Local dev and Clerk proxy behavior are not broken.",
+            "Tests assert header behavior."
+          ],
+          "minimum_gates": ["GATE-006", "GATE-009"]
+        },
+        {
+          "task_id": "P2-T2",
+          "title": "Strengthen AI safety policy and tests",
+          "files_to_modify": [
+            "artifacts/api-server/src/lib/member-ai-memory.ts",
+            "artifacts/api-server/src/routes/ai.ts",
+            "artifacts/api-server/tests/routes/ai.test.mjs"
+          ],
+          "acceptance_criteria": [
+            "AI coach declines diagnosis, emergency triage, extreme dieting, eating-disorder reinforcement, and unsafe supplement dosing.",
+            "AI gives safe next steps and directs urgent symptoms to appropriate professional care.",
+            "Tests cover at least injury pain, eating-disorder language, extreme calorie restriction, supplement misuse, and medical symptoms."
+          ],
+          "minimum_gates": ["GATE-006"]
+        },
+        {
+          "task_id": "P2-T3",
+          "title": "Introduce distributed rate-limit seam",
+          "files_to_modify": [
+            "artifacts/api-server/src/lib/fixed-window-rate-limit.ts",
+            "artifacts/api-server/tests/lib/fixed-window-rate-limit.test.mjs",
+            "artifacts/api-server/src/routes/ai.ts"
+          ],
+          "acceptance_criteria": [
+            "Local in-memory limiter remains the default for tests/dev.",
+            "Production can be configured to use a shared store without changing AI routes.",
+            "Rate limits remain keyed by authenticated user, not spoofed IP."
+          ],
+          "minimum_gates": ["GATE-006"]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Data integrity and tenant proof",
+      "goal": "Ensure owner-visible data is authoritative and tenant boundaries are proven.",
+      "tasks": [
+        {
+          "task_id": "P3-T1",
+          "title": "Replace estimated admin class metrics",
+          "files_to_modify": [
+            "artifacts/api-server/src/routes/admin.ts",
+            "artifacts/admin/src/pages/classes.tsx",
+            "lib/api-spec/openapi.yaml"
+          ],
+          "acceptance_criteria": [
+            "Waitlist, checked-in, and attendance values come from backend state or are explicitly marked unavailable.",
+            "No admin UI helper fabricates operational values.",
+            "OpenAPI and generated types include any new authoritative fields."
+          ],
+          "minimum_gates": ["GATE-005", "GATE-006", "GATE-010", "GATE-011"]
+        },
+        {
+          "task_id": "P3-T2",
+          "title": "Add cross-gym isolation tests",
+          "files_to_modify": [
+            "artifacts/api-server/tests/routes/admin.test.mjs",
+            "artifacts/api-server/tests/routes/classes.test.mjs",
+            "artifacts/api-server/tests/routes/workouts.test.mjs",
+            "artifacts/api-server/tests/routes/nutrition.test.mjs",
+            "artifacts/api-server/tests/routes/monthly-reviews.test.mjs"
+          ],
+          "acceptance_criteria": [
+            "Gym A owner cannot read or mutate Gym B resources.",
+            "Gym A member cannot read or mutate Gym B resources.",
+            "Trainer/member role boundaries are tested for monthly reviews and assigned workouts."
+          ],
+          "minimum_gates": ["GATE-006", "GATE-013"]
+        },
+        {
+          "task_id": "P3-T3",
+          "title": "Add audit log for sensitive admin actions",
+          "files_to_modify": [
+            "lib/db/src/schema",
+            "artifacts/api-server/src/routes/admin.ts",
+            "artifacts/api-server/tests/routes/admin.test.mjs",
+            "lib/api-spec/openapi.yaml"
+          ],
+          "acceptance_criteria": [
+            "Access grants, revokes, role changes, class deletion, settings changes, and owner-sensitive actions record actor, target, action, gymId, timestamp, and metadata.",
+            "Audit routes are owner-only.",
+            "Secrets and bearer tokens are never persisted in audit metadata."
+          ],
+          "minimum_gates": ["GATE-005", "GATE-006", "GATE-013"]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Consumer experience and degraded states",
+      "goal": "Make the app feel stable when APIs, auth, AI, or device capabilities fail.",
+      "tasks": [
+        {
+          "task_id": "P4-T1",
+          "title": "Centralize gymapp authenticated API calls",
+          "files_to_modify": [
+            "artifacts/gymapp/lib/authenticated-api.ts",
+            "artifacts/gymapp/lib/profile-access.ts",
+            "artifacts/gymapp/app/add-meal.tsx",
+            "artifacts/gymapp/app/profile.tsx",
+            "artifacts/gymapp/app/progress.tsx",
+            "artifacts/gymapp/app/workout-complete.tsx",
+            "artifacts/gymapp/app/(tabs)/assistant.tsx",
+            "artifacts/gymapp/app/(tabs)/workout.tsx",
+            "artifacts/gymapp/contexts/ActivityLearningContext.tsx",
+            "artifacts/gymapp/contexts/AppContext.tsx",
+            "artifacts/gymapp/contexts/NutritionContext.tsx",
+            "artifacts/gymapp/contexts/ScheduleContext.tsx",
+            "artifacts/gymapp/contexts/WorkoutContext.tsx"
+          ],
+          "files_to_create_or_modify_for_tests": ["artifacts/gymapp/lib/authenticated-api.test.ts"],
+          "acceptance_criteria": [
+            "Member app has one typed helper for API base, token lookup, timeout, JSON parsing, and friendly errors.",
+            "All member app API calls use the helper unless a generated client replaces the call.",
+            "Auth-expired and API-offline states are visible and recoverable."
+          ],
+          "minimum_gates": ["GATE-004", "GATE-007", "GATE-011", "GATE-012"]
+        },
+        {
+          "task_id": "P4-T2",
+          "title": "Polish onboarding and approval/revoked states",
+          "files_to_modify": [
+            "artifacts/gymapp/app/(auth)/onboarding.tsx",
+            "artifacts/gymapp/app/approval-required.tsx",
+            "artifacts/gymapp/components/AppAuthGate.tsx",
+            "tests/e2e/member-flows.spec.ts"
+          ],
+          "acceptance_criteria": [
+            "Partial onboarding input is not lost on recoverable errors.",
+            "Pending and revoked states explain what happened without exposing privileged data.",
+            "Signed-out, approved, pending, revoked, and auth-expired states have E2E or targeted preview proof."
+          ],
+          "minimum_gates": ["GATE-007", "GATE-011", "GATE-012"]
+        },
+        {
+          "task_id": "P4-T3",
+          "title": "Strengthen admin operator workflows",
+          "files_to_modify": [
+            "artifacts/admin/src/pages/dashboard.tsx",
+            "artifacts/admin/src/pages/classes.tsx",
+            "artifacts/admin/src/pages/members.tsx",
+            "tests/e2e/ui-preview.spec.ts"
+          ],
+          "acceptance_criteria": [
+            "Dashboard identifies actionable owner work from real data.",
+            "Member access bulk actions are safe, confirmed, and visibly synced.",
+            "Class schedule actions show loading, success, empty, and error states without layout overflow."
+          ],
+          "minimum_gates": ["GATE-010", "GATE-011"]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Release readiness and production proof",
+      "goal": "Make the 10/10 score repeatable instead of dependent on one local run.",
+      "tasks": [
+        {
+          "task_id": "P5-T1",
+          "title": "Move E2E closer to CI reliability",
+          "files_to_modify": [".github/workflows/ci.yml", "playwright.config.ts", "tests/e2e"],
+          "acceptance_criteria": [
+            "Preview E2E can run with deterministic auth/test fixtures in CI or a documented pre-release environment.",
+            "Known member preview timeout is fixed or quarantined with a narrow issue and trace evidence.",
+            "CI still avoids real secrets."
+          ],
+          "minimum_gates": ["GATE-010", "GATE-011", "GATE-012", "GATE-013"]
+        },
+        {
+          "task_id": "P5-T2",
+          "title": "Production observability and runbook completion",
+          "files_to_modify": [
+            "docs/observability.md",
+            "docs/deployment.md",
+            "artifacts/api-server/src/lib/logger.ts",
+            "artifacts/api-server/src/routes"
+          ],
+          "acceptance_criteria": [
+            "Errors include route, request id, user/gym id when safe, and no sensitive tokens.",
+            "Runbooks explain how to diagnose auth, DB, AI, E2E, and deployment failures.",
+            "Internal beta gate and production build guard are documented with Node 22 commands."
+          ],
+          "minimum_gates": ["GATE-003", "GATE-004", "GATE-013", "GATE-014"]
+        }
+      ]
+    }
+  ],
+  "manual_validation_matrix": [
+    {
+      "scenario": "Signed-out visitor opens admin",
+      "url": "http://localhost:4173/admin/",
+      "expected": "Sign-in or access-denied state renders with no admin data leakage.",
+      "evidence": "Screenshot plus browser console free of app errors."
+    },
+    {
+      "scenario": "Owner opens admin",
+      "url": "http://localhost:4173/admin/",
+      "expected": "Dashboard, classes, members, settings, and owner actions load.",
+      "evidence": "Screenshot of dashboard and successful /api/admin/access check."
+    },
+    {
+      "scenario": "Non-owner opens admin",
+      "url": "http://localhost:4173/admin/",
+      "expected": "Owner-only data and actions are blocked.",
+      "evidence": "403 API response and access denied UI."
+    },
+    {
+      "scenario": "Approved member opens member app",
+      "url": "http://localhost:3100/",
+      "expected": "Home, schedule, workout, nutrition, assistant, and profile flows render.",
+      "evidence": "Playwright result or screenshots across mobile and desktop viewports."
+    },
+    {
+      "scenario": "Pending or revoked member opens member app",
+      "url": "http://localhost:3100/",
+      "expected": "Approval-required state renders without privileged data.",
+      "evidence": "API access-check response and UI screenshot."
+    },
+    {
+      "scenario": "Gemini unavailable",
+      "url": "http://localhost:3100/",
+      "expected": "AI features degrade with clear fallback, no secret leakage, no app crash.",
+      "evidence": "Route test plus screenshot/manual note."
+    },
+    {
+      "scenario": "Food photo analysis",
+      "url": "http://localhost:3100/add-meal",
+      "expected": "Request is authenticated; if AI fails, manual entry fallback appears.",
+      "evidence": "Network request includes Authorization and UI fallback screenshot."
+    }
+  ],
+  "scorecard": [
+    {
+      "domain": "code_quality_architecture",
+      "target": 10,
+      "required_evidence": ["GATE-003", "GATE-004", "GATE-009"],
+      "no_go_conditions": [
+        "Generated files hand-edited.",
+        "Duplicate app roots created.",
+        "Shared contracts duplicated in app code."
+      ]
+    },
+    {
+      "domain": "engineering_process",
+      "target": 10,
+      "required_evidence": ["GATE-001", "GATE-005", "GATE-013"],
+      "no_go_conditions": [
+        "Release gate runs under Node 24/25.",
+        "Codegen drift left unresolved.",
+        "Failures summarized without exact command output."
+      ]
+    },
+    {
+      "domain": "integrity_data_truthfulness",
+      "target": 10,
+      "required_evidence": ["FH-003 closed", "P3-T1 accepted", "P3-T2 accepted"],
+      "no_go_conditions": [
+        "Estimated dashboard metrics displayed as facts.",
+        "Cross-gym data isolation untested.",
+        "Admin audit trail missing for sensitive actions."
+      ]
+    },
+    {
+      "domain": "safety_security_ai",
+      "target": 10,
+      "required_evidence": [
+        "FH-004 closed",
+        "FH-005 closed",
+        "FH-006 closed",
+        "GATE-006",
+        "GATE-008"
+      ],
+      "no_go_conditions": [
+        "AI gives medical diagnosis or unsafe dieting/supplement advice.",
+        "Production security headers absent.",
+        "Rate limiting is only process-local in production."
+      ]
+    },
+    {
+      "domain": "api_calls_contracts",
+      "target": 10,
+      "required_evidence": ["FH-001 closed", "FH-002 closed", "GATE-005", "GATE-006"],
+      "no_go_conditions": [
+        "Member API calls bypass auth helper.",
+        "OpenAPI says public for protected routes.",
+        "Client request errors are swallowed without user-facing state."
+      ]
+    },
+    {
+      "domain": "consumer_experience",
+      "target": 10,
+      "required_evidence": [
+        "GATE-010",
+        "GATE-011",
+        "GATE-012",
+        "manual_validation_matrix completed"
+      ],
+      "no_go_conditions": [
+        "Food photo AI flow fails silently.",
+        "Member web visible controls time out on click.",
+        "Member web routes repeatedly emit Maximum update depth exceeded.",
+        "Pending/revoked states are confusing.",
+        "Mobile or desktop viewport has overlapping or inaccessible controls."
+      ]
+    }
+  ],
+  "final_10_out_of_10_exit_criteria": [
+    "All known_flaws_to_close entries are closed or intentionally downgraded with evidence.",
+    "All implementation_phases have completed acceptance criteria.",
+    "All test_execution_order gates GATE-001 through GATE-014 pass or have documented external blockers that do not affect repo-side quality.",
+    "Manual validation matrix is completed with current screenshots or Playwright traces.",
+    "No untracked secrets, local cache files, generated artifacts, or visual evidence are accidentally staged.",
+    "Final report includes score by domain, commands run, exit codes, changed files, and remaining provider/device blockers."
+  ]
+}

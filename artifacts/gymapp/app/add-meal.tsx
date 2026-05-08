@@ -1,5 +1,6 @@
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useAuth } from "@clerk/expo";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
@@ -18,7 +19,7 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
-import { getApiBase } from "@/lib/api-base";
+import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -46,6 +47,7 @@ export default function AddMealScreen() {
   const router = useRouter();
   const { mealType: initialMealType } = useLocalSearchParams<{ mealType?: string }>();
   const { addFoodEntry } = useNutrition();
+  const { getToken } = useAuth();
   const colors = useColors();
 
   const [mealType, setMealType] = useState<MealType>((initialMealType as MealType) || "lunch");
@@ -88,25 +90,31 @@ export default function AddMealScreen() {
       setImageUri(asset.uri);
       setAnalysisResult(null);
       if (asset.base64) {
-        analyzeFood(asset.base64);
+        void analyzeFood(asset.base64);
       }
     }
+  };
+
+  const getAnalysisFallbackMessage = (error: unknown) => {
+    if (error instanceof AuthenticatedApiError) {
+      return `${error.message} Please enter details manually.`;
+    }
+
+    return "Couldn't analyze the food. Please enter details manually.";
   };
 
   const analyzeFood = async (base64: string) => {
     setAnalyzing(true);
     try {
-      const apiBase = getApiBase();
-      const response = await fetch(`${apiBase}/api/ai/analyze-food`, {
+      const result = await authenticatedJsonRequest<FoodAnalysisResult>({
+        getToken,
+        path: "/api/ai/analyze-food",
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
+        body: { imageBase64: base64, mimeType: "image/jpeg" },
       });
-      if (!response.ok) throw new Error("Analysis failed");
-      const result = (await response.json()) as FoodAnalysisResult;
       setAnalysisResult(result);
-    } catch {
-      Alert.alert("Analysis Failed", "Couldn't analyze the food. Please enter details manually.");
+    } catch (error) {
+      Alert.alert("Analysis Failed", getAnalysisFallbackMessage(error));
       setMode("manual");
     } finally {
       setAnalyzing(false);

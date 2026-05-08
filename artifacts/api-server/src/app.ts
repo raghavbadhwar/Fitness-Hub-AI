@@ -3,8 +3,17 @@ import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
-import { logger } from "./lib/logger";
-import { configureTrustProxy, createCorsMiddleware } from "./lib/http-security";
+import {
+  apiErrorHandler,
+  attachApiRequestLogContext,
+  getRequestLogContext,
+  logger,
+} from "./lib/logger";
+import {
+  configureTrustProxy,
+  createCorsMiddleware,
+  createSecurityHeadersMiddleware,
+} from "./lib/http-security";
 
 if (!process.env.CLERK_SECRET_KEY) {
   throw new Error("CLERK_SECRET_KEY is required. Add it to .env.local before starting the API.");
@@ -13,6 +22,7 @@ if (!process.env.CLERK_SECRET_KEY) {
 const app: Express = express();
 configureTrustProxy(app);
 const corsMiddleware = createCorsMiddleware();
+const securityHeadersMiddleware = createSecurityHeadersMiddleware();
 
 app.use(
   pinoHttp({
@@ -31,6 +41,9 @@ app.use(
         };
       },
     },
+    customProps(req, res) {
+      return getRequestLogContext(req, res);
+    },
   }),
 );
 
@@ -42,6 +55,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(clerkMiddleware());
 
-app.use("/api", router);
+app.use("/api", securityHeadersMiddleware, attachApiRequestLogContext, router);
+app.use("/api", apiErrorHandler);
 
 export default app;

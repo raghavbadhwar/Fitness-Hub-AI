@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey } from "@/lib/date-key";
 import { refreshServerProfileAccess } from "@/lib/profile-access";
 
@@ -349,17 +350,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const apiBase = getApiBase();
       if (!apiBase) return;
-      const token = await getToken();
-      if (!token) return;
 
-      const response = await fetch(`${apiBase}/api/progress/entries`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const payload = await authenticatedJsonRequest<unknown[]>({
+        apiBase,
+        getToken,
+        path: "/api/progress/entries",
       });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch progress entries (${response.status})`);
-      }
-
-      const payload = (await response.json()) as unknown[];
       const entries = payload
         .map(normalizeProgressEntry)
         .filter((entry): entry is ProgressEntryPayload => Boolean(entry));
@@ -410,20 +406,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const apiBase = getApiBase();
         if (!apiBase) return;
-        const token = await getToken();
-        if (!token) return;
 
-        const response = await fetch(`${apiBase}/api/progress/entries`, {
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: "/api/progress/entries",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(entry),
+          body: entry,
         });
-        if (!response.ok) {
-          throw new Error(`Failed to sync progress entry (${response.status})`);
-        }
       } catch (error) {
         console.error("Failed to sync progress entry", error);
       }
@@ -463,11 +453,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const currentProfile = profileRef.current;
       const apiBase = getApiBase();
       if (!apiBase) {
+        setAccessState({
+          status: "unknown",
+          message:
+            "We could not reach Fitness Hub services. Check the app connection and try again.",
+        });
         return false;
       }
 
       const token = await getToken();
       if (!token) {
+        setAccessState({
+          status: "unknown",
+          message: "Your secure session expired before we could verify access. Sign in again.",
+        });
         return false;
       }
 
@@ -493,6 +492,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return true;
     } catch (error) {
       console.error("Failed to refresh profile", error);
+      setAccessState({
+        status: "unknown",
+        message: "We could not verify gym access. Check your connection and try again.",
+      });
       return false;
     }
   }, [clerkFallbackName, getToken, isSignedIn, persistProfile, userId]);

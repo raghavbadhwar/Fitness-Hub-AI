@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { and, eq, gte } from "drizzle-orm";
 import { db, gymClassesTable, pool, type ClassAttendanceRecord } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
@@ -215,7 +215,7 @@ async function withLockedClass(
   }
 }
 
-router.get("/classes", requireAuth(), async (req: Request, res: Response): Promise<void> => {
+router.get("/classes", requireApiAuth, async (req: Request, res: Response): Promise<void> => {
   const access = await requireApprovedAccess(req, res);
   if (!access) return;
 
@@ -231,7 +231,7 @@ router.get("/classes", requireAuth(), async (req: Request, res: Response): Promi
 
 router.get(
   "/classes/enrolled",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;
@@ -259,7 +259,7 @@ router.get(
 
 router.get(
   "/classes/waitlisted",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;
@@ -287,7 +287,7 @@ router.get(
 
 router.post(
   "/classes/:id/enroll",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;
@@ -343,7 +343,7 @@ router.post(
 
 router.post(
   "/classes/:id/waitlist",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;
@@ -404,7 +404,7 @@ router.post(
 
 router.delete(
   "/classes/:id/waitlist",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;
@@ -452,7 +452,7 @@ router.delete(
 
 router.delete(
   "/classes/:id/enroll",
-  requireAuth(),
+  requireApiAuth,
   async (req: Request, res: Response): Promise<void> => {
     const access = await requireApprovedAccess(req, res);
     if (!access) return;

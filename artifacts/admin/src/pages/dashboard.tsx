@@ -214,6 +214,32 @@ export function DashboardContent({
   );
   const pendingMembers = members.filter((member) => member.accessStatus === "pending");
   const aiActiveMembers = members.filter((member) => member.aiRecentMessageCount > 0);
+  const actionQueue = [
+    pendingMembers.length > 0
+      ? {
+          label: "Approve waiting members",
+          value: `${pendingMembers.length} pending`,
+          href: "/members",
+          tone: "warning" as const,
+        }
+      : null,
+    fullClasses.length > 0
+      ? {
+          label: "Open waitlist follow-up",
+          value: `${fullClasses.length} full class${fullClasses.length === 1 ? "" : "es"}`,
+          href: "/classes",
+          tone: "warning" as const,
+        }
+      : null,
+    stats.lowAttendanceClasses.length > 0
+      ? {
+          label: "Promote low-attendance classes",
+          value: `${stats.lowAttendanceClasses.length} watch item${stats.lowAttendanceClasses.length === 1 ? "" : "s"}`,
+          href: "/classes",
+          tone: "neutral" as const,
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   return (
     <div className="flex flex-col gap-6">
@@ -295,6 +321,42 @@ export function DashboardContent({
           </CardContent>
         </Card>
       </div>
+
+      <Card data-testid="dashboard-action-queue">
+        <CardHeader>
+          <CardTitle>Owner Action Queue</CardTitle>
+          <CardDescription>
+            Prioritized work generated from live access, class, and attendance data.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {actionQueue.length === 0 ? (
+            <div className="rounded-md border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+              No urgent owner actions from the current data set.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              {actionQueue.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={
+                    item.tone === "warning"
+                      ? "rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950 transition hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+                      : "rounded-md border bg-background p-4 transition hover:bg-muted/50"
+                  }
+                >
+                  <div className="text-xs font-semibold uppercase opacity-75">{item.label}</div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-lg font-bold">{item.value}</span>
+                    <ArrowRight className="size-4 shrink-0" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <Card className="border-primary/20" data-testid="stat-card-classes">

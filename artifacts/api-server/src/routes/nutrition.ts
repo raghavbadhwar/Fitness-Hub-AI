@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { and, eq } from "drizzle-orm";
 import { db, memberNutritionLogs, type MemberNutritionEntry } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 function isDateKey(value: unknown): value is string {
   return typeof value === "string" && DATE_RE.test(value);

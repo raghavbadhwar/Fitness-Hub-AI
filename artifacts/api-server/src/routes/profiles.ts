@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { db, userProfiles } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedClerkUser } from "../lib/clerk-request.ts";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import {
   displayNameForClerkUser,
   getPrimaryEmail,
@@ -13,7 +13,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 router.get("/access-check", async (req: Request, res: Response) => {
   try {

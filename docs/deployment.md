@@ -32,7 +32,7 @@ than a developer machine.
 The deployment preflight runs through:
 
 ```bash
-pnpm run preflight:production-env
+mise exec node@22 -- pnpm run preflight:production-env
 ```
 
 It skips normal local builds and enforces the required values when `VERCEL=1` and
@@ -98,14 +98,31 @@ Keep native Clerk OAuth client IDs in the Expo/EAS environment rather than commi
 Run the same release gate before pushing:
 
 ```bash
-pnpm run verify:internal-beta
+mise exec node@22 -- pnpm run verify:internal-beta
 ```
 
 For a Vercel-style local build:
 
 ```bash
-pnpm run build:vercel
+mise exec node@22 -- pnpm run build:vercel
 ```
+
+For deterministic CI browser coverage without real secrets:
+
+```bash
+mise exec node@22 -- pnpm run test:e2e:ci
+```
+
+That command uses admin/API smoke and preview routes only. Full member auth and onboarding browser
+checks still need a local or pre-release Clerk test environment:
+
+```bash
+mise exec node@22 -- pnpm run test:e2e:member
+```
+
+The GitHub Actions E2E job injects placeholder Clerk, Gemini, and database values and sets
+`FITNESS_HUB_SKIP_ENV_LOCAL=1`, so it never depends on a developer `.env.local` or real production
+secrets.
 
 ## Production Smoke Checklist
 

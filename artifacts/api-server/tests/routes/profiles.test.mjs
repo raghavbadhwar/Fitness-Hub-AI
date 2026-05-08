@@ -123,14 +123,6 @@ function listProfilesForCondition(condition) {
 }
 
 function listAccessControlsForCondition(condition) {
-  if (condition?.op === "eq" && condition.field === userAccessControls.email) {
-    const accessControl = accessControlsByEmail.get(condition.value);
-    return accessControl &&
-      matchesCondition(cloneAccessControl(accessControl), condition, accessControlFieldMap)
-      ? [cloneAccessControl(accessControl)]
-      : [];
-  }
-
   return [...accessControlsByEmail.values()]
     .map(cloneAccessControl)
     .filter((accessControl) => matchesCondition(accessControl, condition, accessControlFieldMap));
@@ -314,6 +306,74 @@ describe("profiles routes", () => {
     });
   });
 
+  it("uses the invited gym for a single unsynced non-default gym access grant", async () => {
+    accessControlsByEmail.set("morgan@example.com|studio-west", {
+      email: "morgan@example.com",
+      gymId: "studio-west",
+      role: "trainer",
+      status: "approved",
+      note: "",
+      createdByClerkId: "owner_2",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+      createdAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+
+    const accessResponse = await request(app).get("/profiles/access-check");
+
+    assert.equal(accessResponse.status, 200);
+    assert.deepEqual(accessResponse.body, {
+      status: "missing_profile",
+      email: "morgan@example.com",
+      gymId: "studio-west",
+      role: "trainer",
+    });
+
+    const syncResponse = await request(app).post("/profiles/sync").send({ name: "Morgan West" });
+
+    assert.equal(syncResponse.status, 200);
+    assert.equal(syncResponse.body.gymId, "studio-west");
+    assert.equal(syncResponse.body.role, "trainer");
+    assert.equal(profilesByClerkId.get("member_1").gymId, "studio-west");
+  });
+
+  it("blocks ambiguous unsynced access grants instead of choosing the wrong gym", async () => {
+    accessControlsByEmail.set("morgan@example.com|studio-west", {
+      email: "morgan@example.com",
+      gymId: "studio-west",
+      role: "member",
+      status: "approved",
+      note: "",
+      createdByClerkId: "owner_2",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+      createdAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+    accessControlsByEmail.set("morgan@example.com|studio-east", {
+      email: "morgan@example.com",
+      gymId: "studio-east",
+      role: "trainer",
+      status: "approved",
+      note: "",
+      createdByClerkId: "owner_3",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+      createdAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+
+    const accessResponse = await request(app).get("/profiles/access-check");
+    assert.equal(accessResponse.status, 200);
+    assert.deepEqual(accessResponse.body, {
+      status: "pending_approval",
+      email: "morgan@example.com",
+      gymId: "gymos-main",
+      role: "member",
+      message: "Your gym team needs to allow this email before you can enter the member app.",
+    });
+
+    const syncResponse = await request(app).post("/profiles/sync").send({ name: "Morgan" });
+    assert.equal(syncResponse.status, 403);
+    assert.equal(syncResponse.body.status, "pending_approval");
+    assert.equal(profilesByClerkId.has("member_1"), false);
+  });
+
   it("returns ready when the caller profile already exists", async () => {
     profilesByClerkId.set("member_1", {
       id: 1,
@@ -481,5 +541,6 @@ describe("profiles routes", () => {
 
     assert.equal(response.status, 401);
     assert.deepEqual(response.body, { error: "Unauthorized" });
+    assert.equal(response.headers.location, undefined);
   });
 });

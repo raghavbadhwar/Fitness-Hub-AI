@@ -27,6 +27,91 @@ export const EMPTY_MEMORY_UPDATE: MemoryExtractionResult = {
   injuries: [],
 };
 
+export type AiSafetyConcern = {
+  category:
+    | "medical_emergency"
+    | "eating_disorder"
+    | "extreme_dieting"
+    | "unsafe_supplement"
+    | "injury_pain";
+  response: string;
+};
+
+export const AI_SAFETY_INSTRUCTION = `Safety boundaries:
+- Do not diagnose medical conditions, triage emergencies, prescribe treatment, or tell users to ignore symptoms.
+- If the user describes chest pain, fainting, severe shortness of breath, stroke-like symptoms, seizures, or similar urgent symptoms, tell them to stop exercising and seek emergency medical care now.
+- Do not reinforce eating-disorder behavior, purging, laxative misuse, starvation, or hiding food intake. Encourage professional support and a safer next meal.
+- Do not recommend extreme dieting, very-low-calorie plans, rapid weight-loss targets, dehydration, or fasting as punishment.
+- Do not give unsafe supplement, steroid, stimulant, fat-burner, or drug dosing advice.
+- For sharp pain, swelling, numbness, severe injury pain, or loss of function, avoid training through it and recommend medical or physiotherapy review.
+- Keep fitness advice educational and conservative, with human approval for health-sensitive changes.`;
+
+export function detectAiSafetyConcern(text: string): AiSafetyConcern | null {
+  const normalized = text.toLowerCase();
+
+  if (
+    /\b(chest pain|heart attack|stroke|seizure|faint(?:ed|ing)?|severe shortness of breath|can't breathe|cannot breathe)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      category: "medical_emergency",
+      response:
+        "Stop exercising and seek urgent medical care now. Chest pain, fainting, severe breathing trouble, seizures, or stroke-like symptoms should be handled by emergency professionals, not a workout plan.",
+    };
+  }
+
+  if (
+    /\b(purge|purging|laxative|vomit(?:ing)?|starv(?:e|ing)|binge|eating disorder|hide food|skip meals to punish)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      category: "eating_disorder",
+      response:
+        "I cannot help with purging, starvation, laxative misuse, or hiding food. A safer next step is to eat a normal balanced meal, avoid compensating with exercise, and speak with a qualified clinician or trusted support person.",
+    };
+  }
+
+  if (
+    /\b([1-8]\d{2}\s*(calories|calorie|kcal)|no food|water fast|rapid weight loss|lose\s+\d+\s*(kg|kgs|pounds|lbs)\s+in\s+(a\s+)?week)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      category: "extreme_dieting",
+      response:
+        "I cannot support extreme calorie restriction, dehydration, or rapid weight-loss targets. Use a moderate deficit, keep protein and hydration steady, and involve a qualified professional if weight loss feels urgent or compulsive.",
+    };
+  }
+
+  if (
+    /\b(clenbuterol|dnp|anabolic|steroid|ephedrine|fat burner|double dose|mega ?dose|unsafe supplement)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      category: "unsafe_supplement",
+      response:
+        "I cannot advise unsafe supplement, stimulant, steroid, or drug dosing. Check with a qualified medical professional, and keep training focused on sleep, nutrition, hydration, and progressive exercise.",
+    };
+  }
+
+  if (
+    /\b(sharp pain|severe pain|swollen|numb|tingling|injured|injury|can't move|cannot move|loss of function)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      category: "injury_pain",
+      response:
+        "Do not train through sharp pain, swelling, numbness, severe injury pain, or loss of function. Stop the painful movement, choose gentle non-painful mobility only if comfortable, and get medical or physiotherapy guidance.",
+    };
+  }
+
+  return null;
+}
+
 function normalizeStringList(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -228,6 +313,8 @@ Barriers: ${JSON.stringify(memory?.barriers ?? [])}
 Motivators: ${JSON.stringify(memory?.motivators ?? [])}
 Injuries/limitations: ${JSON.stringify(memory?.injuries ?? [])}
 Recent conversation snippets: ${JSON.stringify(recentMessages)}
+
+${AI_SAFETY_INSTRUCTION}
 
 Use Indian food examples when relevant. Keep the advice grounded in what this member is likely to follow consistently.`;
 }

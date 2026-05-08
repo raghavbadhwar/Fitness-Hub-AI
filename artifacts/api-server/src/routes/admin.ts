@@ -1,8 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
 import { and, eq } from "drizzle-orm";
-import { db, gymClassesTable, gymSettingsTable } from "@workspace/db";
+import { adminAuditLogs, db, gymClassesTable, gymSettingsTable } from "@workspace/db";
 import {
   AdminCreateClassBody,
   AdminUpdateClassBody,
@@ -16,6 +16,8 @@ import {
   setAdminMemberAccess,
   updateAdminMemberRole,
 } from "../lib/admin-members.ts";
+import { setRequestLogContext } from "../lib/logger.ts";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { isGrantableUserRole, normalizeEmail } from "../lib/user-access.ts";
 
 const CLASS_COLORS: Record<string, string> = {
@@ -33,7 +35,7 @@ const CLASS_COLORS: Record<string, string> = {
 
 const router = Router();
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 const DASHBOARD_MEMBER_COUNT_CACHE_TTL_MS = 5 * 60 * 1_000;
 const dashboardMemberCountCache = new Map<string, { value: number; expiresAt: number }>();
@@ -79,6 +81,7 @@ type ClerkUserSummary = {
 
 type OwnerAccess = Extract<Awaited<ReturnType<typeof resolveAdminAccess>>, { allowed: true }>;
 type AttendanceStatus = "booked" | "checked_in" | "no_show";
+type AuditMetadata = Record<string, unknown>;
 type AttendanceRecord = {
   memberId: string;
   status: AttendanceStatus;
@@ -98,6 +101,8 @@ type DashboardClassRow = {
 
 const attendanceStatuses = new Set<AttendanceStatus>(["booked", "checked_in", "no_show"]);
 const LOW_ATTENDANCE_OCCUPANCY_THRESHOLD = 35;
+const AUDIT_METADATA_SENSITIVE_KEY_RE =
+  /(authorization|bearer|cookie|password|secret|token|api[_-]?key|session)/i;
 
 function getDateKey(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -182,9 +187,74 @@ function normalizeAttendanceRecords(value: unknown): AttendanceRecord[] {
   });
 }
 
+function sanitizeAuditMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeAuditMetadata).slice(0, 50);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const sanitized: AuditMetadata = {};
+  for (const [key, entry] of Object.entries(value as AuditMetadata)) {
+    if (AUDIT_METADATA_SENSITIVE_KEY_RE.test(key)) {
+      continue;
+    }
+    sanitized[key] = sanitizeAuditMetadata(entry);
+  }
+  return sanitized;
+}
+
+async function writeAdminAuditLog(
+  access: OwnerAccess,
+  event: {
+    action: string;
+    targetType: string;
+    targetId?: string | number | null;
+    metadata?: AuditMetadata;
+  },
+) {
+  await db
+    .insert(adminAuditLogs)
+    .values({
+      id: randomUUID(),
+      gymId: access.gymId,
+      actorClerkId: access.userId,
+      action: event.action,
+      targetType: event.targetType,
+      targetId:
+        typeof event.targetId === "number" ? String(event.targetId) : (event.targetId ?? null),
+      metadata: sanitizeAuditMetadata(event.metadata ?? {}) as AuditMetadata,
+    })
+    .returning();
+}
+
+function formatAuditLog(log: typeof adminAuditLogs.$inferSelect) {
+  return {
+    id: log.id,
+    gymId: log.gymId,
+    actorClerkId: log.actorClerkId,
+    action: log.action,
+    targetType: log.targetType,
+    targetId: log.targetId ?? null,
+    metadata: sanitizeAuditMetadata(log.metadata ?? {}) as AuditMetadata,
+    createdAt: log.createdAt.toISOString(),
+  };
+}
+
+function changedFields(data: Record<string, unknown>) {
+  return Object.keys(data).filter((key) => data[key] !== undefined);
+}
+
 async function requireOwner(req: Request, res: Response): Promise<OwnerAccess | null> {
   try {
     const access = await resolveAdminAccess(req);
+    setRequestLogContext(res, {
+      userId: access.userId,
+      gymId: access.gymId,
+      role: access.role,
+    });
     if (!access.allowed) {
       logAdminAccessDenied(req, access, "admin.requireOwner");
       res.status(access.status).json({
@@ -232,6 +302,11 @@ async function getDashboardActiveMemberCount(secretKey: string, gymId: string): 
 router.get("/access", async (req: Request, res: Response): Promise<void> => {
   try {
     const access = await resolveAdminAccess(req);
+    setRequestLogContext(res, {
+      userId: access.userId,
+      gymId: access.gymId,
+      role: access.role,
+    });
 
     if (!access.allowed) {
       logAdminAccessDenied(req, access, "admin.access");
@@ -298,6 +373,17 @@ router.post("/classes", async (req: Request, res: Response): Promise<void> => {
   };
 
   const [newClass] = await db.insert(gymClassesTable).values(newClassValues).returning();
+  await writeAdminAuditLog(access, {
+    action: "class.create",
+    targetType: "class",
+    targetId: newClass.id,
+    metadata: {
+      name: newClass.name,
+      category: newClass.category,
+      date: newClass.date,
+      status: newClass.status,
+    },
+  });
 
   res.status(201).json(formatClass(newClass));
 });
@@ -346,6 +432,16 @@ router.put("/classes/:id", async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
+  await writeAdminAuditLog(access, {
+    action: "class.update",
+    targetType: "class",
+    targetId: updated.id,
+    metadata: {
+      changedFields: changedFields(data as Record<string, unknown>),
+      status: updated.status,
+    },
+  });
+
   res.json(formatClass(updated));
 });
 
@@ -369,6 +465,17 @@ router.delete("/classes/:id", async (req: Request, res: Response): Promise<void>
     res.status(404).json({ error: "Class not found" });
     return;
   }
+
+  await writeAdminAuditLog(access, {
+    action: "class.delete",
+    targetType: "class",
+    targetId: deleted.id,
+    metadata: {
+      name: deleted.name,
+      date: deleted.date,
+      status: deleted.status,
+    },
+  });
 
   res.sendStatus(204);
 });
@@ -447,6 +554,16 @@ router.put("/settings", async (req: Request, res: Response): Promise<void> => {
     result = updated;
   }
 
+  await writeAdminAuditLog(access, {
+    action: existing.length === 0 ? "settings.create" : "settings.update",
+    targetType: "settings",
+    targetId: result.id,
+    metadata: {
+      changedFields: changedFields(parsed.data as Record<string, unknown>),
+      created: existing.length === 0,
+    },
+  });
+
   res.json(formatSettings(result));
 });
 
@@ -508,6 +625,16 @@ router.post("/member-access", async (req: Request, res: Response): Promise<void>
       createdByClerkId: access.userId,
       secretKey: process.env.CLERK_SECRET_KEY!,
     });
+    await writeAdminAuditLog(access, {
+      action: accessStatus === "approved" ? "access.grant" : "access.revoke",
+      targetType: "member_access",
+      targetId: email,
+      metadata: {
+        email,
+        role,
+        accessStatus,
+      },
+    });
     res.json(member);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update member access";
@@ -535,14 +662,22 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
   }
 
   try {
-    res.json(
-      await updateAdminMemberRole({
-        gymId: access.gymId,
-        userId,
+    const member = await updateAdminMemberRole({
+      gymId: access.gymId,
+      userId,
+      role: body.role,
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
+    await writeAdminAuditLog(access, {
+      action: "member.role.update",
+      targetType: "member",
+      targetId: userId,
+      metadata: {
         role: body.role,
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      }),
-    );
+        email: member.email,
+      },
+    });
+    res.json(member);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update member role";
     logRouteError(req, err, "Failed to update member role");
@@ -552,6 +687,24 @@ router.patch("/members/:id", async (req: Request, res: Response): Promise<void> 
       )
       .json({ error: message });
   }
+});
+
+router.get("/audit-logs", async (req: Request, res: Response): Promise<void> => {
+  const access = await requireOwner(req, res);
+  if (!access) return;
+
+  const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+  const parsedLimit = Number.parseInt(String(rawLimit ?? "50"), 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
+
+  const logs = await db.select().from(adminAuditLogs).where(eq(adminAuditLogs.gymId, access.gymId));
+
+  res.json(
+    logs
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, limit)
+      .map(formatAuditLog),
+  );
 });
 
 router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
@@ -769,12 +922,23 @@ router.patch(
       return;
     }
 
+    await writeAdminAuditLog(access, {
+      action: "class.attendance.update",
+      targetType: "class",
+      targetId: id,
+      metadata: {
+        memberId,
+        attendanceStatus,
+      },
+    });
+
     res.json({ memberId, attendanceStatus, updatedAt });
   },
 );
 
 function formatClass(cls: typeof gymClassesTable.$inferSelect) {
   const waitlistedMemberIds = Array.isArray(cls.waitlistedMemberIds) ? cls.waitlistedMemberIds : [];
+  const attendanceRecords = normalizeAttendanceRecords(cls.attendanceRecords);
   return {
     id: cls.id,
     name: cls.name,
@@ -788,6 +952,7 @@ function formatClass(cls: typeof gymClassesTable.$inferSelect) {
     enrolledCount: cls.enrolledCount,
     enrolledMemberIds: Array.isArray(cls.enrolledMemberIds) ? cls.enrolledMemberIds : [],
     waitlistedCount: waitlistedMemberIds.length,
+    checkedInCount: attendanceRecords.filter((record) => record.status === "checked_in").length,
     room: cls.room,
     status: cls.status,
     color: cls.color,

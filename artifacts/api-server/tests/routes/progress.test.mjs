@@ -65,6 +65,9 @@ mock.module("@clerk/express", {
         next();
       };
     },
+    getAuth() {
+      return { userId: authState.userId };
+    },
   },
 });
 

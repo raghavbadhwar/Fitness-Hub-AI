@@ -1,13 +1,19 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { getAuth, requireAuth } from "@clerk/express";
+import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
-import { createFixedWindowRateLimiter } from "../lib/fixed-window-rate-limit.ts";
+import {
+  createFixedWindowRateLimiter,
+  createFixedWindowRateLimitStore,
+} from "../lib/fixed-window-rate-limit.ts";
 import {
   appendRecentMessages,
+  AI_SAFETY_INSTRUCTION,
   buildSystemInstruction,
+  detectAiSafetyConcern,
   MAX_CLIENT_HISTORY_MESSAGES,
   mergeMemoryUpdate,
   normalizeStoredMessages,
@@ -25,6 +31,11 @@ function getPositiveIntegerEnv(key: string, fallback: number): number {
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_PER_WINDOW = getPositiveIntegerEnv("AI_RATE_LIMIT_MAX_PER_MINUTE", 20);
+const RATE_LIMIT_MAX_KEYS = getPositiveIntegerEnv("AI_RATE_LIMIT_MAX_KEYS", 10_000);
+const rateLimitStore = createFixedWindowRateLimitStore({
+  maxKeys: RATE_LIMIT_MAX_KEYS,
+  pruneIntervalMs: Math.min(RATE_LIMIT_WINDOW_MS, 10_000),
+});
 const ACTIVITY_SNAPSHOT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ACTIVITY_SNAPSHOT_CHARS = 8_000;
 const MAX_IMAGE_BASE64_BYTES = getPositiveIntegerEnv("AI_MAX_IMAGE_BASE64_BYTES", 5_000_000);
@@ -38,6 +49,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 const rateLimit = createFixedWindowRateLimiter({
   windowMs: RATE_LIMIT_WINDOW_MS,
   maxRequests: RATE_LIMIT_MAX_PER_WINDOW,
+  store: rateLimitStore,
   getKey(req) {
     return getAiRateLimitKey(req);
   },
@@ -51,6 +63,9 @@ const rateLimit = createFixedWindowRateLimiter({
       },
       "AI rate limit exceeded",
     );
+  },
+  onStoreError({ req, error }) {
+    req.log?.error?.({ err: error, route: "ai" }, "AI rate limit store error");
   },
 });
 
@@ -143,7 +158,7 @@ function parseModelJsonResponse(rawText: string): unknown {
   return JSON.parse(cleaned);
 }
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 router.use(rateLimit);
 router.use(requireApprovedAiAccess);
 
@@ -260,6 +275,7 @@ router.post("/analyze-food", async (req: Request, res: Response) => {
 
 If this is an Indian dish, identify it accurately (e.g., Butter Chicken, Palak Paneer, Biryani, Roti, Dal Tadka, Idli, Dosa, Samosa, Chole Bhature, etc.).
 If it's not Indian food, still provide accurate nutritional data.
+Do not frame the result as a prescription for extreme dieting, medical treatment, or eating-disorder behavior. Keep the health tip conservative and food-neutral.
 
 For the portion visible in the image, estimate a typical serving size and return ONLY this JSON (no markdown, no extra text):
 {
@@ -342,6 +358,27 @@ router.post("/chat", async (req: Request, res: Response) => {
       )
     ) {
       res.status(400).json({ error: "Message is too long" });
+      return;
+    }
+
+    const safetyConcern = detectAiSafetyConcern(
+      sanitizedIncomingMessages.map((message) => message.content).join("\n"),
+    );
+    if (safetyConcern) {
+      req.log?.warn?.(
+        {
+          route: "ai.chat",
+          userId,
+          safetyCategory: safetyConcern.category,
+        },
+        "AI chat safety guardrail triggered",
+      );
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.write(`data: ${JSON.stringify({ text: safetyConcern.response })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
       return;
     }
 
@@ -654,6 +691,8 @@ Durable Member Memory: ${JSON.stringify({
     })}
 
 Make the workout feel premium but easy to execute. Auto-adjust volume, intensity, exercise choice, and recovery demand from the behavior profile, today's nutrition/recovery context, saved plans, and durable memory. Reuse familiar movement patterns when the user is building consistency, bias toward saved-plan themes before inventing a completely different routine, and avoid exercises that conflict with remembered injuries or limitations.
+
+${AI_SAFETY_INSTRUCTION}
 
 Return ONLY this JSON (no markdown):
 {

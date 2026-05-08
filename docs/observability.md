@@ -3,6 +3,21 @@
 The API uses `pino-http` request logging. Request log serializers keep the method, path without query
 string, response status, and request id; handlers should add only privacy-safe operational fields.
 
+## API Request Context
+
+Every `/api/*` request log can include these safe fields when the request reaches the relevant auth
+or access middleware:
+
+- `route`: API path without query string
+- `userId`: Clerk user id, when authenticated
+- `gymId`: tenant id, when resolved by owner/member access checks
+- `role`: owner, trainer, or member role, when resolved
+- `req.id`: pino request id, used to correlate the completion log with any handler error log
+
+The global API error handler logs unhandled failures with the same route, request id, user id, gym id,
+and role context, then returns a generic `500` JSON response. Do not add email addresses, bearer
+tokens, cookies, prompt bodies, image payloads, or database URLs to request logs.
+
 ## AI Logging
 
 AI routes log:
@@ -45,3 +60,31 @@ and body-size pressure.
   separately because they indicate different provider or prompt-contract failures.
 - Track `Admin access denied` warnings for unexpected owner-access failures after Clerk or allowlist
   changes.
+
+## Failure Runbooks
+
+Auth failures:
+Check the `route`, `statusCode`, `userId`, `gymId`, and `role` fields first. `401` usually means
+missing or expired Clerk auth. `403` usually means pending, revoked, or non-owner access. Verify
+Clerk metadata and `ADMIN_GYM_OWNER_EMAILS` before changing code.
+
+Database failures:
+Look for route-specific DB error logs with the same `req.id`. Confirm `DATABASE_URL` points to the
+runtime role, migrations have been applied, and tenant filters include `gymId`.
+
+AI failures:
+Separate `AI rate limit exceeded`, payload validation rejects, Gemini generation failures, and JSON
+parse failures. Do not retry large payloads blindly; first check configured AI limits and provider
+status.
+
+E2E failures:
+CI runs deterministic admin/API browser checks without `.env.local` or real secrets. Full member
+auth flows require local or pre-release Clerk test config and should be run with:
+
+```bash
+mise exec node@22 -- pnpm run test:e2e:member
+```
+
+Deployment failures:
+Use the production preflight and Vercel build logs together. A missing `CLERK_*`, `DATABASE_URL`, or
+`AI_INTEGRATIONS_GEMINI_*` variable is an environment issue, not an app runtime regression.

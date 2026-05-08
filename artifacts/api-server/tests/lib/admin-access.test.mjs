@@ -148,4 +148,16 @@ describe("resolveAdminAccess", () => {
     assert.equal(access.status, 403);
     assert.equal(access.reason, "Forbidden: email is not approved for admin access");
   });
+
+  it("fails closed when an admin allowlist env var is present but malformed", async () => {
+    process.env.ADMIN_GYM_OWNER_EMAILS = "owner@example.com missing-gym-separator";
+    authenticatedUser = clerkUser({ publicMetadata: { role: "owner" } });
+
+    const access = await resolveAdminAccess({});
+
+    assert.equal(access.allowed, false);
+    assert.equal(access.status, 403);
+    assert.equal(access.allowlistConfigured, true);
+    assert.equal(access.reason, "Forbidden: email is not approved for admin access");
+  });
 });

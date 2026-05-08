@@ -66,6 +66,9 @@ mock.module("@clerk/express", {
         next();
       };
     },
+    getAuth() {
+      return { userId: authState.userId };
+    },
   },
 });
 
@@ -273,5 +276,33 @@ describe("nutrition routes", () => {
       entries: [],
       waterIntake: 0,
     });
+  });
+
+  it("keeps nutrition logs isolated by gym even for the same Clerk user", async () => {
+    await request(app)
+      .put("/nutrition/logs/2026-05-07")
+      .send({ entries: [{ id: "entry_1", name: "Dal" }], waterIntake: 4 });
+
+    accessState.gymId = "other-gym";
+
+    const missingInOtherGym = await request(app).get("/nutrition/logs/2026-05-07");
+    assert.equal(missingInOtherGym.status, 200);
+    assert.deepEqual(missingInOtherGym.body, {
+      date: "2026-05-07",
+      entries: [],
+      waterIntake: 0,
+    });
+
+    const otherGymUpsert = await request(app)
+      .put("/nutrition/logs/2026-05-07")
+      .send({ entries: [{ id: "entry_2", name: "Paneer" }], waterIntake: 6 });
+    assert.equal(otherGymUpsert.status, 200);
+    assert.equal(otherGymUpsert.body.entries[0].name, "Paneer");
+
+    accessState.gymId = "gymos-main";
+    const mainGymResponse = await request(app).get("/nutrition/logs/2026-05-07");
+    assert.equal(mainGymResponse.status, 200);
+    assert.equal(mainGymResponse.body.entries[0].name, "Dal");
+    assert.equal(nutritionLogs.size, 2);
   });
 });

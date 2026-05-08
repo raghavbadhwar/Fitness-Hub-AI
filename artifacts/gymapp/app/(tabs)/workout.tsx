@@ -25,7 +25,7 @@ import {
 } from "@/contexts/WorkoutContext";
 import { EXERCISES, searchExercises } from "@/constants/exercises";
 import { useAuth } from "@clerk/expo";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { impact } from "@/lib/haptics";
 import {
   formatMonthLabel,
@@ -328,14 +328,11 @@ export default function WorkoutScreen() {
     if (!isTrainerOrOwner) return;
     setLoadingTemplates(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/workouts/templates`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const data = await authenticatedJsonRequest<WorkoutTemplate[]>({
+        getToken,
+        path: "/api/workouts/templates",
       });
-      if (resp.ok) {
-        const data = await resp.json();
-        setTemplates(data);
-      }
+      setTemplates(data);
     } catch (err) {
       console.error("Failed to fetch templates", err);
     } finally {
@@ -347,17 +344,11 @@ export default function WorkoutScreen() {
     if (!isTrainerOrOwner) return;
     setLoadingAssignableMembers(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/workouts/members`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const data = await authenticatedJsonRequest<AssignableMember[]>({
+        getToken,
+        path: "/api/workouts/members",
       });
-      if (resp.ok) {
-        const data = (await resp.json()) as AssignableMember[];
-        setAssignableMembers(data);
-      } else {
-        const err = await resp.json().catch(() => ({ error: "Failed to fetch members" }));
-        Alert.alert("Error", err.error || "Failed to fetch members");
-      }
+      setAssignableMembers(data);
     } catch (err) {
       console.error("Failed to fetch assignable members", err);
       Alert.alert("Error", "Failed to fetch members");
@@ -373,19 +364,12 @@ export default function WorkoutScreen() {
       setLoadingTrainerMonthlyReview(true);
       setTrainerMonthlyReviewError(null);
       try {
-        const token = await getToken();
-        const response = await fetch(
-          `${getApiBase()}/api/monthly-reviews?memberId=${encodeURIComponent(
+        const payload = await authenticatedJsonRequest<MonthlyReviewResponse>({
+          getToken,
+          path: `/api/monthly-reviews?memberId=${encodeURIComponent(
             memberId,
           )}&month=${encodeURIComponent(month)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        const payload = (await response.json().catch(() => ({}))) as MonthlyReviewResponse & {
-          error?: string;
-        };
-        if (!response.ok) {
-          throw new Error(payload.error || "Failed to fetch monthly review");
-        }
+        });
         setTrainerMonthlyReview(payload.review);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch monthly review";
@@ -402,15 +386,11 @@ export default function WorkoutScreen() {
     if (isTrainerOrOwner || !userId) return;
     setLoadingAssigned(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(
-        `${getApiBase()}/api/workouts/assigned?memberId=${encodeURIComponent(userId)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (resp.ok) {
-        const data = await resp.json();
-        setAssignedWorkouts(data);
-      }
+      const data = await authenticatedJsonRequest<AssignedWorkout[]>({
+        getToken,
+        path: `/api/workouts/assigned?memberId=${encodeURIComponent(userId)}`,
+      });
+      setAssignedWorkouts(data);
     } catch (err) {
       console.error("Failed to fetch assigned workouts", err);
     } finally {
@@ -517,19 +497,15 @@ export default function WorkoutScreen() {
   const handleAIWorkout = async () => {
     setLoadingAI(true);
     try {
-      const token = await getToken();
-      const apiBase = getApiBase();
       const recentData = recentSessions.slice(0, 3).map((s) => ({
         name: s.name,
         exercises: s.exercises.map((e) => e.name),
       }));
-      const response = await fetch(`${apiBase}/api/ai/workout-suggestion`, {
+      const suggestion = await authenticatedJsonRequest<AIWorkoutSuggestion>({
+        getToken,
+        path: "/api/ai/workout-suggestion",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        body: {
           recentWorkouts: recentData,
           goals: profile.fitnessGoal,
           fitnessLevel: "intermediate",
@@ -537,10 +513,8 @@ export default function WorkoutScreen() {
           todayStats: todayNutritionSummary,
           behaviorProfile,
           savedPlans: savedPlanSummaries,
-        }),
+        },
       });
-      if (!response.ok) throw new Error("Failed to get workout");
-      const suggestion: AIWorkoutSuggestion = await response.json();
 
       const exercises = (suggestion.exercises || []).map((ex) => {
         const exName = typeof ex.name === "string" ? ex.name : "Custom Exercise";
@@ -613,28 +587,20 @@ export default function WorkoutScreen() {
     if (!selectedTemplate || !selectedMember) return;
     setAssigningWorkout(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/workouts/assign`, {
+      await authenticatedJsonRequest<unknown>({
+        getToken,
+        path: "/api/workouts/assign",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        body: {
           templateId: selectedTemplate.id,
           memberId: selectedMember.id,
-        }),
+        },
       });
-      if (resp.ok) {
-        Alert.alert("Success", `Workout assigned to ${selectedMember.name}!`);
-        setShowAssignModal(false);
-        setMemberSearch("");
-        setSelectedMember(null);
-        setSelectedTemplate(null);
-      } else {
-        const err = await resp.json();
-        Alert.alert("Error", err.error || "Failed to assign workout");
-      }
+      Alert.alert("Success", `Workout assigned to ${selectedMember.name}!`);
+      setShowAssignModal(false);
+      setMemberSearch("");
+      setSelectedMember(null);
+      setSelectedTemplate(null);
     } catch {
       Alert.alert("Error", "Failed to assign workout");
     } finally {
@@ -650,10 +616,10 @@ export default function WorkoutScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            const token = await getToken();
-            await fetch(`${getApiBase()}/api/workouts/templates/${templateId}`, {
+            await authenticatedJsonRequest<unknown>({
+              getToken,
+              path: `/api/workouts/templates/${templateId}`,
               method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
             });
             setTemplates((prev) => prev.filter((t) => t.id !== templateId));
           } catch {
@@ -670,25 +636,14 @@ export default function WorkoutScreen() {
     setUpdatingTrainerMonthlyReview(true);
     setTrainerMonthlyReviewError(null);
     try {
-      const token = await getToken();
-      const response = await fetch(
-        `${getApiBase()}/api/monthly-reviews/${encodeURIComponent(trainerMonthlyReview.id)}/review`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ reviewed: true }),
-        },
-      );
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<MonthlyReviewResponse> & {
-        error?: string;
-      };
-      if (!response.ok || !payload.review) {
-        throw new Error(payload.error || "Failed to mark review reviewed");
+      const payload = await authenticatedJsonRequest<MonthlyReviewResponse>({
+        getToken,
+        path: `/api/monthly-reviews/${encodeURIComponent(trainerMonthlyReview.id)}/review`,
+        method: "PATCH",
+        body: { reviewed: true },
+      });
+      if (!payload.review) {
+        throw new Error("Failed to mark review reviewed");
       }
       setTrainerMonthlyReview(payload.review);
     } catch (error) {
@@ -1945,28 +1900,19 @@ function CreateTemplateModal({
     }
     setSaving(true);
     try {
-      const token = await getToken();
-      const resp = await fetch(`${getApiBase()}/api/workouts/templates`, {
+      const template = await authenticatedJsonRequest<WorkoutTemplate>({
+        getToken,
+        path: "/api/workouts/templates",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        body: {
           name: templateName.trim(),
           exercises: selectedExercises,
           trainerName,
-        }),
+        },
       });
-      if (resp.ok) {
-        const template = await resp.json();
-        onCreated(template);
-        setTemplateName("");
-        setSelectedExercises([]);
-      } else {
-        const err = await resp.json();
-        Alert.alert("Error", err.error || "Failed to create template");
-      }
+      onCreated(template);
+      setTemplateName("");
+      setSelectedExercises([]);
     } catch {
       Alert.alert("Error", "Failed to create template");
     } finally {

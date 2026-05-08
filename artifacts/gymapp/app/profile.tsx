@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 
 interface NotificationPreferences {
   classRemindersEnabled: boolean;
@@ -58,19 +58,10 @@ export default function ProfileScreen() {
     let cancelled = false;
     const loadNotificationPreferences = async () => {
       try {
-        const apiBase = getApiBase();
-        if (!apiBase) return;
-        const token = await getToken();
-        if (!token) return;
-
-        const response = await fetch(`${apiBase}/api/notifications/preferences`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const payload = await authenticatedJsonRequest<Partial<NotificationPreferences>>({
+          getToken,
+          path: "/api/notifications/preferences",
         });
-        if (!response.ok) {
-          throw new Error(`Failed to load notification preferences (${response.status})`);
-        }
-
-        const payload = (await response.json()) as Partial<NotificationPreferences>;
         if (!cancelled) {
           setNotificationPreferences({
             ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -95,25 +86,12 @@ export default function ProfileScreen() {
     setNotificationStatus("Saving reminder preferences...");
 
     try {
-      const apiBase = getApiBase();
-      const token = await getToken();
-      if (!apiBase || !token) {
-        throw new Error("Missing API base URL or auth token");
-      }
-
-      const response = await fetch(`${apiBase}/api/notifications/preferences`, {
+      const payload = await authenticatedJsonRequest<Partial<NotificationPreferences>>({
+        getToken,
+        path: "/api/notifications/preferences",
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(nextPreferences),
+        body: nextPreferences,
       });
-      if (!response.ok) {
-        throw new Error(`Failed to save notification preferences (${response.status})`);
-      }
-
-      const payload = (await response.json()) as Partial<NotificationPreferences>;
       setNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...payload });
       setNotificationStatus("Reminder preferences saved.");
     } catch (error) {

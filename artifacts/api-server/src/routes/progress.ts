@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { and, eq } from "drizzle-orm";
 import { db, memberProgressEntries, type MemberProgressEntry } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
@@ -11,7 +11,7 @@ const METRIC_KEYS = ["weight", "chest", "waist", "hips", "biceps", "thighs"] as 
 
 type ProgressMetricKey = (typeof METRIC_KEYS)[number];
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 function isDateKey(value: unknown): value is string {
   return typeof value === "string" && DATE_RE.test(value);

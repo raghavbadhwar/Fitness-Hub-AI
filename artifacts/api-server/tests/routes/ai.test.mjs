@@ -15,7 +15,7 @@ const dbState = {
   lastUpdate: null,
 };
 const memoryExtractionState = { value: null };
-const aiState = { generateContentCalls: 0 };
+const aiState = { generateContentCalls: 0, chatCreateCalls: 0 };
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -89,6 +89,46 @@ mock.module("../../src/lib/member-ai-memory.ts", {
     buildSystemInstruction() {
       return "test-system-instruction";
     },
+    AI_SAFETY_INSTRUCTION: "test safety instruction",
+    detectAiSafetyConcern(text) {
+      const normalized = text.toLowerCase();
+      if (normalized.includes("chest pain")) {
+        return {
+          category: "medical_emergency",
+          response:
+            "Stop exercising and seek urgent medical care now. Chest pain should be handled by emergency professionals.",
+        };
+      }
+      if (normalized.includes("purge")) {
+        return {
+          category: "eating_disorder",
+          response:
+            "I cannot help with purging or eating-disorder behavior. Speak with a qualified clinician or trusted support person.",
+        };
+      }
+      if (normalized.includes("500 calorie")) {
+        return {
+          category: "extreme_dieting",
+          response:
+            "I cannot support extreme calorie restriction. Use a moderate deficit and involve a qualified professional.",
+        };
+      }
+      if (normalized.includes("clenbuterol")) {
+        return {
+          category: "unsafe_supplement",
+          response:
+            "I cannot advise unsafe supplement, stimulant, steroid, or drug dosing. Check with a qualified medical professional.",
+        };
+      }
+      if (normalized.includes("sharp pain")) {
+        return {
+          category: "injury_pain",
+          response:
+            "Do not train through sharp pain. Stop the painful movement and get medical or physiotherapy guidance.",
+        };
+      }
+      return null;
+    },
     MAX_CLIENT_HISTORY_MESSAGES: 30,
     mergeMemoryUpdate(existing, update) {
       return {
@@ -144,6 +184,7 @@ mock.module("@workspace/integrations-gemini-ai", {
       },
       chats: {
         create() {
+          aiState.chatCreateCalls += 1;
           return {
             async sendMessageStream() {
               return [];
@@ -199,6 +240,7 @@ beforeEach(() => {
   dbState.lastUpdate = null;
   memoryExtractionState.value = null;
   aiState.generateContentCalls = 0;
+  aiState.chatCreateCalls = 0;
 });
 
 describe("ai routes", () => {
@@ -319,6 +361,46 @@ describe("ai routes", () => {
     assert.equal(aiState.generateContentCalls, 0);
   });
 
+  it("returns bounded safety responses for health-sensitive chat prompts before model calls", async () => {
+    const cases = [
+      {
+        prompt: "chest pain",
+        expected: /urgent medical care/i,
+      },
+      {
+        prompt: "help me purge",
+        expected: /cannot help with purging/i,
+      },
+      {
+        prompt: "500 calorie diet",
+        expected: /extreme calorie/i,
+      },
+      {
+        prompt: "clenbuterol dose",
+        expected: /cannot advise unsafe/i,
+      },
+      {
+        prompt: "sharp pain",
+        expected: /do not train through/i,
+      },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      authState.userId = `safety_member_${index}`;
+      const response = await request(app)
+        .post("/ai/chat")
+        .send({ messages: [{ role: "user", content: testCase.prompt }] });
+
+      assert.equal(response.status, 200);
+      assert.match(response.headers["content-type"], /text\/event-stream/);
+      assert.match(response.text, testCase.expected);
+      assert.match(response.text, /data: \[DONE\]/);
+    }
+
+    assert.equal(aiState.generateContentCalls, 0);
+    assert.equal(aiState.chatCreateCalls, 0);
+  });
+
   it("rate limits by authenticated user instead of spoofed forwarded IP", async () => {
     authState.userId = "rate_limited_member";
 
@@ -386,6 +468,7 @@ describe("ai routes", () => {
 
     assert.equal(response.status, 401);
     assert.deepEqual(response.body, { error: "Unauthorized" });
+    assert.equal(response.headers.location, undefined);
     assert.equal(aiState.generateContentCalls, 0);
   });
 });

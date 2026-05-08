@@ -10,6 +10,7 @@ import {
   type UserRole,
 } from "@workspace/db";
 import { getAuthenticatedClerkUser, type ClerkUserAccessIdentity } from "./clerk-request.ts";
+import { setRequestLogContext } from "./logger.ts";
 
 async function seedApprovedControlForLegacyProfile(
   email: string | null,
@@ -161,6 +162,19 @@ export async function getAccessControlForEmail(
   return control ?? null;
 }
 
+async function getAccessControlsForEmail(email: string | null): Promise<EmailAccessRecord[]> {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return [];
+  }
+
+  return db
+    .select()
+    .from(userAccessControls)
+    .where(eq(userAccessControls.email, normalizedEmail))
+    .limit(2);
+}
+
 function resolveApprovedRole(
   user: ClerkUserAccessIdentity,
   profile: ProfileAccessRecord | null,
@@ -195,10 +209,18 @@ export async function resolveUserAccessForClerkUser(
   const email = getPrimaryEmail(user);
   const profile =
     providedProfile === undefined ? await getProfileForClerkId(user.id) : providedProfile;
-  const gymId = profile?.gymId ?? "gymos-main";
+  let gymId = profile?.gymId ?? "gymos-main";
 
   const resolvedControl = await getAccessControlForEmail(email, gymId);
-  const control = resolvedControl ?? (profile ? null : await getAccessControlForEmail(email));
+  let control = resolvedControl;
+
+  if (!control && !profile) {
+    const fallbackControls = await getAccessControlsForEmail(email);
+    if (fallbackControls.length === 1) {
+      control = fallbackControls[0];
+      gymId = control.gymId;
+    }
+  }
 
   if (control) {
     const role = resolveApprovedRole(user, profile, control);
@@ -293,6 +315,11 @@ export async function requireApprovedAccess(
   roles?: readonly UserRole[],
 ): Promise<Extract<CallerAccess, { allowed: true }> | null> {
   const access = await resolveCallerAccess(req);
+  setRequestLogContext(res, {
+    userId: access.userId,
+    gymId: access.gymId,
+    role: access.role,
+  });
 
   if (!access.allowed) {
     res.status(access.statusCode).json({

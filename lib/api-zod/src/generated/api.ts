@@ -16,7 +16,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns all upcoming gym classes (public endpoint for mobile app)
+ * Returns all upcoming gym classes for the authenticated caller's approved gym access
  * @summary List all gym classes
  */
 export const ListClassesResponseItem = zod.object({
@@ -42,6 +42,7 @@ export const ListClassesResponseItem = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -96,6 +97,7 @@ export const EnrollInClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -133,6 +135,7 @@ export const LeaveClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -170,6 +173,7 @@ export const JoinClassWaitlistResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -207,6 +211,7 @@ export const LeaveClassWaitlistResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -241,6 +246,7 @@ export const AdminListClassesResponseItem = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -334,6 +340,7 @@ export const AdminUpdateClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -493,6 +500,33 @@ export const AdminSetMemberAccessResponse = zod.object({
   aiLastUpdatedAt: zod.string().nullish(),
   aiRecentMessageCount: zod.number(),
 });
+
+/**
+ * Returns recent owner-only audit events for sensitive admin actions in the current gym.
+ * @summary List admin audit logs
+ */
+export const adminListAuditLogsQueryLimitDefault = 50;
+export const adminListAuditLogsQueryLimitMax = 100;
+
+export const AdminListAuditLogsQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListAuditLogsQueryLimitMax)
+    .default(adminListAuditLogsQueryLimitDefault),
+});
+
+export const AdminListAuditLogsResponseItem = zod.object({
+  id: zod.string(),
+  gymId: zod.string(),
+  actorClerkId: zod.string(),
+  action: zod.string(),
+  targetType: zod.string(),
+  targetId: zod.string().nullable(),
+  metadata: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.string(),
+});
+export const AdminListAuditLogsResponse = zod.array(AdminListAuditLogsResponseItem);
 
 /**
  * Returns at-a-glance dashboard statistics (owner-only)

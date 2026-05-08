@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -33,6 +34,27 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 const STEP_LABELS = ["Profile", "Training", "Nutrition"];
+const ONBOARDING_DRAFT_KEY = "@gymapp_onboarding_draft";
+
+type OnboardingFormData = {
+  name: string;
+  age: string;
+  gender: "male" | "female" | "other";
+  height: string;
+  weight: string;
+  targetWeight: string;
+  fitnessExperience: FitnessExperience;
+  workoutTime: WorkoutTime;
+  equipment: Equipment;
+  injuries: Injury[];
+  fitnessGoal: FitnessGoal;
+  activityLevel: ActivityLevel;
+  dietType: DietType;
+  mealTiming: MealTiming;
+  role: UserRole;
+  gymName: string;
+  numTrainers: string;
+};
 
 const GENDER_OPTIONS: { label: string; value: "male" | "female" | "other" }[] = [
   { label: "Male", value: "male" },
@@ -137,6 +159,38 @@ function calculateTargets(data: {
   };
 }
 
+function createInitialData(firstName?: string | null): OnboardingFormData {
+  return {
+    name: firstName || "",
+    age: "25",
+    gender: "male",
+    height: "170",
+    weight: "70",
+    targetWeight: "65",
+    fitnessExperience: "beginner",
+    workoutTime: "flexible",
+    equipment: "commercial_gym",
+    injuries: [],
+    fitnessGoal: "build_muscle",
+    activityLevel: "moderate",
+    dietType: "non_veg",
+    mealTiming: "3_meals",
+    role: "member",
+    gymName: "",
+    numTrainers: "",
+  };
+}
+
+function parseDraft(value: string | null): Partial<OnboardingFormData> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<OnboardingFormData>;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Onboarding() {
   const { user } = useUser();
   const { completeOnboarding } = useApp();
@@ -149,33 +203,46 @@ export default function Onboarding() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const hasLoadedDraftRef = useRef(false);
+  const isDirtyRef = useRef(false);
+  const draftStorageKey = `${ONBOARDING_DRAFT_KEY}:${user?.id ?? "guest"}`;
 
-  const [data, setData] = useState({
-    name: user?.firstName || "",
-    age: "25",
-    gender: "male" as "male" | "female" | "other",
-    height: "170",
-    weight: "70",
-    targetWeight: "65",
-    fitnessExperience: "beginner" as FitnessExperience,
-    workoutTime: "flexible" as WorkoutTime,
-    equipment: "commercial_gym" as Equipment,
-    injuries: [] as Injury[],
-    fitnessGoal: "build_muscle" as FitnessGoal,
-    activityLevel: "moderate" as ActivityLevel,
-    dietType: "non_veg" as DietType,
-    mealTiming: "3_meals" as MealTiming,
-    role: "member" as UserRole,
-    gymName: "",
-    numTrainers: "",
-  });
+  const [data, setData] = useState<OnboardingFormData>(() => createInitialData(user?.firstName));
+
+  useEffect(() => {
+    let cancelled = false;
+    hasLoadedDraftRef.current = false;
+
+    const loadDraft = async () => {
+      const draft = parseDraft(await AsyncStorage.getItem(draftStorageKey));
+      if (!cancelled && draft && !isDirtyRef.current) {
+        setData((current) => ({ ...current, ...draft }));
+      }
+      if (!cancelled) {
+        hasLoadedDraftRef.current = true;
+      }
+    };
+
+    void loadDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!hasLoadedDraftRef.current) return;
+    void AsyncStorage.setItem(draftStorageKey, JSON.stringify(data));
+  }, [data, draftStorageKey]);
 
   const update = (key: string, value: string) => {
+    isDirtyRef.current = true;
     setData((d) => ({ ...d, [key]: value }));
     setErrors((e) => ({ ...e, [key]: "" }));
   };
 
   const toggleInjury = (injury: Injury) => {
+    isDirtyRef.current = true;
     setData((d) => {
       if (injury === "none") {
         return { ...d, injuries: d.injuries.includes("none") ? [] : ["none"] };
@@ -243,6 +310,7 @@ export default function Onboarding() {
         gymName: data.gymName,
         numTrainers: data.numTrainers,
       });
+      await AsyncStorage.removeItem(draftStorageKey);
       router.replace("/");
     } catch {
       Alert.alert("Error", "Something went wrong. Please try again.");
@@ -308,6 +376,7 @@ export default function Onboarding() {
               <View style={styles.field}>
                 <Text style={[styles.label, { color: colors.mutedForeground }]}>Your Name</Text>
                 <TextInput
+                  testID="onboarding-name-input"
                   style={[
                     styles.input,
                     {
@@ -331,6 +400,7 @@ export default function Onboarding() {
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={[styles.label, { color: colors.mutedForeground }]}>Age</Text>
                   <TextInput
+                    testID="onboarding-height-input"
                     style={[
                       styles.input,
                       {
@@ -578,6 +648,7 @@ export default function Onboarding() {
           </Text>
         </View>
         <Pressable
+          testID="onboarding-get-started"
           style={[styles.getStartedBtn, { backgroundColor: colors.primary }]}
           onPress={() => setShowWelcome(false)}
         >
@@ -656,6 +727,7 @@ export default function Onboarding() {
             </Pressable>
           )}
           <Pressable
+            testID="onboarding-next"
             style={[
               styles.nextBtn,
               { backgroundColor: colors.primary },

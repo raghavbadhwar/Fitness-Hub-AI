@@ -47,6 +47,8 @@ Before closeout:
 | API route behavior                                               | `pnpm --dir artifacts/api-server test -- <relevant route tests>`                               |
 | Admin auth/access UI                                             | API route test plus `pnpm run test:e2e:smoke` when services are available                      |
 | Member auth/access UI                                            | member package tests plus `pnpm run test:e2e:ui` when services are available                   |
+| Deterministic CI browser coverage                                | `pnpm run test:e2e:ci` with placeholder CI env and `FITNESS_HUB_SKIP_ENV_LOCAL=1`              |
+| Full member auth browser flow                                    | `pnpm run test:e2e:member` with local or pre-release Clerk test env                            |
 | Cross-surface auth, routing, generated client, or deploy changes | `pnpm run verify:internal-beta`                                                                |
 | Vercel production build behavior                                 | `pnpm run build:vercel` with production-like envs                                              |
 
@@ -74,8 +76,10 @@ For internal beta:
 
 1. `.env.local` is untracked and sanitized values remain in `.env.example`.
 2. `pnpm run preflight:beta-secrets` passes through rotation or accepted-risk attestation.
-3. `pnpm run verify:internal-beta` passes.
-4. Admin, member, API, auth, and AI degraded states have been checked for the changed surface.
+3. `pnpm run test:e2e:ci` passes for deterministic admin/API browser proof.
+4. `pnpm run test:e2e:member` passes when Clerk test auth is available.
+5. `pnpm run verify:internal-beta` passes.
+6. Admin, member, API, auth, and AI degraded states have been checked for the changed surface.
 
 For production:
 

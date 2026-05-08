@@ -1,4 +1,5 @@
 import type { AccessState, UserProfile, UserRole } from "@/contexts/AppContext";
+import { authenticatedFetch } from "@/lib/authenticated-api";
 
 type AccessCheckPayload = {
   status?: "ready" | "missing_profile" | "pending_approval" | "revoked";
@@ -60,13 +61,12 @@ export async function refreshServerProfileAccess({
   currentProfile: UserProfile;
   fallbackName: string;
 }): Promise<ProfileAccessRefreshResult> {
-  const authHeaders = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+  const getToken = async () => token;
 
-  const accessCheckResponse = await fetch(`${apiBase}/api/profiles/access-check`, {
-    headers: authHeaders,
+  const accessCheckResponse = await authenticatedFetch({
+    apiBase,
+    getToken,
+    path: "/api/profiles/access-check",
   });
   if (accessCheckResponse.ok) {
     const accessPayload = (await accessCheckResponse.json()) as AccessCheckPayload;
@@ -87,10 +87,12 @@ export async function refreshServerProfileAccess({
     }
   }
 
-  const response = await fetch(`${apiBase}/api/profiles/sync`, {
+  const response = await authenticatedFetch({
+    apiBase,
+    getToken,
+    path: "/api/profiles/sync",
     method: "POST",
-    headers: authHeaders,
-    body: JSON.stringify({ name: fallbackName }),
+    body: { name: fallbackName },
   });
 
   if (!response.ok) {

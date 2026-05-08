@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import { getApiBase } from "@/lib/api-base";
+import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey } from "@/lib/date-key";
 import { generateId } from "@/lib/id";
 import { decodeVersionedWithLegacyFallback, encodeVersioned } from "@/lib/versioned-storage";
@@ -137,16 +138,6 @@ const DEFAULT_BEHAVIOR_PROFILE: WorkoutBehaviorProfile = {
   consistencyLabel: "starting",
   recoveryState: "fresh",
 };
-
-function safeParse<T>(value: string | null, fallback: T): T {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    console.error("Failed to parse stored workout data", error);
-    return fallback;
-  }
-}
 
 function requireApiBaseOrThrow() {
   const apiBase = getApiBase();
@@ -494,33 +485,25 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const token = await getTokenRef.current();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
       const apiBase = requireApiBaseOrThrow();
 
-      const [sessionsResponse, recordsResponse] = await Promise.all([
-        fetch(`${apiBase}/api/workouts/sessions`, {
-          headers: { Authorization: `Bearer ${token}` },
+      const [sessionsPayload, recordsPayload] = await Promise.all([
+        authenticatedJsonRequest<unknown[]>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/sessions",
         }),
-        fetch(`${apiBase}/api/workouts/personal-records`, {
-          headers: { Authorization: `Bearer ${token}` },
+        authenticatedJsonRequest<Record<string, unknown>>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/personal-records",
         }),
       ]);
-      if (!sessionsResponse.ok) {
-        throw new Error(`Failed to fetch workout sessions (${sessionsResponse.status})`);
-      }
-      if (!recordsResponse.ok) {
-        throw new Error(`Failed to fetch personal records (${recordsResponse.status})`);
-      }
 
-      const remoteSessions = safeParse<unknown[]>(await sessionsResponse.text(), [])
+      const remoteSessions = sessionsPayload
         .map(normalizeWorkoutSession)
         .filter((session): session is WorkoutSession => Boolean(session));
-      const remoteRecords = normalizePersonalRecords(
-        safeParse<Record<string, unknown>>(await recordsResponse.text(), {}),
-      );
+      const remoteRecords = normalizePersonalRecords(recordsPayload);
 
       await Promise.all([
         replaceSessions(mergeSessions(remoteSessions, sessionsRef.current)),
@@ -537,20 +520,13 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const token = await getTokenRef.current();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
       const apiBase = requireApiBaseOrThrow();
 
-      const response = await fetch(`${apiBase}/api/workouts/member-plans`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const payload = await authenticatedJsonRequest<unknown[]>({
+        apiBase,
+        getToken: getTokenRef.current,
+        path: "/api/workouts/member-plans",
       });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch saved workout plans (${response.status})`);
-      }
-
-      const payload = safeParse<unknown[]>(await response.text(), []);
       const remotePlans = payload
         .map(normalizeSavedPlan)
         .filter((plan): plan is SavedWorkoutPlan => Boolean(plan));
@@ -583,29 +559,17 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const token = await getTokenRef.current();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
-        const response = await fetch(`${apiBase}/api/workouts/sessions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(session),
-        });
-
-        if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to sync workout session");
-        }
-
-        const payload = safeParse<{
+        const payload = await authenticatedJsonRequest<{
           session?: unknown;
           personalRecords?: unknown[];
-        }>(await response.text(), {});
+        }>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/sessions",
+          method: "POST",
+          body: session,
+        });
         const remoteSession = normalizeWorkoutSession(payload.session);
         const remoteRecords: Record<string, PersonalRecord> = {};
         for (const record of payload.personalRecords ?? []) {
@@ -886,23 +850,17 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       if (!userId) return;
 
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
-        const response = await fetch(
-          `${apiBase}/api/workouts/sessions/${encodeURIComponent(sessionId)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        if (!response.ok && response.status !== 404) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to delete synced workout session");
-        }
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/workouts/sessions/${encodeURIComponent(sessionId)}`,
+          method: "DELETE",
+        });
       } catch (error) {
+        if (error instanceof AuthenticatedApiError && error.status === 404) {
+          return;
+        }
         console.error("Failed to delete synced workout session", error);
       }
     },
@@ -931,30 +889,19 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (userId) {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
 
-        const endpoint = input.id
-          ? `${apiBase}/api/workouts/member-plans/${encodeURIComponent(input.id)}`
-          : `${apiBase}/api/workouts/member-plans`;
-        const response = await fetch(endpoint, {
-          method: input.id ? "PATCH" : "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name, focus, exercises }),
-        });
-
-        if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to save workout plan");
-        }
-
-        const normalizedPlan = normalizeSavedPlan(safeParse<unknown>(await response.text(), null));
+        const normalizedPlan = normalizeSavedPlan(
+          await authenticatedJsonRequest<unknown>({
+            apiBase,
+            getToken,
+            path: input.id
+              ? `/api/workouts/member-plans/${encodeURIComponent(input.id)}`
+              : "/api/workouts/member-plans",
+            method: input.id ? "PATCH" : "POST",
+            body: { name, focus, exercises },
+          }),
+        );
         if (!normalizedPlan) {
           throw new Error("Saved workout plan response was invalid");
         }
@@ -993,24 +940,14 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const deletePlan = useCallback(
     async (planId: string) => {
       if (userId) {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
 
-        const response = await fetch(
-          `${apiBase}/api/workouts/member-plans/${encodeURIComponent(planId)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-
-        if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to delete workout plan");
-        }
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/workouts/member-plans/${encodeURIComponent(planId)}`,
+          method: "DELETE",
+        });
       }
 
       const nextPlans = savedPlansRef.current.filter((plan) => plan.id !== planId);

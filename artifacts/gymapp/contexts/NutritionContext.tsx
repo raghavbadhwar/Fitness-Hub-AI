@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey, getMillisecondsUntilNextLocalDate } from "@/lib/date-key";
 import { generateId } from "@/lib/id";
 
@@ -69,7 +70,12 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
   const [logs, setLogs] = useState<Record<string, DailyLog>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [today, setToday] = useState(() => getLocalDateKey());
+  const getTokenRef = useRef(getToken);
   const storageKey = `${NUTRITION_STORAGE_KEY}:${userId ?? "guest"}`;
+
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -104,19 +110,21 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
         const storedLogs = stored ? (JSON.parse(stored) as Record<string, DailyLog>) : {};
         if (userId) {
           const apiBase = getApiBase();
-          const token = await getToken();
-          if (apiBase && token) {
-            const response = await fetch(`${apiBase}/api/nutrition/logs`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (response.ok) {
-              const serverLogs = (await response.json()) as ServerNutritionLog[];
+          if (apiBase) {
+            try {
+              const serverLogs = await authenticatedJsonRequest<ServerNutritionLog[]>({
+                apiBase,
+                getToken: getTokenRef.current,
+                path: "/api/nutrition/logs",
+              });
               const mergedLogs = { ...storedLogs, ...logsArrayToMap(serverLogs) };
               if (!cancelled) {
                 setLogs(mergedLogs);
                 await AsyncStorage.setItem(storageKey, JSON.stringify(mergedLogs));
               }
               return;
+            } catch (error) {
+              console.error("Failed to load nutrition logs from server", error);
             }
           }
         }
@@ -138,7 +146,7 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authLoaded, getToken, storageKey, userId]);
+  }, [authLoaded, storageKey, userId]);
 
   const syncLogToServer = useCallback(
     async (log: DailyLog) => {
@@ -147,27 +155,16 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
       if (!apiBase) return;
 
       try {
-        const token = await getToken();
-        if (!token) return;
-
-        const response = await fetch(
-          `${apiBase}/api/nutrition/logs/${encodeURIComponent(log.date)}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              entries: log.entries,
-              waterIntake: log.waterIntake,
-            }),
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/nutrition/logs/${encodeURIComponent(log.date)}`,
+          method: "PUT",
+          body: {
+            entries: log.entries,
+            waterIntake: log.waterIntake,
           },
-        );
-
-        if (!response.ok) {
-          throw new Error(`Nutrition sync failed with ${response.status}`);
-        }
+        });
       } catch (error) {
         console.error("Failed to sync nutrition log", error);
       }

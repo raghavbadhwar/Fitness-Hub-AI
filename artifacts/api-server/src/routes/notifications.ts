@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { and, eq } from "drizzle-orm";
 import {
   db,
   memberNotificationPreferences,
   type MemberNotificationPreference,
 } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
 const router = Router();
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 const DEFAULT_NOTIFICATION_PREFERENCES = {
   classRemindersEnabled: true,

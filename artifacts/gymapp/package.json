@@ -8,7 +8,7 @@
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --experimental-test-module-mocks --experimental-strip-types --test lib/api-base.test.ts lib/clerk-config.test.ts lib/monthly-review.test.ts lib/versioned-storage.test.ts scripts/build.test.cjs"
+    "test": "node --experimental-test-module-mocks --experimental-strip-types --test lib/api-base.test.ts lib/authenticated-api.test.ts lib/clerk-config.test.ts lib/monthly-review.test.ts lib/versioned-storage.test.ts scripts/build.test.cjs"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

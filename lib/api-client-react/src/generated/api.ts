@@ -18,6 +18,8 @@ import type {
 
 import type {
   AccessCheckResponse,
+  AdminAuditLog,
+  AdminListAuditLogsParams,
   AiActivitySnapshotRequest,
   AiActivitySnapshotResponse,
   AiAnalyzeFoodRequest,
@@ -142,7 +144,7 @@ export function useHealthCheck<
 }
 
 /**
- * Returns all upcoming gym classes (public endpoint for mobile app)
+ * Returns all upcoming gym classes for the authenticated caller's approved gym access
  * @summary List all gym classes
  */
 export const getListClassesUrl = () => {
@@ -162,7 +164,7 @@ export const getListClassesQueryKey = () => {
 
 export const getListClassesQueryOptions = <
   TData = Awaited<ReturnType<typeof listClasses>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<Awaited<ReturnType<typeof listClasses>>, TError, TData>;
   request?: SecondParameter<typeof customFetch>;
@@ -182,7 +184,7 @@ export const getListClassesQueryOptions = <
 };
 
 export type ListClassesQueryResult = NonNullable<Awaited<ReturnType<typeof listClasses>>>;
-export type ListClassesQueryError = ErrorType<unknown>;
+export type ListClassesQueryError = ErrorType<ErrorResponse>;
 
 /**
  * @summary List all gym classes
@@ -190,7 +192,7 @@ export type ListClassesQueryError = ErrorType<unknown>;
 
 export function useListClasses<
   TData = Awaited<ReturnType<typeof listClasses>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<Awaited<ReturnType<typeof listClasses>>, TError, TData>;
   request?: SecondParameter<typeof customFetch>;
@@ -1484,6 +1486,90 @@ export const useAdminSetMemberAccess = <
 > => {
   return useMutation(getAdminSetMemberAccessMutationOptions(options));
 };
+
+/**
+ * Returns recent owner-only audit events for sensitive admin actions in the current gym.
+ * @summary List admin audit logs
+ */
+export const getAdminListAuditLogsUrl = (params?: AdminListAuditLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/audit-logs?${stringifiedParams}`
+    : `/api/admin/audit-logs`;
+};
+
+export const adminListAuditLogs = async (
+  params?: AdminListAuditLogsParams,
+  options?: RequestInit,
+): Promise<AdminAuditLog[]> => {
+  return customFetch<AdminAuditLog[]>(getAdminListAuditLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListAuditLogsQueryKey = (params?: AdminListAuditLogsParams) => {
+  return [`/api/admin/audit-logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminListAuditLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListAuditLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: AdminListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListAuditLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListAuditLogs>>> = ({ signal }) =>
+    adminListAuditLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListAuditLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListAuditLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListAuditLogs>>
+>;
+export type AdminListAuditLogsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List admin audit logs
+ */
+
+export function useAdminListAuditLogs<
+  TData = Awaited<ReturnType<typeof adminListAuditLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: AdminListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListAuditLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns at-a-glance dashboard statistics (owner-only)

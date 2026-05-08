@@ -108,6 +108,7 @@ export interface GymClass {
   maxParticipants: number;
   enrolledCount: number;
   waitlistedCount: number;
+  checkedInCount: number;
   room: string;
   status: GymClassStatus;
   color: string;
@@ -209,6 +210,20 @@ export interface UpdateGymSettingsBody {
   phone?: string;
   workingHours?: string;
   description?: string;
+}
+
+export type AdminAuditLogMetadata = { [key: string]: unknown };
+
+export interface AdminAuditLog {
+  id: string;
+  gymId: string;
+  actorClerkId: string;
+  action: string;
+  targetType: string;
+  /** @nullable */
+  targetId: string | null;
+  metadata: AdminAuditLogMetadata;
+  createdAt: string;
 }
 
 export type ClassEnrollmentMemberAttendanceStatus =
@@ -841,6 +856,14 @@ export interface AssignedWorkout {
   trainerName: string;
   exercises: WorkoutTemplateExercise[];
 }
+
+export type AdminListAuditLogsParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
 
 export type MonthlyReviewsGetParams = {
   memberId?: string;

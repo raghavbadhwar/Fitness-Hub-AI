@@ -8,6 +8,9 @@
 
 export * from "./accessCheckResponse";
 export * from "./accessCheckResponseStatus";
+export * from "./adminAuditLog";
+export * from "./adminAuditLogMetadata";
+export * from "./adminListAuditLogsParams";
 export * from "./aiActivitySnapshotRequest";
 export * from "./aiActivitySnapshotResponse";
 export * from "./aiAnalyzeFoodRequest";
