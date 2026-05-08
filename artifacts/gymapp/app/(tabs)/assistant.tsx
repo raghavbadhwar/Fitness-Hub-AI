@@ -24,6 +24,7 @@ import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { getApiBase } from "@/lib/api-base";
 import { impact, notifyWarning } from "@/lib/haptics";
+import { generateId } from "@/lib/id";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
@@ -79,10 +80,6 @@ const QUICK_PROMPTS: Record<CoachMode, string[]> = {
     "Explain safe warmups for shoulder tightness",
   ],
 };
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 function getScopedStorageKey(baseKey: string, userId?: string | null) {
   return userId ? `${baseKey}:${userId}` : baseKey;
