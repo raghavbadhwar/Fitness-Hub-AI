@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import {
@@ -184,6 +185,7 @@ export default function WorkoutScreen() {
 
   const [activeTab, setActiveTab] = useState<TabOption>("workouts");
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [selectedMuscle, setSelectedMuscle] = useState("All");
 
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -194,6 +196,7 @@ export default function WorkoutScreen() {
   const [assignableMembers, setAssignableMembers] = useState<AssignableMember[]>([]);
   const [loadingAssignableMembers, setLoadingAssignableMembers] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
+  const debouncedMemberSearch = useDebounce(memberSearch, 300);
   const [selectedMember, setSelectedMember] = useState<AssignableMember | null>(null);
   const [assigningWorkout, setAssigningWorkout] = useState(false);
   const [reviewMonth, setReviewMonth] = useState(() => getCurrentMonthKey());
@@ -301,18 +304,23 @@ export default function WorkoutScreen() {
   ]);
 
   const filteredExercises = useMemo(() => {
-    return searchExercises(exerciseSearch, selectedMuscle === "All" ? undefined : selectedMuscle);
-  }, [exerciseSearch, selectedMuscle]);
+    // Optimization: Use debounced value to prevent main thread blocking during rapid typing
+    return searchExercises(
+      debouncedExerciseSearch,
+      selectedMuscle === "All" ? undefined : selectedMuscle,
+    );
+  }, [debouncedExerciseSearch, selectedMuscle]);
 
   const filteredAssignableMembers = useMemo(() => {
-    const query = memberSearch.trim().toLowerCase();
+    // Optimization: Use debounced value to prevent main thread blocking during rapid typing
+    const query = debouncedMemberSearch.trim().toLowerCase();
     if (!query) return assignableMembers;
     return assignableMembers.filter((member) => {
       return (
         member.name.toLowerCase().includes(query) || member.email.toLowerCase().includes(query)
       );
     });
-  }, [assignableMembers, memberSearch]);
+  }, [assignableMembers, debouncedMemberSearch]);
   const selectedReviewMember = useMemo(
     () => assignableMembers.find((member) => member.id === selectedReviewMemberId) ?? null,
     [assignableMembers, selectedReviewMemberId],
@@ -1899,9 +1907,13 @@ function CreateTemplateModal({
   const [selectedExercises, setSelectedExercises] = useState<TemplateExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [showPicker, setShowPicker] = useState(false);
 
-  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
+  const filteredForPicker = useMemo(() => {
+    // Optimization: Use debounced value to prevent main thread blocking during rapid typing
+    return searchExercises(debouncedExerciseSearch);
+  }, [debouncedExerciseSearch]);
 
   const addExercise = (exId: string) => {
     const ex = EXERCISES.find((e) => e.id === exId);
@@ -2147,6 +2159,7 @@ function MemberPlanModal({
   const [selectedExercises, setSelectedExercises] = useState<SaveWorkoutPlanInput["exercises"]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
@@ -2159,7 +2172,10 @@ function MemberPlanModal({
     setSaving(false);
   }, [initialPlan, visible]);
 
-  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
+  const filteredForPicker = useMemo(() => {
+    // Optimization: Use debounced value to prevent main thread blocking during rapid typing
+    return searchExercises(debouncedExerciseSearch);
+  }, [debouncedExerciseSearch]);
 
   const addExercise = (exerciseId: string) => {
     const exercise = EXERCISES.find((item) => item.id === exerciseId);
