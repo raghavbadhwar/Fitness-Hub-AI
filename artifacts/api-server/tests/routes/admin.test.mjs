@@ -141,6 +141,15 @@ mock.module("drizzle-orm", {
     sum() {
       return { op: "sum" };
     },
+    desc() {
+      return { op: "desc" };
+    },
+    lte() {
+      return { op: "lte" };
+    },
+    sql() {
+      return { op: "sql" };
+    },
   },
 });
 
