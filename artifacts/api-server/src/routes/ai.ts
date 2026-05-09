@@ -1,14 +1,19 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { requireAuth } from "@clerk/express";
+import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { ai } from "@workspace/integrations-gemini-ai";
 import { db, memberAiProfiles } from "@workspace/db";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
-import { getRequestUserId } from "../lib/clerk-request.ts";
-import { createFixedWindowRateLimiter } from "../lib/fixed-window-rate-limit.ts";
+import {
+  createFixedWindowRateLimiter,
+  createFixedWindowRateLimitStore,
+} from "../lib/fixed-window-rate-limit.ts";
 import {
   appendRecentMessages,
+  AI_SAFETY_INSTRUCTION,
   buildSystemInstruction,
+  detectAiSafetyConcern,
   MAX_CLIENT_HISTORY_MESSAGES,
   mergeMemoryUpdate,
   normalizeStoredMessages,
@@ -19,27 +24,86 @@ import {
 
 const router = Router();
 
+interface AiFoodAnalysis {
+  dishName: string;
+  cuisine: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  confidence: "high" | "medium" | "low";
+  ingredients: string[];
+  healthTip: string;
+}
+
+interface AiWorkoutSuggestionExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  notes?: string | null;
+}
+
+interface AiWorkoutSuggestion {
+  workoutName: string;
+  focus: string;
+  duration: number;
+  exercises: AiWorkoutSuggestionExercise[];
+  warmup: string;
+  cooldown: string;
+  motivationalTip: string;
+}
+
+function getPositiveIntegerEnv(key: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[key] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_PER_WINDOW = 20;
+const RATE_LIMIT_MAX_PER_WINDOW = getPositiveIntegerEnv("AI_RATE_LIMIT_MAX_PER_MINUTE", 20);
+const RATE_LIMIT_MAX_KEYS = getPositiveIntegerEnv("AI_RATE_LIMIT_MAX_KEYS", 10_000);
+const rateLimitStore = createFixedWindowRateLimitStore({
+  maxKeys: RATE_LIMIT_MAX_KEYS,
+  pruneIntervalMs: Math.min(RATE_LIMIT_WINDOW_MS, 10_000),
+});
 const ACTIVITY_SNAPSHOT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ACTIVITY_SNAPSHOT_CHARS = 8_000;
+const MAX_IMAGE_BASE64_BYTES = getPositiveIntegerEnv("AI_MAX_IMAGE_BASE64_BYTES", 5_000_000);
+const MAX_CHAT_MESSAGES = getPositiveIntegerEnv(
+  "AI_MAX_CHAT_MESSAGES",
+  MAX_CLIENT_HISTORY_MESSAGES,
+);
+const MAX_CHAT_MESSAGE_CHARS = getPositiveIntegerEnv("AI_MAX_CHAT_MESSAGE_CHARS", 4_000);
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 const rateLimit = createFixedWindowRateLimiter({
   windowMs: RATE_LIMIT_WINDOW_MS,
   maxRequests: RATE_LIMIT_MAX_PER_WINDOW,
+  store: rateLimitStore,
   getKey(req) {
     return getAiRateLimitKey(req);
+  },
+  onLimitExceeded({ req, key, count, resetAt }) {
+    req.log?.warn?.(
+      {
+        route: "ai",
+        rateLimitKey: key,
+        count,
+        resetAt: new Date(resetAt).toISOString(),
+      },
+      "AI rate limit exceeded",
+    );
+  },
+  onStoreError({ req, error }) {
+    req.log?.error?.({ err: error, route: "ai" }, "AI rate limit store error");
   },
 });
 
 function getAiRateLimitKey(req: Request) {
-  const userId = getRequestUserId(req);
-  if (userId) {
-    return `user:${userId}`;
-  }
-
-  return `ip:${req.ip || req.socket.remoteAddress || "unknown"}`;
+  const userId = getAuth(req)?.userId;
+  return `user:${userId ?? "unauthenticated"}`;
 }
 
 async function requireApprovedAiAccess(
@@ -50,6 +114,14 @@ async function requireApprovedAiAccess(
   try {
     const access = await requireApprovedAccess(req, res);
     if (!access) {
+      req.log?.warn?.(
+        {
+          route: "ai",
+          userId: getAuth(req)?.userId ?? null,
+          statusCode: res.statusCode,
+        },
+        "AI access denied",
+      );
       return;
     }
 
@@ -118,7 +190,166 @@ function parseModelJsonResponse(rawText: string): unknown {
   return JSON.parse(cleaned);
 }
 
-router.use(requireAuth());
+function hasText(value: string, maxLength = 240): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= maxLength;
+}
+
+function isFiniteInRange(value: number, min: number, max: number): boolean {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+function validateFoodAnalysis(raw: unknown): AiFoodAnalysis {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("AI food analysis did not match the expected schema");
+  }
+
+  const result = raw as Partial<AiFoodAnalysis>;
+  const confidence = result.confidence;
+  const ingredients = result.ingredients;
+  const validTextFields =
+    typeof result.dishName === "string" &&
+    hasText(result.dishName, 120) &&
+    typeof result.cuisine === "string" &&
+    hasText(result.cuisine, 80) &&
+    typeof result.servingSize === "string" &&
+    hasText(result.servingSize, 80) &&
+    typeof result.healthTip === "string" &&
+    hasText(result.healthTip, 300);
+  const validNutrition =
+    typeof result.calories === "number" &&
+    isFiniteInRange(result.calories, 0, 2500) &&
+    typeof result.protein === "number" &&
+    isFiniteInRange(result.protein, 0, 250) &&
+    typeof result.carbs === "number" &&
+    isFiniteInRange(result.carbs, 0, 400) &&
+    typeof result.fat === "number" &&
+    isFiniteInRange(result.fat, 0, 250) &&
+    typeof result.fiber === "number" &&
+    isFiniteInRange(result.fiber, 0, 100);
+  const validConfidence =
+    confidence === "high" || confidence === "medium" || confidence === "low";
+  const validIngredients =
+    Array.isArray(ingredients) &&
+    ingredients.length > 0 &&
+    ingredients.length <= 20 &&
+    ingredients.every((ingredient) => hasText(ingredient, 80));
+
+  if (!validTextFields || !validNutrition || !validConfidence || !validIngredients) {
+    throw new Error("AI food analysis contained unsafe or unrealistic values");
+  }
+
+  return result as AiFoodAnalysis;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function collectWorkoutInjuries(args: {
+  userProfile?: Record<string, unknown>;
+  memoryProfile?:
+    | {
+        injuries?: unknown;
+      }
+    | null
+    | undefined;
+}): string[] {
+  return [
+    ...normalizeStringArray(args.userProfile?.injuries),
+    ...normalizeStringArray(args.memoryProfile?.injuries),
+  ];
+}
+
+function exerciseConflictsWithInjuries(exerciseName: string, injuries: string[]): string | null {
+  const normalizedName = exerciseName.toLowerCase();
+  const conflictRules: Array<{ injury: string; pattern: RegExp }> = [
+    { injury: "lower_back", pattern: /\b(deadlift|rdl|good morning|back squat|barbell row)\b/ },
+    { injury: "knee", pattern: /\b(jump|lunge|pistol squat|box jump|deep squat)\b/ },
+    { injury: "shoulder", pattern: /\b(overhead press|dips?|upright row|behind neck)\b/ },
+    { injury: "wrist", pattern: /\b(push-?up|plank|burpee|bench press|front rack)\b/ },
+  ];
+
+  for (const rule of conflictRules) {
+    if (injuries.includes(rule.injury) && rule.pattern.test(normalizedName)) {
+      return rule.injury;
+    }
+  }
+
+  return null;
+}
+
+function validateWorkoutSuggestion(
+  raw: unknown,
+  args: {
+    requestedMinutes: number;
+    injuries: string[];
+  },
+): AiWorkoutSuggestion {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("AI workout suggestion did not match the expected schema");
+  }
+
+  const result = raw as Partial<AiWorkoutSuggestion>;
+  const exercises = result.exercises;
+  const validSummary =
+    typeof result.workoutName === "string" &&
+    hasText(result.workoutName, 120) &&
+    typeof result.focus === "string" &&
+    hasText(result.focus, 80) &&
+    typeof result.warmup === "string" &&
+    hasText(result.warmup, 400) &&
+    typeof result.cooldown === "string" &&
+    hasText(result.cooldown, 400) &&
+    typeof result.motivationalTip === "string" &&
+    hasText(result.motivationalTip, 300) &&
+    typeof result.duration === "number" &&
+    isFiniteInRange(result.duration, 5, Math.max(10, args.requestedMinutes + 15));
+  const validExercises =
+    Array.isArray(exercises) &&
+    exercises.length > 0 &&
+    exercises.length <= 12 &&
+    exercises.every((exercise) => {
+      if (!exercise || typeof exercise !== "object") {
+        return false;
+      }
+
+      return (
+        typeof exercise.name === "string" &&
+        hasText(exercise.name, 100) &&
+        typeof exercise.reps === "string" &&
+        hasText(exercise.reps, 40) &&
+        typeof exercise.sets === "number" &&
+        isFiniteInRange(exercise.sets, 1, 8) &&
+        typeof exercise.restSeconds === "number" &&
+        isFiniteInRange(exercise.restSeconds, 0, 300) &&
+        (exercise.notes == null ||
+          (typeof exercise.notes === "string" && hasText(exercise.notes, 240)))
+      );
+    });
+
+  if (!validSummary || !validExercises) {
+    throw new Error("AI workout suggestion contained unsafe or unrealistic values");
+  }
+
+  const conflictingExercise = exercises.find((exercise) =>
+    exerciseConflictsWithInjuries(exercise.name, args.injuries),
+  );
+  if (conflictingExercise) {
+    throw new Error("AI workout suggestion conflicted with member injury constraints");
+  }
+
+  return result as AiWorkoutSuggestion;
+}
+
+router.use(requireApiAuth);
 router.use(rateLimit);
 router.use(requireApprovedAiAccess);
 
@@ -205,10 +436,37 @@ router.post("/analyze-food", async (req: Request, res: Response) => {
       return;
     }
 
+    const imageSizeBytes = Buffer.byteLength(imageBase64, "utf8");
+    if (imageSizeBytes > MAX_IMAGE_BASE64_BYTES) {
+      req.log?.warn?.(
+        {
+          route: "ai.analyzeFood",
+          userId: getAiUserId(res),
+          imageSizeBytes,
+          maxImageBase64Bytes: MAX_IMAGE_BASE64_BYTES,
+        },
+        "AI food image payload rejected",
+      );
+      res.status(413).json({ error: "imageBase64 exceeds the maximum allowed size" });
+      return;
+    }
+
+    req.log?.info?.(
+      {
+        route: "ai.analyzeFood",
+        userId: getAiUserId(res),
+        model: GEMINI_MODEL,
+        mimeType,
+        imageSizeBytes,
+      },
+      "AI food analysis request",
+    );
+
     const prompt = `You are an expert nutritionist specializing in Indian cuisine. Analyze this food image and provide detailed nutritional information.
 
 If this is an Indian dish, identify it accurately (e.g., Butter Chicken, Palak Paneer, Biryani, Roti, Dal Tadka, Idli, Dosa, Samosa, Chole Bhature, etc.).
 If it's not Indian food, still provide accurate nutritional data.
+Do not frame the result as a prescription for extreme dieting, medical treatment, or eating-disorder behavior. Keep the health tip conservative and food-neutral.
 
 For the portion visible in the image, estimate a typical serving size and return ONLY this JSON (no markdown, no extra text):
 {
@@ -238,14 +496,14 @@ Return only the JSON, no other text.`;
     });
 
     try {
-      const parsed = parseModelJsonResponse(response.text ?? "");
+      const parsed = validateFoodAnalysis(parseModelJsonResponse(response.text ?? ""));
       res.json(parsed);
     } catch (parseErr) {
-      req.log.error(
+      req.log?.error?.(
         {
           err: parseErr,
           model: GEMINI_MODEL,
-          rawText: response.text,
+          rawTextLength: response.text?.length ?? 0,
         },
         "Food analysis JSON parse error",
       );
@@ -280,10 +538,50 @@ router.post("/chat", async (req: Request, res: Response) => {
       return;
     }
 
-    if (sanitizedIncomingMessages.length > MAX_CLIENT_HISTORY_MESSAGES) {
+    if (sanitizedIncomingMessages.length > MAX_CHAT_MESSAGES) {
       res.status(400).json({ error: "Too many messages in history" });
       return;
     }
+
+    if (
+      sanitizedIncomingMessages.some(
+        (message) => Buffer.byteLength(message.content, "utf8") > MAX_CHAT_MESSAGE_CHARS,
+      )
+    ) {
+      res.status(400).json({ error: "Message is too long" });
+      return;
+    }
+
+    const safetyConcern = detectAiSafetyConcern(
+      sanitizedIncomingMessages.map((message) => message.content).join("\n"),
+    );
+    if (safetyConcern) {
+      req.log?.warn?.(
+        {
+          route: "ai.chat",
+          userId,
+          safetyCategory: safetyConcern.category,
+        },
+        "AI chat safety guardrail triggered",
+      );
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.write(`data: ${JSON.stringify({ text: safetyConcern.response })}\n\n`);
+      res.write("data: [DONE]\n\n");
+      res.end();
+      return;
+    }
+
+    req.log?.info?.(
+      {
+        route: "ai.chat",
+        userId,
+        model: GEMINI_MODEL,
+        messageCount: sanitizedIncomingMessages.length,
+      },
+      "AI chat request",
+    );
 
     const [memoryProfile] = await db
       .select()
@@ -402,7 +700,7 @@ ${JSON.stringify({
         parseMemoryExtraction(memoryUpdateResponse.text),
       );
     } catch (memoryErr) {
-      req.log.error({ err: memoryErr }, "AI memory extraction error");
+      req.log.error({ err: memoryErr, route: "ai.chat", userId }, "AI memory extraction error");
     }
 
     await db
@@ -436,7 +734,7 @@ ${JSON.stringify({
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (err: unknown) {
-    req.log.error({ err }, "AI chat error");
+    req.log.error({ err, route: "ai.chat" }, "AI chat error");
     if (!res.headersSent) {
       res.status(500).json({ error: "AI chat failed" });
     } else {
@@ -492,7 +790,10 @@ router.post("/activity-snapshot", async (req: Request, res: Response) => {
         parseMemoryExtraction(memoryUpdateResponse.text),
       );
     } catch (memoryErr) {
-      req.log.error({ err: memoryErr }, "AI activity memory extraction error");
+      req.log?.error?.(
+        { err: memoryErr, route: "ai.activitySnapshot", userId },
+        "AI activity memory extraction error",
+      );
     }
 
     const updatedAt = new Date();
@@ -544,6 +845,7 @@ router.post("/workout-suggestion", async (req: Request, res: Response) => {
       todayStats,
       behaviorProfile,
       savedPlans,
+      userProfile,
     } = (req.body ?? {}) as {
       recentWorkouts?: unknown[];
       goals?: string;
@@ -552,6 +854,7 @@ router.post("/workout-suggestion", async (req: Request, res: Response) => {
       todayStats?: Record<string, unknown>;
       behaviorProfile?: Record<string, unknown>;
       savedPlans?: unknown[];
+      userProfile?: Record<string, unknown>;
     };
     const userId = getAiUserId(res);
     const [memoryProfile] = userId
@@ -568,6 +871,7 @@ Recent Workouts: ${JSON.stringify(recentWorkouts ?? [])}
 Goals: ${goals ?? "general fitness"}
 Fitness Level: ${fitnessLevel ?? "intermediate"}
 Available Time: ${availableTime ?? 45} minutes
+Member Profile Constraints: ${JSON.stringify(userProfile ?? {})}
 Today's Nutrition/Recovery Context: ${JSON.stringify(todayStats ?? {})}
 Behavior Profile: ${JSON.stringify(behaviorProfile ?? {})}
 Saved Plans: ${JSON.stringify(savedPlans ?? [])}
@@ -580,7 +884,9 @@ Durable Member Memory: ${JSON.stringify({
       injuries: memoryProfile?.injuries ?? [],
     })}
 
-Make the workout feel premium but easy to execute. Auto-adjust volume, intensity, exercise choice, and recovery demand from the behavior profile, today's nutrition/recovery context, saved plans, and durable memory. Reuse familiar movement patterns when the user is building consistency, bias toward saved-plan themes before inventing a completely different routine, and avoid exercises that conflict with remembered injuries or limitations.
+Make the workout feel premium but easy to execute. Auto-adjust volume, intensity, exercise choice, and recovery demand from the member profile constraints, behavior profile, today's nutrition/recovery context, saved plans, and durable memory. Reuse familiar movement patterns when the user is building consistency, bias toward saved-plan themes before inventing a completely different routine, match the user's available equipment, and avoid exercises that conflict with profile or remembered injuries and limitations.
+
+${AI_SAFETY_INSTRUCTION}
 
 Return ONLY this JSON (no markdown):
 {
@@ -601,20 +907,34 @@ Return ONLY this JSON (no markdown):
   "motivationalTip": "A motivating message"
 }`;
 
+    req.log?.info?.(
+      {
+        route: "ai.workoutSuggestion",
+        userId,
+        model: GEMINI_MODEL,
+        recentWorkoutCount: recentWorkouts?.length ?? 0,
+        savedPlanCount: savedPlans?.length ?? 0,
+      },
+      "AI workout suggestion request",
+    );
+
     const response = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
 
     try {
-      const parsed = parseModelJsonResponse(response.text ?? "");
+      const parsed = validateWorkoutSuggestion(parseModelJsonResponse(response.text ?? ""), {
+        requestedMinutes: availableTime ?? 45,
+        injuries: collectWorkoutInjuries({ userProfile, memoryProfile }),
+      });
       res.json(parsed);
     } catch (parseErr) {
-      req.log.error(
+      req.log?.error?.(
         {
           err: parseErr,
           model: GEMINI_MODEL,
-          rawText: response.text,
+          rawTextLength: response.text?.length ?? 0,
         },
         "Workout suggestion JSON parse error",
       );

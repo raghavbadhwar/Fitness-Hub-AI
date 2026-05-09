@@ -16,7 +16,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns all upcoming gym classes (public endpoint for mobile app)
+ * Returns all upcoming gym classes for the authenticated caller's approved gym access
  * @summary List all gym classes
  */
 export const ListClassesResponseItem = zod.object({
@@ -42,6 +42,7 @@ export const ListClassesResponseItem = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -96,6 +97,7 @@ export const EnrollInClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -133,6 +135,7 @@ export const LeaveClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -170,6 +173,7 @@ export const JoinClassWaitlistResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -207,6 +211,7 @@ export const LeaveClassWaitlistResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -241,6 +246,7 @@ export const AdminListClassesResponseItem = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -334,6 +340,7 @@ export const AdminUpdateClassResponse = zod.object({
   maxParticipants: zod.number(),
   enrolledCount: zod.number(),
   waitlistedCount: zod.number(),
+  checkedInCount: zod.number(),
   room: zod.string(),
   status: zod.enum(["scheduled", "in_progress", "completed", "cancelled"]),
   color: zod.string(),
@@ -495,14 +502,61 @@ export const AdminSetMemberAccessResponse = zod.object({
 });
 
 /**
+ * Returns recent owner-only audit events for sensitive admin actions in the current gym.
+ * @summary List admin audit logs
+ */
+export const adminListAuditLogsQueryLimitDefault = 50;
+export const adminListAuditLogsQueryLimitMax = 100;
+
+export const AdminListAuditLogsQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(adminListAuditLogsQueryLimitMax)
+    .default(adminListAuditLogsQueryLimitDefault),
+});
+
+export const AdminListAuditLogsResponseItem = zod.object({
+  id: zod.string(),
+  gymId: zod.string(),
+  actorClerkId: zod.string(),
+  action: zod.string(),
+  targetType: zod.string(),
+  targetId: zod.string().nullable(),
+  metadata: zod.record(zod.string(), zod.unknown()),
+  createdAt: zod.string(),
+});
+export const AdminListAuditLogsResponse = zod.array(AdminListAuditLogsResponseItem);
+
+/**
  * Returns at-a-glance dashboard statistics (owner-only)
  * @summary Get dashboard stats
  */
+export const adminGetDashboardResponseAverageClassOccupancyMin = 0;
+
+export const adminGetDashboardResponseLowAttendanceClassesItemOccupancyPercentMin = 0;
+
 export const AdminGetDashboardResponse = zod.object({
   totalClassesThisWeek: zod.number(),
   totalEnrollments: zod.number(),
+  totalEnrollmentsThisWeek: zod.number(),
+  averageClassOccupancy: zod.number().min(adminGetDashboardResponseAverageClassOccupancyMin),
+  upcomingClassesCount: zod.number(),
   mostPopularCategory: zod.string(),
   totalActiveMembers: zod.number(),
+  lowAttendanceClasses: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      date: zod.coerce.date(),
+      startTime: zod.string(),
+      enrolledCount: zod.number(),
+      maxParticipants: zod.number(),
+      occupancyPercent: zod
+        .number()
+        .min(adminGetDashboardResponseLowAttendanceClassesItemOccupancyPercentMin),
+    }),
+  ),
   weeklyClassCounts: zod.array(
     zod.object({
       day: zod.string(),
@@ -645,6 +699,7 @@ export const AiWorkoutSuggestionBody = zod.object({
   goals: zod.string().optional(),
   fitnessLevel: zod.string().optional(),
   availableTime: zod.number().optional(),
+  userProfile: zod.record(zod.string(), zod.unknown()).optional(),
   todayStats: zod.record(zod.string(), zod.unknown()).optional(),
   behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
   savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
@@ -742,6 +797,250 @@ export const MonthlyReviewsGetResponse = zod.object({
     }),
     zod.null(),
   ]),
+});
+
+/**
+ * @summary List nutrition logs for the signed-in member
+ */
+export const nutritionListLogsQueryFromRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const nutritionListLogsQueryToRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionListLogsQueryParams = zod.object({
+  from: zod.coerce.string().regex(nutritionListLogsQueryFromRegExp).optional(),
+  to: zod.coerce.string().regex(nutritionListLogsQueryToRegExp).optional(),
+});
+
+export const NutritionListLogsResponseItem = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const NutritionListLogsResponse = zod.array(NutritionListLogsResponseItem);
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+export const nutritionGetLogPathDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionGetLogParams = zod.object({
+  date: zod.coerce.string().regex(nutritionGetLogPathDateRegExp),
+});
+
+export const NutritionGetLogResponse = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const nutritionPutLogPathDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const NutritionPutLogParams = zod.object({
+  date: zod.coerce.string().regex(nutritionPutLogPathDateRegExp),
+});
+
+export const NutritionPutLogBody = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+});
+
+export const NutritionPutLogResponse = zod.object({
+  id: zod.string().optional(),
+  date: zod.string(),
+  entries: zod.array(
+    zod.object({
+      id: zod.string(),
+      foodId: zod.string().optional(),
+      name: zod.string(),
+      mealType: zod.string().optional(),
+      servings: zod.number().optional(),
+      servingSize: zod.string().optional(),
+      calories: zod.number().optional(),
+      protein: zod.number().optional(),
+      carbs: zod.number().optional(),
+      fat: zod.number().optional(),
+      fiber: zod.number().optional(),
+      timestamp: zod.number().optional(),
+      fromPhoto: zod.boolean().optional(),
+      photoUri: zod.string().optional(),
+    }),
+  ),
+  waterIntake: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary List signed-in member progress entries
+ */
+export const progressListEntriesResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressListEntriesResponseItem = zod.object({
+  id: zod.string(),
+  date: zod.string().regex(progressListEntriesResponseDateRegExp),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ProgressListEntriesResponse = zod.array(ProgressListEntriesResponseItem);
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const progressCreateEntryBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressCreateEntryBody = zod.object({
+  id: zod.string().optional(),
+  date: zod.string().regex(progressCreateEntryBodyDateRegExp).optional(),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+});
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const ProgressUpdateEntryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const progressUpdateEntryBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressUpdateEntryBody = zod.object({
+  id: zod.string().optional(),
+  date: zod.string().regex(progressUpdateEntryBodyDateRegExp).optional(),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+});
+
+export const progressUpdateEntryResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const ProgressUpdateEntryResponse = zod.object({
+  id: zod.string(),
+  date: zod.string().regex(progressUpdateEntryResponseDateRegExp),
+  weight: zod.number().optional(),
+  chest: zod.number().optional(),
+  waist: zod.number().optional(),
+  hips: zod.number().optional(),
+  biceps: zod.number().optional(),
+  thighs: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const ProgressDeleteEntryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ProgressDeleteEntryResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Get signed-in member notification preferences
+ */
+export const NotificationsGetPreferencesResponse = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Update signed-in member notification preferences
+ */
+export const NotificationsUpdatePreferencesBody = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
+});
+
+export const NotificationsUpdatePreferencesResponse = zod.object({
+  classRemindersEnabled: zod.boolean(),
+  workoutRemindersEnabled: zod.boolean(),
+  reminderLeadMinutes: zod.number(),
+  emailEnabled: zod.boolean(),
+  pushEnabled: zod.boolean(),
+  updatedAt: zod.string().optional(),
 });
 
 /**
@@ -1057,6 +1356,196 @@ export const WorkoutsCreateMemberPlanBody = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List signed-in member workout sessions
+ */
+export const workoutsListSessionsResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsListSessionsResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsListSessionsResponseDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const WorkoutsListSessionsResponse = zod.array(WorkoutsListSessionsResponseItem);
+
+/**
+ * @summary Create or upsert a signed-in member workout session
+ */
+export const workoutsCreateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsCreateSessionBody = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsCreateSessionBodyDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Update a signed-in member workout session
+ */
+export const WorkoutsUpdateSessionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const workoutsUpdateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsUpdateSessionBody = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  date: zod.string().regex(workoutsUpdateSessionBodyDateRegExp),
+  startTime: zod.number(),
+  endTime: zod.number().optional(),
+  duration: zod.number().optional(),
+  exercises: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      name: zod.string(),
+      sets: zod.array(
+        zod.object({
+          id: zod.string(),
+          weight: zod.number(),
+          reps: zod.number(),
+          completed: zod.boolean(),
+        }),
+      ),
+      notes: zod.string().nullish(),
+    }),
+  ),
+  notes: zod.string().nullish(),
+  totalVolume: zod.number(),
+  caloriesBurned: zod.number(),
+  completed: zod.boolean(),
+  aiGenerated: zod.boolean().optional(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+export const workoutsUpdateSessionResponseSessionDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsUpdateSessionResponse = zod.object({
+  session: zod.object({
+    id: zod.string(),
+    name: zod.string(),
+    date: zod.string().regex(workoutsUpdateSessionResponseSessionDateRegExp),
+    startTime: zod.number(),
+    endTime: zod.number().optional(),
+    duration: zod.number().optional(),
+    exercises: zod.array(
+      zod.object({
+        id: zod.string(),
+        exerciseId: zod.string(),
+        name: zod.string(),
+        sets: zod.array(
+          zod.object({
+            id: zod.string(),
+            weight: zod.number(),
+            reps: zod.number(),
+            completed: zod.boolean(),
+          }),
+        ),
+        notes: zod.string().nullish(),
+      }),
+    ),
+    notes: zod.string().nullish(),
+    totalVolume: zod.number(),
+    caloriesBurned: zod.number(),
+    completed: zod.boolean(),
+    aiGenerated: zod.boolean().optional(),
+    createdAt: zod.string().optional(),
+    updatedAt: zod.string().optional(),
+  }),
+  personalRecords: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      weight: zod.number(),
+      reps: zod.number(),
+      date: zod.string(),
+      sessionId: zod.string().optional(),
+      updatedAt: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete a signed-in member workout session
+ */
+export const WorkoutsDeleteSessionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const WorkoutsDeleteSessionResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List signed-in member personal records
+ */
+export const WorkoutsListPersonalRecordsResponse = zod.record(
+  zod.string(),
+  zod.object({
+    exerciseId: zod.string(),
+    name: zod.string(),
+    weight: zod.number(),
+    reps: zod.number(),
+    date: zod.string(),
+    sessionId: zod.string().optional(),
+    updatedAt: zod.string().optional(),
+  }),
+);
 
 /**
  * @summary Update a member workout plan

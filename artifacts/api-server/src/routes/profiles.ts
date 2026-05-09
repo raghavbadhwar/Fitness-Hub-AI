@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
 import { db, userProfiles } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedClerkUser } from "../lib/clerk-request.ts";
+import { requireApiAuth } from "../middlewares/apiAuth.ts";
+import { readObjectBody } from "../lib/request-validation.ts";
 import {
   displayNameForClerkUser,
   getPrimaryEmail,
@@ -13,7 +14,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth());
+router.use(requireApiAuth);
 
 router.get("/access-check", async (req: Request, res: Response) => {
   try {
@@ -88,7 +89,12 @@ router.post("/sync", async (req: Request, res: Response) => {
       return;
     }
 
-    const body = (req.body ?? {}) as { name?: string };
+    const body = readObjectBody(req.body, res);
+    if (!body) return;
+    if ("name" in body && typeof body.name !== "string") {
+      res.status(400).json({ error: "name must be a string" });
+      return;
+    }
     const requestedName =
       typeof body.name === "string" && body.name.trim()
         ? body.name.trim().slice(0, 120)

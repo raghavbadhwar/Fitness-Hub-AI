@@ -108,6 +108,7 @@ export interface GymClass {
   maxParticipants: number;
   enrolledCount: number;
   waitlistedCount: number;
+  checkedInCount: number;
   room: string;
   status: GymClassStatus;
   color: string;
@@ -209,6 +210,20 @@ export interface UpdateGymSettingsBody {
   phone?: string;
   workingHours?: string;
   description?: string;
+}
+
+export type AdminAuditLogMetadata = { [key: string]: unknown };
+
+export interface AdminAuditLog {
+  id: string;
+  gymId: string;
+  actorClerkId: string;
+  action: string;
+  targetType: string;
+  /** @nullable */
+  targetId: string | null;
+  metadata: AdminAuditLogMetadata;
+  createdAt: string;
 }
 
 export type ClassEnrollmentMemberAttendanceStatus =
@@ -326,11 +341,27 @@ export interface WeeklyClassCount {
   count: number;
 }
 
+export interface DashboardLowAttendanceClass {
+  id: number;
+  name: string;
+  date: string;
+  startTime: string;
+  enrolledCount: number;
+  maxParticipants: number;
+  /** @minimum 0 */
+  occupancyPercent: number;
+}
+
 export interface DashboardStats {
   totalClassesThisWeek: number;
   totalEnrollments: number;
+  totalEnrollmentsThisWeek: number;
+  /** @minimum 0 */
+  averageClassOccupancy: number;
+  upcomingClassesCount: number;
   mostPopularCategory: string;
   totalActiveMembers: number;
+  lowAttendanceClasses: DashboardLowAttendanceClass[];
   weeklyClassCounts: WeeklyClassCount[];
 }
 
@@ -431,6 +462,7 @@ export interface AiWorkoutSuggestionRequest {
   goals?: string;
   fitnessLevel?: string;
   availableTime?: number;
+  userProfile?: JsonObject;
   todayStats?: JsonObject;
   behaviorProfile?: JsonObject;
   savedPlans?: JsonObject[];
@@ -604,6 +636,73 @@ export interface MonthlyReviewReviewBody {
   status?: MonthlyReviewReviewBodyStatus;
 }
 
+export interface NutritionEntry {
+  id: string;
+  foodId?: string;
+  name: string;
+  mealType?: string;
+  servings?: number;
+  servingSize?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  timestamp?: number;
+  fromPhoto?: boolean;
+  photoUri?: string;
+  [key: string]: unknown;
+}
+
+export interface NutritionLog {
+  id?: string;
+  date: string;
+  entries: NutritionEntry[];
+  waterIntake: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertNutritionLogBody {
+  entries: NutritionEntry[];
+  waterIntake: number;
+}
+
+export interface ProgressEntry {
+  id: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  weight?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  biceps?: number;
+  thighs?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertProgressEntryBody {
+  id?: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date?: string;
+  weight?: number;
+  chest?: number;
+  waist?: number;
+  hips?: number;
+  biceps?: number;
+  thighs?: number;
+}
+
+export interface NotificationPreferences {
+  classRemindersEnabled: boolean;
+  workoutRemindersEnabled: boolean;
+  reminderLeadMinutes: number;
+  emailEnabled: boolean;
+  pushEnabled: boolean;
+  updatedAt?: string;
+}
+
 export interface WorkoutMember {
   id: string;
   name: string;
@@ -649,6 +748,60 @@ export interface WorkoutAssignment {
 export interface WorkoutAssignBody {
   templateId: number;
   memberId: string;
+}
+
+export interface WorkoutSessionSet {
+  id: string;
+  weight: number;
+  reps: number;
+  completed: boolean;
+}
+
+export interface WorkoutSessionExercise {
+  id: string;
+  exerciseId: string;
+  name: string;
+  sets: WorkoutSessionSet[];
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface WorkoutSession {
+  id: string;
+  name: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  exercises: WorkoutSessionExercise[];
+  /** @nullable */
+  notes?: string | null;
+  totalVolume: number;
+  caloriesBurned: number;
+  completed: boolean;
+  aiGenerated?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PersonalRecord {
+  exerciseId: string;
+  name: string;
+  weight: number;
+  reps: number;
+  date: string;
+  sessionId?: string;
+  updatedAt?: string;
+}
+
+export interface PersonalRecordsResponse {
+  [key: string]: PersonalRecord;
+}
+
+export interface WorkoutSessionMutationResponse {
+  session: WorkoutSession;
+  personalRecords: PersonalRecord[];
 }
 
 export interface MemberWorkoutPlanExercise {
@@ -705,12 +858,31 @@ export interface AssignedWorkout {
   exercises: WorkoutTemplateExercise[];
 }
 
+export type AdminListAuditLogsParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
 export type MonthlyReviewsGetParams = {
   memberId?: string;
   /**
    * @pattern ^\d{4}-(0[1-9]|1[0-2])$
    */
   month: string;
+};
+
+export type NutritionListLogsParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  from?: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  to?: string;
 };
 
 export type WorkoutsListAssignedParams = {

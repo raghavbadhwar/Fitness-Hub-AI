@@ -18,6 +18,8 @@ import type {
 
 import type {
   AccessCheckResponse,
+  AdminAuditLog,
+  AdminListAuditLogsParams,
   AiActivitySnapshotRequest,
   AiActivitySnapshotResponse,
   AiAnalyzeFoodRequest,
@@ -43,8 +45,13 @@ import type {
   MonthlyReviewResponse,
   MonthlyReviewReviewBody,
   MonthlyReviewsGetParams,
+  NotificationPreferences,
+  NutritionListLogsParams,
+  NutritionLog,
   OkResponse,
+  PersonalRecordsResponse,
   Profile,
+  ProgressEntry,
   SetMemberAccessBody,
   SuccessResponse,
   SyncProfileBody,
@@ -53,11 +60,15 @@ import type {
   UpdateGymSettingsBody,
   UpdateMemberBody,
   UpsertMemberWorkoutPlanBody,
+  UpsertNutritionLogBody,
+  UpsertProgressEntryBody,
   WaitlistedClassIdsResponse,
   WorkoutAssignBody,
   WorkoutAssignment,
   WorkoutAssignmentsBindResponse,
   WorkoutMember,
+  WorkoutSession,
+  WorkoutSessionMutationResponse,
   WorkoutTemplate,
   WorkoutsListAssignedParams,
 } from "./api.schemas";
@@ -133,7 +144,7 @@ export function useHealthCheck<
 }
 
 /**
- * Returns all upcoming gym classes (public endpoint for mobile app)
+ * Returns all upcoming gym classes for the authenticated caller's approved gym access
  * @summary List all gym classes
  */
 export const getListClassesUrl = () => {
@@ -153,7 +164,7 @@ export const getListClassesQueryKey = () => {
 
 export const getListClassesQueryOptions = <
   TData = Awaited<ReturnType<typeof listClasses>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<Awaited<ReturnType<typeof listClasses>>, TError, TData>;
   request?: SecondParameter<typeof customFetch>;
@@ -173,7 +184,7 @@ export const getListClassesQueryOptions = <
 };
 
 export type ListClassesQueryResult = NonNullable<Awaited<ReturnType<typeof listClasses>>>;
-export type ListClassesQueryError = ErrorType<unknown>;
+export type ListClassesQueryError = ErrorType<ErrorResponse>;
 
 /**
  * @summary List all gym classes
@@ -181,7 +192,7 @@ export type ListClassesQueryError = ErrorType<unknown>;
 
 export function useListClasses<
   TData = Awaited<ReturnType<typeof listClasses>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ErrorResponse>,
 >(options?: {
   query?: UseQueryOptions<Awaited<ReturnType<typeof listClasses>>, TError, TData>;
   request?: SecondParameter<typeof customFetch>;
@@ -1477,6 +1488,90 @@ export const useAdminSetMemberAccess = <
 };
 
 /**
+ * Returns recent owner-only audit events for sensitive admin actions in the current gym.
+ * @summary List admin audit logs
+ */
+export const getAdminListAuditLogsUrl = (params?: AdminListAuditLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/audit-logs?${stringifiedParams}`
+    : `/api/admin/audit-logs`;
+};
+
+export const adminListAuditLogs = async (
+  params?: AdminListAuditLogsParams,
+  options?: RequestInit,
+): Promise<AdminAuditLog[]> => {
+  return customFetch<AdminAuditLog[]>(getAdminListAuditLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminListAuditLogsQueryKey = (params?: AdminListAuditLogsParams) => {
+  return [`/api/admin/audit-logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getAdminListAuditLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminListAuditLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: AdminListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminListAuditLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListAuditLogs>>> = ({ signal }) =>
+    adminListAuditLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminListAuditLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminListAuditLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminListAuditLogs>>
+>;
+export type AdminListAuditLogsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List admin audit logs
+ */
+
+export function useAdminListAuditLogs<
+  TData = Awaited<ReturnType<typeof adminListAuditLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: AdminListAuditLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof adminListAuditLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminListAuditLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * Returns at-a-glance dashboard statistics (owner-only)
  * @summary Get dashboard stats
  */
@@ -2269,6 +2364,705 @@ export function useMonthlyReviewsGet<
 }
 
 /**
+ * @summary List nutrition logs for the signed-in member
+ */
+export const getNutritionListLogsUrl = (params?: NutritionListLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/nutrition/logs?${stringifiedParams}`
+    : `/api/nutrition/logs`;
+};
+
+export const nutritionListLogs = async (
+  params?: NutritionListLogsParams,
+  options?: RequestInit,
+): Promise<NutritionLog[]> => {
+  return customFetch<NutritionLog[]>(getNutritionListLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNutritionListLogsQueryKey = (params?: NutritionListLogsParams) => {
+  return [`/api/nutrition/logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getNutritionListLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof nutritionListLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: NutritionListLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionListLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNutritionListLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nutritionListLogs>>> = ({ signal }) =>
+    nutritionListLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nutritionListLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NutritionListLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof nutritionListLogs>>
+>;
+export type NutritionListLogsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List nutrition logs for the signed-in member
+ */
+
+export function useNutritionListLogs<
+  TData = Awaited<ReturnType<typeof nutritionListLogs>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: NutritionListLogsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionListLogs>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNutritionListLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+export const getNutritionGetLogUrl = (date: string) => {
+  return `/api/nutrition/logs/${date}`;
+};
+
+export const nutritionGetLog = async (
+  date: string,
+  options?: RequestInit,
+): Promise<NutritionLog> => {
+  return customFetch<NutritionLog>(getNutritionGetLogUrl(date), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNutritionGetLogQueryKey = (date: string) => {
+  return [`/api/nutrition/logs/${date}`] as const;
+};
+
+export const getNutritionGetLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof nutritionGetLog>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionGetLog>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNutritionGetLogQueryKey(date);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nutritionGetLog>>> = ({ signal }) =>
+    nutritionGetLog(date, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!date, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nutritionGetLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NutritionGetLogQueryResult = NonNullable<Awaited<ReturnType<typeof nutritionGetLog>>>;
+export type NutritionGetLogQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get one nutrition log for the signed-in member
+ */
+
+export function useNutritionGetLog<
+  TData = Awaited<ReturnType<typeof nutritionGetLog>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  date: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof nutritionGetLog>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNutritionGetLogQueryOptions(date, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const getNutritionPutLogUrl = (date: string) => {
+  return `/api/nutrition/logs/${date}`;
+};
+
+export const nutritionPutLog = async (
+  date: string,
+  upsertNutritionLogBody: UpsertNutritionLogBody,
+  options?: RequestInit,
+): Promise<NutritionLog> => {
+  return customFetch<NutritionLog>(getNutritionPutLogUrl(date), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertNutritionLogBody),
+  });
+};
+
+export const getNutritionPutLogMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    TError,
+    { date: string; data: BodyType<UpsertNutritionLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof nutritionPutLog>>,
+  TError,
+  { date: string; data: BodyType<UpsertNutritionLogBody> },
+  TContext
+> => {
+  const mutationKey = ["nutritionPutLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    { date: string; data: BodyType<UpsertNutritionLogBody> }
+  > = (props) => {
+    const { date, data } = props ?? {};
+
+    return nutritionPutLog(date, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NutritionPutLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof nutritionPutLog>>
+>;
+export type NutritionPutLogMutationBody = BodyType<UpsertNutritionLogBody>;
+export type NutritionPutLogMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Upsert one nutrition log for the signed-in member
+ */
+export const useNutritionPutLog = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nutritionPutLog>>,
+    TError,
+    { date: string; data: BodyType<UpsertNutritionLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof nutritionPutLog>>,
+  TError,
+  { date: string; data: BodyType<UpsertNutritionLogBody> },
+  TContext
+> => {
+  return useMutation(getNutritionPutLogMutationOptions(options));
+};
+
+/**
+ * @summary List signed-in member progress entries
+ */
+export const getProgressListEntriesUrl = () => {
+  return `/api/progress/entries`;
+};
+
+export const progressListEntries = async (options?: RequestInit): Promise<ProgressEntry[]> => {
+  return customFetch<ProgressEntry[]>(getProgressListEntriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getProgressListEntriesQueryKey = () => {
+  return [`/api/progress/entries`] as const;
+};
+
+export const getProgressListEntriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof progressListEntries>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof progressListEntries>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getProgressListEntriesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof progressListEntries>>> = ({ signal }) =>
+    progressListEntries({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof progressListEntries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ProgressListEntriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof progressListEntries>>
+>;
+export type ProgressListEntriesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List signed-in member progress entries
+ */
+
+export function useProgressListEntries<
+  TData = Awaited<ReturnType<typeof progressListEntries>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof progressListEntries>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getProgressListEntriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const getProgressCreateEntryUrl = () => {
+  return `/api/progress/entries`;
+};
+
+export const progressCreateEntry = async (
+  upsertProgressEntryBody: UpsertProgressEntryBody,
+  options?: RequestInit,
+): Promise<ProgressEntry> => {
+  return customFetch<ProgressEntry>(getProgressCreateEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertProgressEntryBody),
+  });
+};
+
+export const getProgressCreateEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    TError,
+    { data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressCreateEntry>>,
+  TError,
+  { data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["progressCreateEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    { data: BodyType<UpsertProgressEntryBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return progressCreateEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressCreateEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressCreateEntry>>
+>;
+export type ProgressCreateEntryMutationBody = BodyType<UpsertProgressEntryBody>;
+export type ProgressCreateEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create or upsert a signed-in member progress entry
+ */
+export const useProgressCreateEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressCreateEntry>>,
+    TError,
+    { data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressCreateEntry>>,
+  TError,
+  { data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  return useMutation(getProgressCreateEntryMutationOptions(options));
+};
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const getProgressUpdateEntryUrl = (id: string) => {
+  return `/api/progress/entries/${id}`;
+};
+
+export const progressUpdateEntry = async (
+  id: string,
+  upsertProgressEntryBody: UpsertProgressEntryBody,
+  options?: RequestInit,
+): Promise<ProgressEntry> => {
+  return customFetch<ProgressEntry>(getProgressUpdateEntryUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertProgressEntryBody),
+  });
+};
+
+export const getProgressUpdateEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    TError,
+    { id: string; data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressUpdateEntry>>,
+  TError,
+  { id: string; data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["progressUpdateEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    { id: string; data: BodyType<UpsertProgressEntryBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return progressUpdateEntry(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressUpdateEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressUpdateEntry>>
+>;
+export type ProgressUpdateEntryMutationBody = BodyType<UpsertProgressEntryBody>;
+export type ProgressUpdateEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a signed-in member progress entry
+ */
+export const useProgressUpdateEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressUpdateEntry>>,
+    TError,
+    { id: string; data: BodyType<UpsertProgressEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressUpdateEntry>>,
+  TError,
+  { id: string; data: BodyType<UpsertProgressEntryBody> },
+  TContext
+> => {
+  return useMutation(getProgressUpdateEntryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const getProgressDeleteEntryUrl = (id: string) => {
+  return `/api/progress/entries/${id}`;
+};
+
+export const progressDeleteEntry = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getProgressDeleteEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getProgressDeleteEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof progressDeleteEntry>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["progressDeleteEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return progressDeleteEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProgressDeleteEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof progressDeleteEntry>>
+>;
+
+export type ProgressDeleteEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a signed-in member progress entry
+ */
+export const useProgressDeleteEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof progressDeleteEntry>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof progressDeleteEntry>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getProgressDeleteEntryMutationOptions(options));
+};
+
+/**
+ * @summary Get signed-in member notification preferences
+ */
+export const getNotificationsGetPreferencesUrl = () => {
+  return `/api/notifications/preferences`;
+};
+
+export const notificationsGetPreferences = async (
+  options?: RequestInit,
+): Promise<NotificationPreferences> => {
+  return customFetch<NotificationPreferences>(getNotificationsGetPreferencesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getNotificationsGetPreferencesQueryKey = () => {
+  return [`/api/notifications/preferences`] as const;
+};
+
+export const getNotificationsGetPreferencesQueryOptions = <
+  TData = Awaited<ReturnType<typeof notificationsGetPreferences>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof notificationsGetPreferences>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getNotificationsGetPreferencesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof notificationsGetPreferences>>> = ({
+    signal,
+  }) => notificationsGetPreferences({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof notificationsGetPreferences>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type NotificationsGetPreferencesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof notificationsGetPreferences>>
+>;
+export type NotificationsGetPreferencesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get signed-in member notification preferences
+ */
+
+export function useNotificationsGetPreferences<
+  TData = Awaited<ReturnType<typeof notificationsGetPreferences>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof notificationsGetPreferences>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getNotificationsGetPreferencesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update signed-in member notification preferences
+ */
+export const getNotificationsUpdatePreferencesUrl = () => {
+  return `/api/notifications/preferences`;
+};
+
+export const notificationsUpdatePreferences = async (
+  notificationPreferences: NotificationPreferences,
+  options?: RequestInit,
+): Promise<NotificationPreferences> => {
+  return customFetch<NotificationPreferences>(getNotificationsUpdatePreferencesUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(notificationPreferences),
+  });
+};
+
+export const getNotificationsUpdatePreferencesMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof notificationsUpdatePreferences>>,
+    TError,
+    { data: BodyType<NotificationPreferences> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof notificationsUpdatePreferences>>,
+  TError,
+  { data: BodyType<NotificationPreferences> },
+  TContext
+> => {
+  const mutationKey = ["notificationsUpdatePreferences"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof notificationsUpdatePreferences>>,
+    { data: BodyType<NotificationPreferences> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return notificationsUpdatePreferences(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NotificationsUpdatePreferencesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof notificationsUpdatePreferences>>
+>;
+export type NotificationsUpdatePreferencesMutationBody = BodyType<NotificationPreferences>;
+export type NotificationsUpdatePreferencesMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update signed-in member notification preferences
+ */
+export const useNotificationsUpdatePreferences = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof notificationsUpdatePreferences>>,
+    TError,
+    { data: BodyType<NotificationPreferences> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof notificationsUpdatePreferences>>,
+  TError,
+  { data: BodyType<NotificationPreferences> },
+  TContext
+> => {
+  return useMutation(getNotificationsUpdatePreferencesMutationOptions(options));
+};
+
+/**
  * Saves a monthly review from bounded member aggregates. AI may add advisory notes, but no workout, goal, assignment, or nutrition target is automatically changed.
  * @summary Generate or refresh a monthly review
  */
@@ -2964,6 +3758,384 @@ export const useWorkoutsCreateMemberPlan = <
 > => {
   return useMutation(getWorkoutsCreateMemberPlanMutationOptions(options));
 };
+
+/**
+ * @summary List signed-in member workout sessions
+ */
+export const getWorkoutsListSessionsUrl = () => {
+  return `/api/workouts/sessions`;
+};
+
+export const workoutsListSessions = async (options?: RequestInit): Promise<WorkoutSession[]> => {
+  return customFetch<WorkoutSession[]>(getWorkoutsListSessionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWorkoutsListSessionsQueryKey = () => {
+  return [`/api/workouts/sessions`] as const;
+};
+
+export const getWorkoutsListSessionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof workoutsListSessions>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsListSessions>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWorkoutsListSessionsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof workoutsListSessions>>> = ({ signal }) =>
+    workoutsListSessions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof workoutsListSessions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WorkoutsListSessionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsListSessions>>
+>;
+export type WorkoutsListSessionsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List signed-in member workout sessions
+ */
+
+export function useWorkoutsListSessions<
+  TData = Awaited<ReturnType<typeof workoutsListSessions>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsListSessions>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWorkoutsListSessionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or upsert a signed-in member workout session
+ */
+export const getWorkoutsCreateSessionUrl = () => {
+  return `/api/workouts/sessions`;
+};
+
+export const workoutsCreateSession = async (
+  workoutSession: WorkoutSession,
+  options?: RequestInit,
+): Promise<WorkoutSessionMutationResponse> => {
+  return customFetch<WorkoutSessionMutationResponse>(getWorkoutsCreateSessionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutSession),
+  });
+};
+
+export const getWorkoutsCreateSessionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsCreateSession>>,
+    TError,
+    { data: BodyType<WorkoutSession> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof workoutsCreateSession>>,
+  TError,
+  { data: BodyType<WorkoutSession> },
+  TContext
+> => {
+  const mutationKey = ["workoutsCreateSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof workoutsCreateSession>>,
+    { data: BodyType<WorkoutSession> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return workoutsCreateSession(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WorkoutsCreateSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsCreateSession>>
+>;
+export type WorkoutsCreateSessionMutationBody = BodyType<WorkoutSession>;
+export type WorkoutsCreateSessionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create or upsert a signed-in member workout session
+ */
+export const useWorkoutsCreateSession = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsCreateSession>>,
+    TError,
+    { data: BodyType<WorkoutSession> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof workoutsCreateSession>>,
+  TError,
+  { data: BodyType<WorkoutSession> },
+  TContext
+> => {
+  return useMutation(getWorkoutsCreateSessionMutationOptions(options));
+};
+
+/**
+ * @summary Update a signed-in member workout session
+ */
+export const getWorkoutsUpdateSessionUrl = (id: string) => {
+  return `/api/workouts/sessions/${id}`;
+};
+
+export const workoutsUpdateSession = async (
+  id: string,
+  workoutSession: WorkoutSession,
+  options?: RequestInit,
+): Promise<WorkoutSessionMutationResponse> => {
+  return customFetch<WorkoutSessionMutationResponse>(getWorkoutsUpdateSessionUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(workoutSession),
+  });
+};
+
+export const getWorkoutsUpdateSessionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsUpdateSession>>,
+    TError,
+    { id: string; data: BodyType<WorkoutSession> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof workoutsUpdateSession>>,
+  TError,
+  { id: string; data: BodyType<WorkoutSession> },
+  TContext
+> => {
+  const mutationKey = ["workoutsUpdateSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof workoutsUpdateSession>>,
+    { id: string; data: BodyType<WorkoutSession> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return workoutsUpdateSession(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WorkoutsUpdateSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsUpdateSession>>
+>;
+export type WorkoutsUpdateSessionMutationBody = BodyType<WorkoutSession>;
+export type WorkoutsUpdateSessionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a signed-in member workout session
+ */
+export const useWorkoutsUpdateSession = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsUpdateSession>>,
+    TError,
+    { id: string; data: BodyType<WorkoutSession> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof workoutsUpdateSession>>,
+  TError,
+  { id: string; data: BodyType<WorkoutSession> },
+  TContext
+> => {
+  return useMutation(getWorkoutsUpdateSessionMutationOptions(options));
+};
+
+/**
+ * @summary Delete a signed-in member workout session
+ */
+export const getWorkoutsDeleteSessionUrl = (id: string) => {
+  return `/api/workouts/sessions/${id}`;
+};
+
+export const workoutsDeleteSession = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getWorkoutsDeleteSessionUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getWorkoutsDeleteSessionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsDeleteSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof workoutsDeleteSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["workoutsDeleteSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof workoutsDeleteSession>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return workoutsDeleteSession(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WorkoutsDeleteSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsDeleteSession>>
+>;
+
+export type WorkoutsDeleteSessionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a signed-in member workout session
+ */
+export const useWorkoutsDeleteSession = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsDeleteSession>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof workoutsDeleteSession>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getWorkoutsDeleteSessionMutationOptions(options));
+};
+
+/**
+ * @summary List signed-in member personal records
+ */
+export const getWorkoutsListPersonalRecordsUrl = () => {
+  return `/api/workouts/personal-records`;
+};
+
+export const workoutsListPersonalRecords = async (
+  options?: RequestInit,
+): Promise<PersonalRecordsResponse> => {
+  return customFetch<PersonalRecordsResponse>(getWorkoutsListPersonalRecordsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWorkoutsListPersonalRecordsQueryKey = () => {
+  return [`/api/workouts/personal-records`] as const;
+};
+
+export const getWorkoutsListPersonalRecordsQueryOptions = <
+  TData = Awaited<ReturnType<typeof workoutsListPersonalRecords>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsListPersonalRecords>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWorkoutsListPersonalRecordsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof workoutsListPersonalRecords>>> = ({
+    signal,
+  }) => workoutsListPersonalRecords({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof workoutsListPersonalRecords>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WorkoutsListPersonalRecordsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsListPersonalRecords>>
+>;
+export type WorkoutsListPersonalRecordsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List signed-in member personal records
+ */
+
+export function useWorkoutsListPersonalRecords<
+  TData = Awaited<ReturnType<typeof workoutsListPersonalRecords>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsListPersonalRecords>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWorkoutsListPersonalRecordsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Update a member workout plan

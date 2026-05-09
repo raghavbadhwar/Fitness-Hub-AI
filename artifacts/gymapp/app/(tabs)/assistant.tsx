@@ -22,8 +22,9 @@ import { useTypography } from "@/hooks/useTypography";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedFetch, authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { impact, notifyWarning } from "@/lib/haptics";
+import { generateId } from "@/lib/id";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 const CHAT_STORAGE_KEY = "@gymapp_chat_history";
@@ -79,10 +80,6 @@ const QUICK_PROMPTS: Record<CoachMode, string[]> = {
     "Explain safe warmups for shoulder tightness",
   ],
 };
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 function getScopedStorageKey(baseKey: string, userId?: string | null) {
   return userId ? `${baseKey}:${userId}` : baseKey;
@@ -191,46 +188,42 @@ export default function AssistantScreen() {
     const loadHistory = async () => {
       try {
         if (isSignedIn && userId) {
-          const token = await getToken();
-          if (token) {
-            const response = await fetch(`${getApiBase()}/api/ai/history`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+          try {
+            const payload = await authenticatedJsonRequest<{
+              messages?: Array<{ role?: MessageRole; content?: string; timestamp?: string }>;
+            }>({
+              getToken,
+              path: "/api/ai/history",
             });
+            const serverMessages = Array.isArray(payload.messages)
+              ? payload.messages
+                  .map((message) => {
+                    if (
+                      (message.role !== "user" && message.role !== "assistant") ||
+                      typeof message.content !== "string"
+                    ) {
+                      return null;
+                    }
 
-            if (response.ok) {
-              const payload = (await response.json()) as {
-                messages?: Array<{ role?: MessageRole; content?: string; timestamp?: string }>;
-              };
-              const serverMessages = Array.isArray(payload.messages)
-                ? payload.messages
-                    .map((message) => {
-                      if (
-                        (message.role !== "user" && message.role !== "assistant") ||
-                        typeof message.content !== "string"
-                      ) {
-                        return null;
-                      }
+                    return {
+                      id: generateId(),
+                      role: message.role,
+                      content: message.content,
+                      timestamp: message.timestamp
+                        ? new Date(message.timestamp).getTime()
+                        : Date.now(),
+                    } satisfies Message;
+                  })
+                  .filter((message): message is Message => Boolean(message))
+              : [];
 
-                      return {
-                        id: generateId(),
-                        role: message.role,
-                        content: message.content,
-                        timestamp: message.timestamp
-                          ? new Date(message.timestamp).getTime()
-                          : Date.now(),
-                      } satisfies Message;
-                    })
-                    .filter((message): message is Message => Boolean(message))
-                : [];
-
-              if (serverMessages.length > 0) {
-                setMessages([WELCOME_MESSAGE, ...serverMessages]);
-                await AsyncStorage.setItem(storageKey, JSON.stringify(serverMessages));
-                return;
-              }
+            if (serverMessages.length > 0) {
+              setMessages([WELCOME_MESSAGE, ...serverMessages]);
+              await AsyncStorage.setItem(storageKey, JSON.stringify(serverMessages));
+              return;
             }
+          } catch {
+            // Fall back to local history when synced history is unavailable.
           }
         }
 
@@ -295,11 +288,6 @@ export default function AssistantScreen() {
       ]);
 
       try {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Authentication required");
-        }
-
         const chatHistory = updatedMessages
           .slice(-10)
           .map((m) => ({ role: m.role, content: m.content }));
@@ -325,19 +313,17 @@ export default function AssistantScreen() {
           savedPlans: savedPlanSummaries,
         };
 
-        const response = await fetch(`${getApiBase()}/api/ai/chat`, {
+        const response = await authenticatedFetch({
+          getToken,
+          path: "/api/ai/chat",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+          body: {
             messages: chatHistory,
             userProfile,
             todayStats,
             behaviorProfile,
             savedPlans: savedPlanSummaries,
-          }),
+          },
         });
 
         if (!response.ok) throw new Error("Failed to get response");
@@ -418,15 +404,11 @@ export default function AssistantScreen() {
       setMessages([WELCOME_MESSAGE]);
       try {
         if (isSignedIn && userId) {
-          const token = await getToken();
-          if (token) {
-            await fetch(`${getApiBase()}/api/ai/history`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-          }
+          await authenticatedJsonRequest<unknown>({
+            getToken,
+            path: "/api/ai/history",
+            method: "DELETE",
+          });
         }
       } finally {
         await AsyncStorage.removeItem(storageKey);
@@ -570,6 +552,8 @@ export default function AssistantScreen() {
         <Pressable
           onPress={handleClearHistory}
           style={[styles.clearBtn, { borderColor: colors.border }]}
+          accessibilityRole="button"
+          accessibilityLabel="Clear AI coach chat history"
         >
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
         </Pressable>
@@ -632,6 +616,8 @@ export default function AssistantScreen() {
                   <Pressable
                     style={[styles.reviewProfileBtn, { borderColor: colors.border }]}
                     onPress={openProfile}
+                    accessibilityRole="button"
+                    accessibilityLabel="Review source profile used by AI coach"
                   >
                     <Feather name="edit-2" size={13} color={colors.primary} />
                     <Text style={[styles.reviewProfileText, { color: colors.text }]}>
@@ -654,6 +640,9 @@ export default function AssistantScreen() {
                           },
                         ]}
                         onPress={() => handleModeChange(mode.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Switch AI coach mode to ${mode.label}`}
+                        accessibilityState={{ selected }}
                       >
                         <Feather
                           name={mode.icon}
@@ -682,6 +671,8 @@ export default function AssistantScreen() {
                         { backgroundColor: colors.card, borderColor: colors.border },
                       ]}
                       onPress={() => handleQuickPrompt(p)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Ask AI coach: ${p}`}
                     >
                       <Text style={[styles.quickPromptText, { color: colors.text }]}>{p}</Text>
                     </Pressable>
@@ -718,6 +709,7 @@ export default function AssistantScreen() {
               multiline
               maxLength={500}
               onSubmitEditing={() => sendMessage(inputText)}
+              accessibilityLabel="Message to AI coach"
             />
             <Pressable
               style={[
@@ -726,6 +718,9 @@ export default function AssistantScreen() {
               ]}
               onPress={() => sendMessage(inputText)}
               disabled={!inputText.trim() || isLoading}
+              accessibilityRole="button"
+              accessibilityLabel={isLoading ? "AI coach is thinking" : "Send message to AI coach"}
+              accessibilityState={{ disabled: !inputText.trim() || isLoading, busy: isLoading }}
             >
               {isLoading ? (
                 <ActivityIndicator size="small" color="#fff" />

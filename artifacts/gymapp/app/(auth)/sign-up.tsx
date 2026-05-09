@@ -16,25 +16,7 @@ import {
 
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useColors } from "@/hooks/useColors";
-
-function fieldErrorMessage(source: unknown, field: string): string | undefined {
-  if (!source || typeof source !== "object") {
-    return undefined;
-  }
-
-  const fields = "fields" in source ? source.fields : undefined;
-  if (!fields || typeof fields !== "object") {
-    return undefined;
-  }
-
-  const candidate = (fields as Record<string, unknown>)[field];
-  if (!candidate || typeof candidate !== "object") {
-    return undefined;
-  }
-
-  const candidateRecord = candidate as { message?: unknown };
-  return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
-}
+import { authFieldErrorMessage, authFormErrorMessage } from "@/lib/auth-error-message";
 
 export default function SignUp() {
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -49,8 +31,10 @@ export default function SignUp() {
   const isLoading = fetchStatus === "fetching";
 
   function fieldError(field: string): string | undefined {
-    return fieldErrorMessage(errors, field);
+    return authFieldErrorMessage(errors, field);
   }
+
+  const formError = authFormErrorMessage(errors);
 
   const handleSignUp = async () => {
     if (!email || !password) return;
@@ -221,7 +205,7 @@ export default function SignUp() {
                 <Text style={styles.buttonText}>Create Account</Text>
               )}
             </Pressable>
-            {errors && <Text style={styles.debugText}>{JSON.stringify(errors, null, 2)}</Text>}
+            {formError && <Text style={[styles.errorText, { color: colors.error }]}>{formError}</Text>}
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
                 Already have an account?{" "}
@@ -267,5 +251,4 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, marginTop: 2 },
   resend: { alignItems: "center", paddingVertical: 8 },
   resendText: { fontSize: 14, fontWeight: "500" },
-  debugText: { fontSize: 10, color: "#666", display: "none" },
 });

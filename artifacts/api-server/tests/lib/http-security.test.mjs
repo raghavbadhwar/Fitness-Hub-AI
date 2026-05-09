@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   configureTrustProxy,
   getConfiguredCorsOrigins,
+  createSecurityHeadersMiddleware,
   isAllowedCorsOrigin,
   isLoopbackOrigin,
   normalizeOrigin,
@@ -53,5 +54,32 @@ describe("http security helpers", () => {
 
     configureTrustProxy(app, { TRUST_PROXY: "2", VERCEL: "1" });
     assert.equal(app.values.get("trust proxy"), 2);
+  });
+
+  it("sets API security headers without blocking the next middleware", () => {
+    const headers = new Map();
+    let nextCalled = false;
+    const middleware = createSecurityHeadersMiddleware();
+
+    middleware(
+      {},
+      {
+        setHeader(name, value) {
+          headers.set(name, value);
+        },
+      },
+      () => {
+        nextCalled = true;
+      },
+    );
+
+    assert.equal(nextCalled, true);
+    assert.equal(headers.get("X-Content-Type-Options"), "nosniff");
+    assert.equal(headers.get("X-Frame-Options"), "DENY");
+    assert.equal(headers.get("Referrer-Policy"), "no-referrer");
+    assert.equal(headers.get("Cross-Origin-Resource-Policy"), "same-site");
+    assert.equal(headers.get("Permissions-Policy"), "camera=(), geolocation=(), microphone=()");
+    assert.match(headers.get("Content-Security-Policy"), /default-src 'none'/);
+    assert.match(headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
   });
 });

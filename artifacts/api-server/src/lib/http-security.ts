@@ -1,5 +1,5 @@
 import cors from "cors";
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 
 type Env = NodeJS.ProcessEnv;
 
@@ -81,6 +81,26 @@ export function createCorsMiddleware(env: Env = process.env) {
       callback(null, false);
     },
   });
+}
+
+export function createSecurityHeadersMiddleware(): RequestHandler {
+  return (_req, res, next) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      [
+        "default-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+      ].join("; "),
+    );
+    res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
+    next();
+  };
 }
 
 export function configureTrustProxy(app: Express, env: Env = process.env) {

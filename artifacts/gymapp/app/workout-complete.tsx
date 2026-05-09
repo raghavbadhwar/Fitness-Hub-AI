@@ -21,7 +21,7 @@ import {
   PersonalRecord,
 } from "@/contexts/WorkoutContext";
 import { useAuth } from "@clerk/expo";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
@@ -59,23 +59,11 @@ export default function WorkoutCompleteScreen() {
     if (assignedWorkoutId) {
       const markComplete = async () => {
         try {
-          const token = await getToken();
-          if (!token) {
-            throw new Error("Missing auth token");
-          }
-
-          const response = await fetch(
-            `${getApiBase()}/api/workouts/assigned/${encodeURIComponent(assignedWorkoutId)}/complete`,
-            {
-              method: "PATCH",
-              headers: { Authorization: `Bearer ${token}` },
-            },
-          );
-
-          if (!response.ok) {
-            const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-            throw new Error(payload?.error || `Server returned ${response.status}`);
-          }
+          await authenticatedJsonRequest<unknown>({
+            getToken,
+            path: `/api/workouts/assigned/${encodeURIComponent(assignedWorkoutId)}/complete`,
+            method: "PATCH",
+          });
 
           setAssignmentSyncError(null);
         } catch (err) {

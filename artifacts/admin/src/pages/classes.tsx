@@ -22,6 +22,8 @@ import {
   CalendarDays,
   ClipboardCheck,
   Flame,
+  AlertCircle,
+  Loader2,
   MessageSquare,
   Table2,
 } from "lucide-react";
@@ -64,16 +66,19 @@ function capacityRatio(cls: GymClass) {
   return cls.maxParticipants > 0 ? cls.enrolledCount / cls.maxParticipants : 0;
 }
 
-function waitlistEstimate(cls: GymClass) {
-  const waitlistedCount = (cls as GymClass & { waitlistedCount?: number }).waitlistedCount;
-  if (typeof waitlistedCount === "number") {
-    return waitlistedCount;
-  }
-  return Math.max(0, cls.enrolledCount - cls.maxParticipants) + (capacityRatio(cls) >= 1 ? 3 : 0);
+function authoritativeCount(cls: GymClass, key: "waitlistedCount" | "checkedInCount") {
+  const value = (cls as GymClass & Record<typeof key, unknown>)[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function checkedInEstimate(cls: GymClass) {
-  return Math.min(cls.enrolledCount, Math.round(cls.enrolledCount * 0.82));
+function sumAuthoritativeCounts(classes: GymClass[], key: "waitlistedCount" | "checkedInCount") {
+  let total = 0;
+  for (const cls of classes) {
+    const value = authoritativeCount(cls, key);
+    if (value === null) return null;
+    total += value;
+  }
+  return total;
 }
 
 function formatNextWeek(date: string) {
@@ -109,11 +114,13 @@ function SortIcon({
 type ClassesProps = {
   previewClasses?: GymClass[];
   previewEnrollmentMembersByClassId?: Record<number, EnrolledMember[]>;
+  previewError?: boolean;
 };
 
 export default function Classes({
   previewClasses,
   previewEnrollmentMembersByClassId,
+  previewError = false,
 }: ClassesProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -128,12 +135,20 @@ export default function Classes({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const request = useAuthenticatedRequest();
 
-  const { data: fetchedClasses, isLoading } = useAdminListClasses({
+  const {
+    data: fetchedClasses,
+    isLoading,
+    error: classesError,
+    refetch: refetchClasses,
+  } = useAdminListClasses({
     query: { enabled: !previewClasses, queryKey: getAdminListClassesQueryKey() },
     request,
   });
   const classes = previewClasses ?? fetchedClasses;
   const classesLoading = !previewClasses && isLoading;
+  const effectiveClassesError = previewError
+    ? new Error("Preview class schedule sync failed")
+    : classesError;
 
   const duplicateClass = useAdminCreateClass({
     mutation: {
@@ -147,7 +162,6 @@ export default function Classes({
     },
     request,
   });
-
   const updateClass = useAdminUpdateClass({
     mutation: {
       onSuccess: () => {
@@ -175,6 +189,8 @@ export default function Classes({
     },
     request,
   });
+  const classActionPending =
+    duplicateClass.isPending || updateClass.isPending || deleteClass.isPending;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -259,8 +275,8 @@ export default function Classes({
   const hotClasses = scheduledClasses.filter(
     (cls) => capacityRatio(cls) >= 0.8 && capacityRatio(cls) < 1,
   );
-  const checkedInCount = scheduledClasses.reduce((sum, cls) => sum + checkedInEstimate(cls), 0);
-  const waitlistCount = scheduledClasses.reduce((sum, cls) => sum + waitlistEstimate(cls), 0);
+  const checkedInCount = sumAuthoritativeCounts(scheduledClasses, "checkedInCount");
+  const waitlistCount = sumAuthoritativeCounts(scheduledClasses, "waitlistedCount");
 
   return (
     <div className="space-y-6">
@@ -295,9 +311,11 @@ export default function Classes({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
+              disabled={deleteClass.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
+              {deleteClass.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -333,19 +351,40 @@ export default function Classes({
         />
         <OperationMetric
           icon={ClipboardCheck}
-          label="Projected check-ins"
-          value={checkedInCount}
-          detail="Estimated arrivals"
+          label="Checked in"
+          value={checkedInCount ?? "—"}
+          detail={checkedInCount === null ? "Backend count unavailable" : "Front-desk attendance"}
           tone="success"
         />
         <OperationMetric
           icon={MessageSquare}
           label="Waitlist demand"
-          value={waitlistCount}
-          detail="Members to notify"
-          tone={waitlistCount > 0 ? "warning" : "neutral"}
+          value={waitlistCount ?? "—"}
+          detail={waitlistCount === null ? "Backend count unavailable" : "Members to notify"}
+          tone={(waitlistCount ?? 0) > 0 ? "warning" : "neutral"}
         />
       </div>
+
+      {effectiveClassesError ? (
+        <div
+          className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+          data-testid="classes-error-state"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <div>
+              <div className="font-semibold text-foreground">Class schedule did not sync</div>
+              <div className="mt-1 text-muted-foreground">
+                Keep the current screen open and retry before creating, cancelling, or deleting
+                sessions.
+              </div>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => void refetchClasses()}>
+            Retry sync
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -413,7 +452,10 @@ export default function Classes({
             {classesLoading ? (
               [1, 2, 3].map((item) => <Skeleton key={item} className="h-36 w-full" />)
             ) : filteredClasses?.length === 0 ? (
-              <div className="rounded-md border border-dashed bg-card p-8 text-center">
+              <div
+                data-testid="classes-empty-state-mobile"
+                className="rounded-md border border-dashed bg-card p-8 text-center"
+              >
                 <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <CalendarPlus className="size-6" />
                 </div>
@@ -504,9 +546,14 @@ export default function Classes({
                       variant="outline"
                       size="sm"
                       onClick={() => handleDuplicate(cls)}
+                      disabled={classActionPending}
                       data-testid={`mobile-duplicate-class-${cls.id}`}
                     >
-                      <Copy className="size-4" />
+                      {duplicateClass.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Copy className="size-4" />
+                      )}
                       Duplicate
                     </Button>
                     <Button
@@ -519,9 +566,14 @@ export default function Classes({
                       Edit
                     </Button>
                   </div>
-                  {waitlistEstimate(cls) > 0 ? (
+                  {authoritativeCount(cls, "waitlistedCount") === null ? (
+                    <div className="mt-3 rounded-md bg-muted px-3 py-2 text-sm font-medium text-muted-foreground">
+                      Waitlist count unavailable from backend.
+                    </div>
+                  ) : (authoritativeCount(cls, "waitlistedCount") ?? 0) > 0 ? (
                     <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                      {waitlistEstimate(cls)} waitlist signals ready for follow-up.
+                      {authoritativeCount(cls, "waitlistedCount")} waitlist signals ready for
+                      follow-up.
                     </div>
                   ) : null}
                 </div>
@@ -577,7 +629,10 @@ export default function Classes({
                 ) : filteredClasses?.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-64">
-                      <div className="mx-auto flex max-w-md flex-col items-center rounded-md border border-dashed bg-muted/30 p-8 text-center">
+                      <div
+                        data-testid="classes-empty-state"
+                        className="mx-auto flex max-w-md flex-col items-center rounded-md border border-dashed bg-muted/30 p-8 text-center"
+                      >
                         <div className="flex size-12 items-center justify-center rounded-md bg-primary/10 text-primary">
                           <CalendarPlus className="size-6" />
                         </div>
@@ -642,9 +697,13 @@ export default function Classes({
                               style={{ width: `${Math.min(capacityRatio(cls) * 100, 100)}%` }}
                             />
                           </div>
-                          {waitlistEstimate(cls) > 0 ? (
+                          {authoritativeCount(cls, "waitlistedCount") === null ? (
+                            <div className="mt-1 text-xs font-medium text-muted-foreground">
+                              Waitlist unavailable
+                            </div>
+                          ) : (authoritativeCount(cls, "waitlistedCount") ?? 0) > 0 ? (
                             <div className="mt-1 text-xs font-medium text-amber-600">
-                              {waitlistEstimate(cls)} waitlist
+                              {authoritativeCount(cls, "waitlistedCount")} waitlist
                             </div>
                           ) : null}
                         </div>
@@ -668,9 +727,14 @@ export default function Classes({
                             size="icon"
                             aria-label="Duplicate"
                             onClick={() => handleDuplicate(cls)}
+                            disabled={classActionPending}
                             data-testid={`duplicate-class-${cls.id}`}
                           >
-                            <Copy className="h-4 w-4" />
+                            {duplicateClass.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
@@ -688,6 +752,7 @@ export default function Classes({
                             aria-label="Delete"
                             data-testid={`delete-class-${cls.id}`}
                             onClick={() => setDeleteTarget(cls)}
+                            disabled={classActionPending}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -699,8 +764,13 @@ export default function Classes({
                               aria-label="Cancel class"
                               data-testid={`cancel-class-${cls.id}`}
                               onClick={() => handleCancel(cls)}
+                              disabled={classActionPending}
                             >
-                              <MessageSquare className="h-4 w-4" />
+                              {updateClass.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4" />
+                              )}
                             </Button>
                           ) : null}
                         </div>
@@ -726,7 +796,7 @@ function OperationMetric({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  value: number;
+  value: React.ReactNode;
   detail: string;
   tone?: "neutral" | "warning" | "success";
 }) {

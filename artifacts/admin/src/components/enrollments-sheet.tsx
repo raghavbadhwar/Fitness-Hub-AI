@@ -161,10 +161,8 @@ export function EnrollmentsSheet({
     return parts.length > 0 ? parts.join(" ") : m.email;
   };
   const waitlistSize = gymClass
-    ? ((gymClass as GymClass & { waitlistedCount?: number }).waitlistedCount ??
-      Math.max(0, gymClass.enrolledCount - gymClass.maxParticipants) +
-        (gymClass.enrolledCount >= gymClass.maxParticipants ? 3 : 0))
-    : 0;
+    ? ((gymClass as GymClass & { waitlistedCount?: number }).waitlistedCount ?? null)
+    : null;
   const attendanceTotal = Math.max(members.length, gymClass?.enrolledCount ?? 0);
   const attendanceRate =
     attendanceTotal > 0 ? Math.round((checkedInIds.length / attendanceTotal) * 100) : 0;
@@ -200,7 +198,7 @@ export function EnrollmentsSheet({
               </div>
               <div className="rounded-md border bg-muted/30 p-3">
                 <Clock className="size-4 text-primary" />
-                <div className="mt-2 text-lg font-bold">{waitlistSize}</div>
+                <div className="mt-2 text-lg font-bold">{waitlistSize ?? "—"}</div>
                 <div className="text-xs text-muted-foreground">Waitlist</div>
               </div>
             </div>
@@ -283,7 +281,7 @@ export function EnrollmentsSheet({
                 </div>
               </div>
             ))}
-          {waitlistSize > 0 ? (
+          {waitlistSize !== null && waitlistSize > 0 ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950">
               <div className="font-semibold text-amber-800 dark:text-amber-200">Waitlist ready</div>
               <p className="mt-1 text-amber-700 dark:text-amber-300">

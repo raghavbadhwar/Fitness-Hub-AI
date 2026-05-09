@@ -17,12 +17,27 @@ import Settings from "./settings";
 import type { EnrolledMember } from "@/components/enrollments-sheet";
 
 const today = "2099-05-05";
+const emptyPreviewClasses: GymClass[] = [];
 
 const previewStats: DashboardStats = {
   totalClassesThisWeek: 18,
   totalEnrollments: 142,
+  totalEnrollmentsThisWeek: 64,
+  averageClassOccupancy: 74,
+  upcomingClassesCount: 12,
   totalActiveMembers: 86,
   mostPopularCategory: "Strength",
+  lowAttendanceClasses: [
+    {
+      id: 5,
+      name: "Pilates Control",
+      date: "2099-05-06",
+      startTime: "10:00",
+      enrolledCount: 3,
+      maxParticipants: 12,
+      occupancyPercent: 25,
+    },
+  ],
   weeklyClassCounts: [
     { day: "Mon", count: 4 },
     { day: "Tue", count: 3 },
@@ -47,6 +62,7 @@ const previewClasses: GymClass[] = [
     maxParticipants: 16,
     enrolledCount: 12,
     waitlistedCount: 0,
+    checkedInCount: 7,
     room: "Studio A",
     status: "scheduled",
     color: "#FF6B00",
@@ -65,6 +81,7 @@ const previewClasses: GymClass[] = [
     maxParticipants: 20,
     enrolledCount: 20,
     waitlistedCount: 4,
+    checkedInCount: 16,
     room: "Floor 2",
     status: "scheduled",
     color: "#0EA5E9",
@@ -83,6 +100,7 @@ const previewClasses: GymClass[] = [
     maxParticipants: 18,
     enrolledCount: 14,
     waitlistedCount: 1,
+    checkedInCount: 10,
     room: "Studio B",
     status: "scheduled",
     color: "#22C55E",
@@ -101,6 +119,7 @@ const previewClasses: GymClass[] = [
     maxParticipants: 14,
     enrolledCount: 9,
     waitlistedCount: 0,
+    checkedInCount: 5,
     room: "Ring",
     status: "scheduled",
     color: "#EF4444",
@@ -119,6 +138,7 @@ const previewClasses: GymClass[] = [
     maxParticipants: 12,
     enrolledCount: 7,
     waitlistedCount: 0,
+    checkedInCount: 2,
     room: "Studio C",
     status: "scheduled",
     color: "#A855F7",
@@ -210,7 +230,11 @@ const previewSettings: GymSettings = {
 export function AdminDashboardPreview() {
   return (
     <Layout notificationData={{ classes: previewClasses, members: previewMembers }}>
-      <DashboardContent stats={previewStats} upcomingClasses={previewClasses} />
+      <DashboardContent
+        stats={previewStats}
+        upcomingClasses={previewClasses}
+        members={previewMembers}
+      />
     </Layout>
   );
 }
@@ -231,16 +255,20 @@ export function AdminMembersPreview() {
 
 export function AdminClassesPreview() {
   const queryClient = useQueryClient();
+  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+  const state = params.get("state");
+  const visibleClasses = state === "empty" ? emptyPreviewClasses : previewClasses;
 
   useEffect(() => {
-    queryClient.setQueryData(getAdminListClassesQueryKey(), previewClasses);
-  }, [queryClient]);
+    queryClient.setQueryData(getAdminListClassesQueryKey(), visibleClasses);
+  }, [queryClient, visibleClasses]);
 
   return (
-    <Layout notificationData={{ classes: previewClasses, members: previewMembers }}>
+    <Layout notificationData={{ classes: visibleClasses, members: previewMembers }}>
       <Classes
-        previewClasses={previewClasses}
+        previewClasses={visibleClasses}
         previewEnrollmentMembersByClassId={previewEnrollmentMembers}
+        previewError={state === "error"}
       />
     </Layout>
   );

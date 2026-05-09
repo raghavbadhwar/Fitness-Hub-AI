@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import { getApiBase } from "@/lib/api-base";
+import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey } from "@/lib/date-key";
+import { generateId } from "@/lib/id";
 import { decodeVersionedWithLegacyFallback, encodeVersioned } from "@/lib/versioned-storage";
 import React, {
   createContext,
@@ -137,20 +139,6 @@ const DEFAULT_BEHAVIOR_PROFILE: WorkoutBehaviorProfile = {
   recoveryState: "fresh",
 };
 
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
-
-function safeParse<T>(value: string | null, fallback: T): T {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch (error) {
-    console.error("Failed to parse stored workout data", error);
-    return fallback;
-  }
-}
-
 function requireApiBaseOrThrow() {
   const apiBase = getApiBase();
   if (!apiBase) {
@@ -222,6 +210,145 @@ function normalizeSavedPlan(value: unknown): SavedWorkoutPlan | null {
   };
 }
 
+function normalizeWorkoutSession(value: unknown): WorkoutSession | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : "";
+  const name = typeof record.name === "string" && record.name.trim() ? record.name.trim() : "";
+  const date = typeof record.date === "string" && record.date.trim() ? record.date.trim() : "";
+  const startTime =
+    typeof record.startTime === "number" ? record.startTime : Number(record.startTime);
+  if (!id || !name || !date || !Number.isFinite(startTime) || !Array.isArray(record.exercises)) {
+    return null;
+  }
+
+  const exercises: WorkoutExercise[] = record.exercises
+    .map((exercise): WorkoutExercise | null => {
+      if (!exercise || typeof exercise !== "object") return null;
+      const exerciseRecord = exercise as Record<string, unknown>;
+      const exerciseName =
+        typeof exerciseRecord.name === "string" ? exerciseRecord.name.trim() : "";
+      if (!exerciseName || !Array.isArray(exerciseRecord.sets)) return null;
+      const sets: ExerciseSet[] = exerciseRecord.sets
+        .map((set) => {
+          if (!set || typeof set !== "object") return null;
+          const setRecord = set as Record<string, unknown>;
+          const weight =
+            typeof setRecord.weight === "number" ? setRecord.weight : Number(setRecord.weight);
+          const reps = typeof setRecord.reps === "number" ? setRecord.reps : Number(setRecord.reps);
+          return {
+            id:
+              typeof setRecord.id === "string" && setRecord.id.trim()
+                ? setRecord.id.trim()
+                : generateId(),
+            weight: Number.isFinite(weight) ? Math.max(0, Math.round(weight)) : 0,
+            reps: Number.isFinite(reps) ? Math.max(0, Math.round(reps)) : 0,
+            completed: Boolean(setRecord.completed),
+          };
+        })
+        .filter((set): set is ExerciseSet => Boolean(set));
+
+      return {
+        id:
+          typeof exerciseRecord.id === "string" && exerciseRecord.id.trim()
+            ? exerciseRecord.id.trim()
+            : generateId(),
+        exerciseId:
+          typeof exerciseRecord.exerciseId === "string" && exerciseRecord.exerciseId.trim()
+            ? exerciseRecord.exerciseId.trim()
+            : exerciseName,
+        name: exerciseName,
+        sets,
+        ...(typeof exerciseRecord.notes === "string" && exerciseRecord.notes.trim()
+          ? { notes: exerciseRecord.notes.trim() }
+          : {}),
+      };
+    })
+    .filter((exercise): exercise is WorkoutExercise => Boolean(exercise));
+
+  const endTime =
+    record.endTime === null || typeof record.endTime === "undefined"
+      ? NaN
+      : typeof record.endTime === "number"
+        ? record.endTime
+        : Number(record.endTime);
+  const duration =
+    record.duration === null || typeof record.duration === "undefined"
+      ? NaN
+      : typeof record.duration === "number"
+        ? record.duration
+        : Number(record.duration);
+  const totalVolume =
+    typeof record.totalVolume === "number" ? record.totalVolume : Number(record.totalVolume);
+  const caloriesBurned =
+    typeof record.caloriesBurned === "number"
+      ? record.caloriesBurned
+      : Number(record.caloriesBurned);
+
+  return {
+    id,
+    name,
+    date,
+    startTime,
+    endTime: Number.isFinite(endTime) ? endTime : undefined,
+    duration: Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : undefined,
+    exercises,
+    notes:
+      typeof record.notes === "string" && record.notes.trim() ? record.notes.trim() : undefined,
+    totalVolume: Number.isFinite(totalVolume) ? Math.max(0, Math.round(totalVolume)) : 0,
+    caloriesBurned: Number.isFinite(caloriesBurned) ? Math.max(0, Math.round(caloriesBurned)) : 0,
+    completed: Boolean(record.completed),
+    aiGenerated: Boolean(record.aiGenerated),
+  };
+}
+
+function normalizePersonalRecord(value: unknown): PersonalRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const exerciseId =
+    typeof record.exerciseId === "string" && record.exerciseId.trim()
+      ? record.exerciseId.trim()
+      : "";
+  const name = typeof record.name === "string" && record.name.trim() ? record.name.trim() : "";
+  const date = typeof record.date === "string" && record.date.trim() ? record.date.trim() : "";
+  const weight = typeof record.weight === "number" ? record.weight : Number(record.weight);
+  const reps = typeof record.reps === "number" ? record.reps : Number(record.reps);
+  if (!exerciseId || !name || !date || !Number.isFinite(weight) || !Number.isFinite(reps)) {
+    return null;
+  }
+
+  return {
+    exerciseId,
+    name,
+    date,
+    weight: Math.max(0, Math.round(weight)),
+    reps: Math.max(0, Math.round(reps)),
+  };
+}
+
+function normalizePersonalRecords(value: unknown): Record<string, PersonalRecord> {
+  if (!value || typeof value !== "object") return {};
+  const records: Record<string, PersonalRecord> = {};
+  for (const [key, candidate] of Object.entries(value as Record<string, unknown>)) {
+    const record = normalizePersonalRecord(candidate);
+    if (record) {
+      records[record.exerciseId || key] = record;
+    }
+  }
+  return records;
+}
+
+function mergeSessions(remoteSessions: WorkoutSession[], localSessions: WorkoutSession[]) {
+  const byId = new Map<string, WorkoutSession>();
+  for (const session of localSessions) byId.set(session.id, session);
+  for (const session of remoteSessions) byId.set(session.id, session);
+  return [...byId.values()].sort((left, right) => {
+    const leftTime = left.endTime ?? left.startTime;
+    const rightTime = right.endTime ?? right.startTime;
+    return rightTime - leftTime;
+  });
+}
+
 const WorkoutContext = createContext<WorkoutContextType | null>(null);
 
 export function WorkoutProvider({ children }: { children: React.ReactNode }) {
@@ -231,6 +358,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const [savedPlans, setSavedPlans] = useState<SavedWorkoutPlan[]>([]);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const sessionsRef = useRef<WorkoutSession[]>([]);
+  const personalRecordsRef = useRef<Record<string, PersonalRecord>>({});
   const savedPlansRef = useRef<SavedWorkoutPlan[]>([]);
   const getTokenRef = useRef(getToken);
   const storageKeys = useMemo(
@@ -245,6 +374,24 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     getTokenRef.current = getToken;
   }, [getToken]);
+
+  const replaceSessions = useCallback(
+    async (nextSessions: WorkoutSession[]) => {
+      sessionsRef.current = nextSessions;
+      setSessions(nextSessions);
+      await AsyncStorage.setItem(storageKeys.sessions, encodeVersioned(nextSessions));
+    },
+    [storageKeys.sessions],
+  );
+
+  const replacePersonalRecords = useCallback(
+    async (nextRecords: Record<string, PersonalRecord>) => {
+      personalRecordsRef.current = nextRecords;
+      setPersonalRecords(nextRecords);
+      await AsyncStorage.setItem(storageKeys.personalRecords, encodeVersioned(nextRecords));
+    },
+    [storageKeys.personalRecords],
+  );
 
   const replaceSavedPlans = useCallback(
     async (nextPlans: SavedWorkoutPlan[]) => {
@@ -289,6 +436,8 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           [],
         );
 
+        sessionsRef.current = sessionsResult.value;
+        personalRecordsRef.current = personalRecordsResult.value;
         setSessions(sessionsResult.value);
         setPersonalRecords(personalRecordsResult.value);
         const parsedPlans = savedPlansResult.value
@@ -330,26 +479,54 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     void load();
   }, [storageKeys.personalRecords, storageKeys.savedPlans, storageKeys.sessions]);
 
+  const fetchWorkoutSync = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      const apiBase = requireApiBaseOrThrow();
+
+      const [sessionsPayload, recordsPayload] = await Promise.all([
+        authenticatedJsonRequest<unknown[]>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/sessions",
+        }),
+        authenticatedJsonRequest<Record<string, unknown>>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/personal-records",
+        }),
+      ]);
+
+      const remoteSessions = sessionsPayload
+        .map(normalizeWorkoutSession)
+        .filter((session): session is WorkoutSession => Boolean(session));
+      const remoteRecords = normalizePersonalRecords(recordsPayload);
+
+      await Promise.all([
+        replaceSessions(mergeSessions(remoteSessions, sessionsRef.current)),
+        replacePersonalRecords({ ...personalRecordsRef.current, ...remoteRecords }),
+      ]);
+    } catch (error) {
+      console.error("Failed to sync workout history", error);
+    }
+  }, [replacePersonalRecords, replaceSessions, userId]);
+
   const fetchSavedPlans = useCallback(async () => {
     if (!userId) {
       return;
     }
 
     try {
-      const token = await getTokenRef.current();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
       const apiBase = requireApiBaseOrThrow();
 
-      const response = await fetch(`${apiBase}/api/workouts/member-plans`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const payload = await authenticatedJsonRequest<unknown[]>({
+        apiBase,
+        getToken: getTokenRef.current,
+        path: "/api/workouts/member-plans",
       });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch saved workout plans (${response.status})`);
-      }
-
-      const payload = safeParse<unknown[]>(await response.text(), []);
       const remotePlans = payload
         .map(normalizeSavedPlan)
         .filter((plan): plan is SavedWorkoutPlan => Boolean(plan));
@@ -365,14 +542,53 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
     void fetchSavedPlans();
-  }, [fetchSavedPlans, isLoaded]);
+    void fetchWorkoutSync();
+  }, [fetchSavedPlans, fetchWorkoutSync, isLoaded]);
 
   const saveSessions = useCallback(
     async (newSessions: WorkoutSession[]) => {
-      setSessions(newSessions);
-      await AsyncStorage.setItem(storageKeys.sessions, encodeVersioned(newSessions));
+      await replaceSessions(newSessions);
     },
-    [storageKeys.sessions],
+    [replaceSessions],
+  );
+
+  const syncSessionToServer = useCallback(
+    async (session: WorkoutSession) => {
+      if (!userId) {
+        return null;
+      }
+
+      try {
+        const apiBase = requireApiBaseOrThrow();
+        const payload = await authenticatedJsonRequest<{
+          session?: unknown;
+          personalRecords?: unknown[];
+        }>({
+          apiBase,
+          getToken: getTokenRef.current,
+          path: "/api/workouts/sessions",
+          method: "POST",
+          body: session,
+        });
+        const remoteSession = normalizeWorkoutSession(payload.session);
+        const remoteRecords: Record<string, PersonalRecord> = {};
+        for (const record of payload.personalRecords ?? []) {
+          const normalizedRecord = normalizePersonalRecord(record);
+          if (normalizedRecord) {
+            remoteRecords[normalizedRecord.exerciseId] = normalizedRecord;
+          }
+        }
+
+        return {
+          session: remoteSession,
+          personalRecords: remoteRecords,
+        };
+      } catch (error) {
+        console.error("Failed to sync completed workout session", error);
+        return null;
+      }
+    },
+    [userId],
   );
 
   const startSession = useCallback(
@@ -555,12 +771,31 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      setPersonalRecords(newPRs);
-      await AsyncStorage.setItem(storageKeys.personalRecords, encodeVersioned(newPRs));
+      await replacePersonalRecords(newPRs);
+
+      const syncResult = await syncSessionToServer(completedSession);
+      if (syncResult?.session) {
+        await saveSessions(
+          newSessions.map((entry) =>
+            entry.id === syncResult.session?.id ? syncResult.session : entry,
+          ),
+        );
+      }
+      if (syncResult?.personalRecords) {
+        await replacePersonalRecords({ ...newPRs, ...syncResult.personalRecords });
+      }
+
       setActiveSession(null);
       return { session: completedSession, newPRs: sessionNewPRs };
     },
-    [activeSession, personalRecords, saveSessions, sessions, storageKeys.personalRecords],
+    [
+      activeSession,
+      personalRecords,
+      replacePersonalRecords,
+      saveSessions,
+      sessions,
+      syncSessionToServer,
+    ],
   );
 
   const addExerciseToSession = useCallback(
@@ -612,8 +847,24 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       await saveSessions(sessions.filter((session) => session.id !== sessionId));
+      if (!userId) return;
+
+      try {
+        const apiBase = requireApiBaseOrThrow();
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/workouts/sessions/${encodeURIComponent(sessionId)}`,
+          method: "DELETE",
+        });
+      } catch (error) {
+        if (error instanceof AuthenticatedApiError && error.status === 404) {
+          return;
+        }
+        console.error("Failed to delete synced workout session", error);
+      }
     },
-    [saveSessions, sessions],
+    [getToken, saveSessions, sessions, userId],
   );
 
   const savePlan = useCallback(
@@ -638,30 +889,19 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (userId) {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
 
-        const endpoint = input.id
-          ? `${apiBase}/api/workouts/member-plans/${encodeURIComponent(input.id)}`
-          : `${apiBase}/api/workouts/member-plans`;
-        const response = await fetch(endpoint, {
-          method: input.id ? "PATCH" : "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name, focus, exercises }),
-        });
-
-        if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to save workout plan");
-        }
-
-        const normalizedPlan = normalizeSavedPlan(safeParse<unknown>(await response.text(), null));
+        const normalizedPlan = normalizeSavedPlan(
+          await authenticatedJsonRequest<unknown>({
+            apiBase,
+            getToken,
+            path: input.id
+              ? `/api/workouts/member-plans/${encodeURIComponent(input.id)}`
+              : "/api/workouts/member-plans",
+            method: input.id ? "PATCH" : "POST",
+            body: { name, focus, exercises },
+          }),
+        );
         if (!normalizedPlan) {
           throw new Error("Saved workout plan response was invalid");
         }
@@ -700,24 +940,14 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const deletePlan = useCallback(
     async (planId: string) => {
       if (userId) {
-        const token = await getToken();
-        if (!token) {
-          throw new Error("Missing auth token");
-        }
         const apiBase = requireApiBaseOrThrow();
 
-        const response = await fetch(
-          `${apiBase}/api/workouts/member-plans/${encodeURIComponent(planId)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-
-        if (!response.ok) {
-          const payload = safeParse<Record<string, string> | null>(await response.text(), null);
-          throw new Error(payload?.error || "Failed to delete workout plan");
-        }
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/workouts/member-plans/${encodeURIComponent(planId)}`,
+          method: "DELETE",
+        });
       }
 
       const nextPlans = savedPlansRef.current.filter((plan) => plan.id !== planId);

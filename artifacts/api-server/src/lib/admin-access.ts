@@ -38,6 +38,10 @@ function getDefaultGymId() {
   return normalizeGymId(process.env.DEFAULT_GYM_ID) ?? DEFAULT_GYM_ID;
 }
 
+function isConfiguredEnv(value: string | undefined) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function getConfiguredAdminGymOwners(): Map<string, string> {
   const raw = process.env.ADMIN_GYM_OWNER_EMAILS;
   const owners = new Map<string, string>();
@@ -76,16 +80,18 @@ function resolveOwnerGymId(email: string | null): {
   gymId: string | null;
   allowlistConfigured: boolean;
 } {
+  const hasOwnerGymMap = isConfiguredEnv(process.env.ADMIN_GYM_OWNER_EMAILS);
   const configuredOwners = getConfiguredAdminGymOwners();
-  if (configuredOwners.size > 0) {
+  if (hasOwnerGymMap) {
     return {
       gymId: email ? (configuredOwners.get(email) ?? null) : null,
       allowlistConfigured: true,
     };
   }
 
+  const hasAllowedEmailList = isConfiguredEnv(process.env.ADMIN_ALLOWED_EMAILS);
   const allowedEmails = getAllowedAdminEmails();
-  if (allowedEmails.size > 0) {
+  if (hasAllowedEmailList) {
     return {
       gymId: email && allowedEmails.has(email) ? getDefaultGymId() : null,
       allowlistConfigured: true,
@@ -106,7 +112,8 @@ export async function resolveAdminAccess(req: Request): Promise<AdminAccessResul
       role: null,
       gymId: null,
       allowlistConfigured:
-        getConfiguredAdminGymOwners().size > 0 || getAllowedAdminEmails().size > 0,
+        isConfiguredEnv(process.env.ADMIN_GYM_OWNER_EMAILS) ||
+        isConfiguredEnv(process.env.ADMIN_ALLOWED_EMAILS),
       reason: "Unauthorized",
     };
   }

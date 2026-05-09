@@ -4,6 +4,7 @@ import express from "express";
 import request from "supertest";
 
 const authState = { userId: "member_1" };
+const accessState = { gymId: "gymos-main" };
 const classesById = new Map();
 
 const gymClassesTable = {
@@ -268,7 +269,7 @@ mock.module("../../src/lib/user-access.ts", {
         allowed: true,
         userId: authState.userId,
         email: "member@example.com",
-        gymId: "gymos-main",
+        gymId: accessState.gymId,
         role: "member",
         profile: null,
         control: null,
@@ -285,6 +286,7 @@ app.use(classesRouter);
 
 beforeEach(() => {
   authState.userId = "member_1";
+  accessState.gymId = "gymos-main";
   classesById.clear();
   classesById.set(1, seedClass(1));
   classesById.set(
@@ -299,6 +301,16 @@ beforeEach(() => {
 });
 
 describe("classes routes", () => {
+  it("returns JSON unauthorized for unauthenticated class reads", async () => {
+    authState.userId = null;
+
+    const response = await request(app).get("/classes");
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+    assert.equal(response.headers.location, undefined);
+  });
+
   it("lists currently enrolled class ids for the caller", async () => {
     const response = await request(app).get("/classes/enrolled");
 
@@ -321,6 +333,37 @@ describe("classes routes", () => {
 
     assert.equal(response.status, 200);
     assert.deepEqual(response.body, { classIds: ["1"] });
+  });
+
+  it("scopes class lists and roster mutations to the caller's gym", async () => {
+    classesById.set(
+      3,
+      seedClass(3, {
+        gymId: "other-gym",
+        enrolledMemberIds: ["member_1"],
+        waitlistedMemberIds: ["member_1"],
+      }),
+    );
+
+    const listResponse = await request(app).get("/classes");
+    assert.equal(listResponse.status, 200);
+    assert.deepEqual(
+      listResponse.body.map((cls) => cls.id),
+      [1, 2],
+    );
+
+    const enrolledResponse = await request(app).get("/classes/enrolled");
+    assert.equal(enrolledResponse.status, 200);
+    assert.deepEqual(enrolledResponse.body, { classIds: ["2"] });
+
+    const waitlistedResponse = await request(app).get("/classes/waitlisted");
+    assert.equal(waitlistedResponse.status, 200);
+    assert.deepEqual(waitlistedResponse.body, { classIds: [] });
+
+    const enrollResponse = await request(app).post("/classes/3/enroll");
+    assert.equal(enrollResponse.status, 404);
+    assert.deepEqual(enrollResponse.body, { error: "Class not found" });
+    assert.deepEqual(classesById.get(3).enrolledMemberIds, ["member_1"]);
   });
 
   it("enrolls the caller into an available class", async () => {

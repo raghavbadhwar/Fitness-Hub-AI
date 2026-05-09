@@ -8,7 +8,9 @@
     "beta-secrets-preflight:init": "tsx ./src/internal-beta-secret-preflight.ts --init",
     "beta-secrets-preflight:accept-risk": "tsx ./src/internal-beta-secret-preflight.ts --accept-risk",
     "node-version-preflight": "tsx ./src/node-version-preflight.ts",
-    "test": "node --import tsx --test src/internal-beta-secret-preflight.test.ts src/node-version-preflight.test.ts",
+    "performance-budget-check": "tsx ./src/performance-budget-check.ts",
+    "production-env-preflight": "tsx ./src/production-env-preflight.ts",
+    "test": "node --import tsx --test src/internal-beta-secret-preflight.test.ts src/node-version-preflight.test.ts src/performance-budget-check.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

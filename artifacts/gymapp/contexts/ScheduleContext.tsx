@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import {
   decodeVersioned,
   decodeVersionedWithLegacyFallback,
@@ -206,17 +207,18 @@ function normalizeGymClass(c: Record<string, unknown>): GymClass {
   };
 }
 
-async function fetchClassesFromAPI(token: string | null): Promise<GymClass[] | null> {
+async function fetchClassesFromAPI(
+  getToken: () => Promise<string | null>,
+): Promise<GymClass[] | null> {
   try {
     const apiBase = getApiBase();
-    if (!apiBase || !token) return null;
-    const url = `${apiBase}/api/classes`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
+    if (!apiBase) return null;
+    const data = await authenticatedJsonRequest<Record<string, unknown>[]>({
+      apiBase,
+      getToken,
+      path: "/api/classes",
+      timeoutMs: 5000,
     });
-    if (!response.ok) return null;
-    const data = await response.json();
     if (!Array.isArray(data)) return null;
     return data.map((c: Record<string, unknown>) => normalizeGymClass(c));
   } catch {
@@ -278,22 +280,17 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const token = await getTokenRef.current();
     const apiBase = getApiBase();
-    if (!token || !apiBase) {
+    if (!apiBase) {
       return;
     }
 
-    const response = await fetch(`${apiBase}/api/classes/enrolled`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
+    const payload = await authenticatedJsonRequest<{ classIds?: unknown }>({
+      apiBase,
+      getToken: getTokenRef.current,
+      path: "/api/classes/enrolled",
+      timeoutMs: 5000,
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch enrolled classes (${response.status})`);
-    }
-
-    const payload = (await response.json()) as { classIds?: unknown };
     const nextEnrolledClassIds = Array.isArray(payload.classIds)
       ? payload.classIds.map((classId) => String(classId))
       : [];
@@ -305,22 +302,17 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const token = await getTokenRef.current();
     const apiBase = getApiBase();
-    if (!token || !apiBase) {
+    if (!apiBase) {
       return;
     }
 
-    const response = await fetch(`${apiBase}/api/classes/waitlisted`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
+    const payload = await authenticatedJsonRequest<{ classIds?: unknown }>({
+      apiBase,
+      getToken: getTokenRef.current,
+      path: "/api/classes/waitlisted",
+      timeoutMs: 5000,
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch waitlisted classes (${response.status})`);
-    }
-
-    const payload = (await response.json()) as { classIds?: unknown };
     const nextWaitlistedClassIds = Array.isArray(payload.classIds)
       ? payload.classIds.map((classId) => String(classId))
       : [];
@@ -332,7 +324,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       const apiClassesPromise = (async () => {
         if (!isSignedIn) return null;
-        return fetchClassesFromAPI(await getTokenRef.current());
+        return fetchClassesFromAPI(getTokenRef.current);
       })();
       const [storedEnrolled, storedWaitlist, storedClasses, apiClasses] = await Promise.all([
         AsyncStorage.getItem(enrolledStorageKey),
@@ -440,22 +432,16 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       const cls = classes.find((c) => c.id === classId);
       if (!cls || cls.enrolledCount >= cls.maxParticipants) return;
 
-      const token = await getTokenRef.current();
       const apiBase = getApiBase();
-      if (token && apiBase) {
-        const response = await fetch(
-          `${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`,
-          {
+      if (isSignedIn && apiBase) {
+        const updatedClass = normalizeGymClass(
+          await authenticatedJsonRequest<Record<string, unknown>>({
+            apiBase,
+            getToken: getTokenRef.current,
+            path: `/api/classes/${encodeURIComponent(classId)}/enroll`,
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          }),
         );
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(payload?.error || "Failed to enroll in class");
-        }
-
-        const updatedClass = normalizeGymClass(await response.json());
         await replaceClass(updatedClass);
         if (!enrolledClassIds.includes(classId)) {
           await saveLocalEnrolledIds([...enrolledClassIds, classId]);
@@ -486,6 +472,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [
       classes,
       enrolledClassIds,
+      isSignedIn,
       replaceClass,
       saveClasses,
       saveLocalEnrolledIds,
@@ -498,22 +485,16 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     async (classId: string, userId: string) => {
       const newEnrolled = enrolledClassIds.filter((id) => id !== classId);
 
-      const token = await getTokenRef.current();
       const apiBase = getApiBase();
-      if (token && apiBase) {
-        const response = await fetch(
-          `${apiBase}/api/classes/${encodeURIComponent(classId)}/enroll`,
-          {
+      if (isSignedIn && apiBase) {
+        const updatedClass = normalizeGymClass(
+          await authenticatedJsonRequest<Record<string, unknown>>({
+            apiBase,
+            getToken: getTokenRef.current,
+            path: `/api/classes/${encodeURIComponent(classId)}/enroll`,
             method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          }),
         );
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(payload?.error || "Failed to leave class");
-        }
-
-        const updatedClass = normalizeGymClass(await response.json());
         await replaceClass(updatedClass);
         await saveLocalEnrolledIds(newEnrolled);
         return;
@@ -531,7 +512,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       await saveClasses(newClasses);
       await saveLocalEnrolledIds(newEnrolled);
     },
-    [classes, enrolledClassIds, replaceClass, saveClasses, saveLocalEnrolledIds],
+    [classes, enrolledClassIds, isSignedIn, replaceClass, saveClasses, saveLocalEnrolledIds],
   );
 
   const managementMovedToAdmin = useCallback(async () => {
@@ -540,22 +521,16 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   const joinWaitlist = useCallback(
     async (classId: string) => {
-      const token = await getTokenRef.current();
       const apiBase = getApiBase();
-      if (token && apiBase) {
-        const response = await fetch(
-          `${apiBase}/api/classes/${encodeURIComponent(classId)}/waitlist`,
-          {
+      if (isSignedIn && apiBase) {
+        const updatedClass = normalizeGymClass(
+          await authenticatedJsonRequest<Record<string, unknown>>({
+            apiBase,
+            getToken: getTokenRef.current,
+            path: `/api/classes/${encodeURIComponent(classId)}/waitlist`,
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          }),
         );
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(payload?.error || "Failed to join waitlist");
-        }
-
-        const updatedClass = normalizeGymClass(await response.json());
         await replaceClass(updatedClass);
       }
 
@@ -563,33 +538,27 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         await saveLocalWaitlistedIds([...waitlistedClassIds, classId]);
       }
     },
-    [replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
+    [isSignedIn, replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
   );
 
   const leaveWaitlist = useCallback(
     async (classId: string) => {
-      const token = await getTokenRef.current();
       const apiBase = getApiBase();
-      if (token && apiBase) {
-        const response = await fetch(
-          `${apiBase}/api/classes/${encodeURIComponent(classId)}/waitlist`,
-          {
+      if (isSignedIn && apiBase) {
+        const updatedClass = normalizeGymClass(
+          await authenticatedJsonRequest<Record<string, unknown>>({
+            apiBase,
+            getToken: getTokenRef.current,
+            path: `/api/classes/${encodeURIComponent(classId)}/waitlist`,
             method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
+          }),
         );
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(payload?.error || "Failed to leave waitlist");
-        }
-
-        const updatedClass = normalizeGymClass(await response.json());
         await replaceClass(updatedClass);
       }
 
       await saveLocalWaitlistedIds(waitlistedClassIds.filter((id) => id !== classId));
     },
-    [replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
+    [isSignedIn, replaceClass, saveLocalWaitlistedIds, waitlistedClassIds],
   );
 
   const getTodayClasses = useCallback(() => {

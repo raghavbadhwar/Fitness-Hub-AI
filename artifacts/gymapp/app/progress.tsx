@@ -27,7 +27,7 @@ import { useTypography } from "@/hooks/useTypography";
 import { useApp, type BodyMeasurement } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
-import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey } from "@/lib/date-key";
 import {
   buildMonthlyReviewSnapshot,
@@ -960,30 +960,13 @@ export default function ProgressScreen() {
     let cancelled = false;
 
     const fetchSavedReview = async () => {
-      const apiBase = getApiBase();
-      if (!apiBase) {
-        setSavedMonthlyReview(null);
-        return;
-      }
-
       setLoadingMonthlyReview(true);
       setMonthlyReviewError(null);
       try {
-        const token = await getToken();
-        if (!token) {
-          setSavedMonthlyReview(null);
-          return;
-        }
-
-        const response = await fetch(
-          `${apiBase}/api/monthly-reviews?month=${encodeURIComponent(reviewMonth)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!response.ok) {
-          throw new Error("Failed to load monthly review");
-        }
-
-        const payload = (await response.json()) as MonthlyReviewResponse;
+        const payload = await authenticatedJsonRequest<MonthlyReviewResponse>({
+          getToken,
+          path: `/api/monthly-reviews?month=${encodeURIComponent(reviewMonth)}`,
+        });
         if (!cancelled) {
           setSavedMonthlyReview(payload.review);
         }
@@ -1008,41 +991,22 @@ export default function ProgressScreen() {
   }, [getToken, reviewMonth]);
 
   const handleGenerateMonthlyReview = useCallback(async () => {
-    const apiBase = getApiBase();
-    if (!apiBase) {
-      setMonthlyReviewError("API base URL is not configured.");
-      return;
-    }
-
     setSavingMonthlyReview(true);
     setMonthlyReviewError(null);
     try {
-      const token = await getToken();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
-
-      const response = await fetch(`${apiBase}/api/monthly-reviews/generate`, {
+      const payload = await authenticatedJsonRequest<MonthlyReviewResponse>({
+        getToken,
+        path: "/api/monthly-reviews/generate",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        body: {
           month: reviewMonth,
           metrics: monthlyReviewSnapshot.metrics,
           badges: monthlyReviewSnapshot.badges,
           suggestedAdjustments: monthlyReviewSnapshot.suggestedAdjustments,
-        }),
+        },
       });
-
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<MonthlyReviewResponse> & {
-        error?: string;
-      };
-      if (!response.ok || !payload.review) {
-        throw new Error(payload.error || "Failed to generate monthly review");
+      if (!payload.review) {
+        throw new Error("Failed to generate monthly review");
       }
 
       setSavedMonthlyReview(payload.review);
@@ -1063,38 +1027,17 @@ export default function ProgressScreen() {
   const handleMarkMonthlyReviewReviewed = useCallback(async () => {
     if (!savedMonthlyReview) return;
 
-    const apiBase = getApiBase();
-    if (!apiBase) {
-      setMonthlyReviewError("API base URL is not configured.");
-      return;
-    }
-
     setSavingMonthlyReview(true);
     setMonthlyReviewError(null);
     try {
-      const token = await getToken();
-      if (!token) {
-        throw new Error("Missing auth token");
-      }
-
-      const response = await fetch(
-        `${apiBase}/api/monthly-reviews/${encodeURIComponent(savedMonthlyReview.id)}/review`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ reviewed: true }),
-        },
-      );
-      const payload = (await response
-        .json()
-        .catch(() => ({}))) as Partial<MonthlyReviewResponse> & {
-        error?: string;
-      };
-      if (!response.ok || !payload.review) {
-        throw new Error(payload.error || "Failed to mark monthly review reviewed");
+      const payload = await authenticatedJsonRequest<MonthlyReviewResponse>({
+        getToken,
+        path: `/api/monthly-reviews/${encodeURIComponent(savedMonthlyReview.id)}/review`,
+        method: "PATCH",
+        body: { reviewed: true },
+      });
+      if (!payload.review) {
+        throw new Error("Failed to mark monthly review reviewed");
       }
 
       setSavedMonthlyReview(payload.review);

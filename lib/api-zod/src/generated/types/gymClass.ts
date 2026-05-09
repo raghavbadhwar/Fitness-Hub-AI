@@ -20,6 +20,7 @@ export interface GymClass {
   maxParticipants: number;
   enrolledCount: number;
   waitlistedCount: number;
+  checkedInCount: number;
   room: string;
   status: GymClassStatus;
   color: string;

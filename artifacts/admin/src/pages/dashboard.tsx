@@ -214,6 +214,32 @@ export function DashboardContent({
   );
   const pendingMembers = members.filter((member) => member.accessStatus === "pending");
   const aiActiveMembers = members.filter((member) => member.aiRecentMessageCount > 0);
+  const actionQueue = [
+    pendingMembers.length > 0
+      ? {
+          label: "Approve waiting members",
+          value: `${pendingMembers.length} pending`,
+          href: "/members",
+          tone: "warning" as const,
+        }
+      : null,
+    fullClasses.length > 0
+      ? {
+          label: "Open waitlist follow-up",
+          value: `${fullClasses.length} full class${fullClasses.length === 1 ? "" : "es"}`,
+          href: "/classes",
+          tone: "warning" as const,
+        }
+      : null,
+    stats.lowAttendanceClasses.length > 0
+      ? {
+          label: "Promote low-attendance classes",
+          value: `${stats.lowAttendanceClasses.length} watch item${stats.lowAttendanceClasses.length === 1 ? "" : "s"}`,
+          href: "/classes",
+          tone: "neutral" as const,
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   return (
     <div className="flex flex-col gap-6">
@@ -296,30 +322,83 @@ export function DashboardContent({
         </Card>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Card data-testid="dashboard-action-queue">
+        <CardHeader>
+          <CardTitle>Owner Action Queue</CardTitle>
+          <CardDescription>
+            Prioritized work generated from live access, class, and attendance data.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {actionQueue.length === 0 ? (
+            <div className="rounded-md border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+              No urgent owner actions from the current data set.
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              {actionQueue.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={
+                    item.tone === "warning"
+                      ? "rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950 transition hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+                      : "rounded-md border bg-background p-4 transition hover:bg-muted/50"
+                  }
+                >
+                  <div className="text-xs font-semibold uppercase opacity-75">{item.label}</div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-lg font-bold">{item.value}</span>
+                    <ArrowRight className="size-4 shrink-0" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <Card className="border-primary/20" data-testid="stat-card-classes">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Classes This Week</CardTitle>
+            <CardTitle className="text-sm font-medium">Upcoming Classes</CardTitle>
             <CalendarDays className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold" data-testid="text-stat-classes">
-              {stats.totalClassesThisWeek}
+              {stats.upcomingClassesCount}
             </div>
-            <p className="text-xs text-muted-foreground">Scheduled sessions</p>
+            <p className="text-xs text-muted-foreground">
+              {stats.totalClassesThisWeek} scheduled this week
+            </p>
           </CardContent>
         </Card>
 
         <Card data-testid="stat-card-enrollments">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Enrollments</CardTitle>
+            <CardTitle className="text-sm font-medium">Week Enrollments</CardTitle>
             <Users className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold" data-testid="text-stat-enrollments">
-              {stats.totalEnrollments}
+              {stats.totalEnrollmentsThisWeek}
             </div>
-            <p className="text-xs text-muted-foreground">Across all classes</p>
+            <p className="text-xs text-muted-foreground">
+              {stats.totalEnrollments} across all classes
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="stat-card-occupancy">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Occupancy</CardTitle>
+            <Flame className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-stat-occupancy">
+              {stats.averageClassOccupancy}%
+            </div>
+            <p className="text-xs text-muted-foreground">This week capacity fill</p>
           </CardContent>
         </Card>
 
@@ -346,6 +425,19 @@ export function DashboardContent({
               {stats.mostPopularCategory || "N/A"}
             </div>
             <p className="text-xs text-muted-foreground">Top class category</p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="stat-card-low-attendance">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Low Attendance</CardTitle>
+            <AlertCircle className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-stat-low-attendance">
+              {stats.lowAttendanceClasses.length}
+            </div>
+            <p className="text-xs text-muted-foreground">Upcoming below 35% capacity</p>
           </CardContent>
         </Card>
       </div>
@@ -395,75 +487,123 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Classes</CardTitle>
-            <CardDescription>Fast scan for today and the next scheduled sessions.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {classesLoading ? (
-              <div className="flex flex-col gap-3">
-                {[1, 2, 3].map((item) => (
-                  <Skeleton key={item} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : upcomingClasses.length === 0 ? (
-              <Empty className="border bg-muted/30 p-6">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <CalendarDays className="size-5 text-primary" />
-                  </EmptyMedia>
-                  <EmptyTitle>No classes scheduled</EmptyTitle>
-                  <EmptyDescription>
-                    Create the next class from the Classes screen.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="hidden grid-cols-[1fr_1.4fr_1fr_auto] gap-3 border-b pb-2 text-xs font-semibold uppercase text-muted-foreground sm:grid">
-                  <span>Time</span>
-                  <span>Class</span>
-                  <span>Trainer</span>
-                  <span className="text-right">Enrolled</span>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Low Attendance Watchlist</CardTitle>
+              <CardDescription>
+                Upcoming sessions that may need promotion or trainer action.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stats.lowAttendanceClasses.length === 0 ? (
+                <Empty className="border bg-muted/30 p-6">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <CheckCircle2 className="size-5 text-primary" />
+                    </EmptyMedia>
+                    <EmptyTitle>No low-attendance sessions</EmptyTitle>
+                    <EmptyDescription>
+                      Upcoming classes are above the watch threshold.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {stats.lowAttendanceClasses.map((gymClass) => (
+                    <div key={gymClass.id} className="rounded-md border bg-background p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold">{gymClass.name}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {format(new Date(`${gymClass.date}T00:00:00`), "MMM d")} ·{" "}
+                            {gymClass.startTime}
+                          </div>
+                        </div>
+                        <Badge variant="secondary">{gymClass.occupancyPercent}% full</Badge>
+                      </div>
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        {gymClass.enrolledCount}/{gymClass.maxParticipants} enrolled
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {upcomingClasses.map((gymClass) => (
-                  <div
-                    key={gymClass.id}
-                    className="rounded-md border bg-background p-3 sm:grid sm:grid-cols-[1fr_1.4fr_1fr_auto] sm:items-center sm:gap-3"
-                  >
-                    <div className="text-sm text-muted-foreground">
-                      {format(new Date(gymClass.date), "MMM d")} · {gymClass.startTime}
-                    </div>
-                    <div className="mt-2 min-w-0 sm:mt-0">
-                      <div className="truncate font-semibold">{gymClass.name}</div>
-                      <Badge
-                        variant={gymClass.status === "scheduled" ? "default" : "secondary"}
-                        className="mt-2 sm:hidden"
-                      >
-                        {gymClass.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 truncate text-sm text-muted-foreground sm:mt-0">
-                      {gymClass.trainer}
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-2 sm:mt-0 sm:flex-col sm:items-end">
-                      <Badge
-                        variant={gymClass.status === "scheduled" ? "default" : "secondary"}
-                        className="hidden sm:inline-flex"
-                      >
-                        {gymClass.status}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {gymClass.enrolledCount}/{gymClass.maxParticipants}
-                      </span>
-                    </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming Classes</CardTitle>
+              <CardDescription>
+                Fast scan for today and the next scheduled sessions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {classesLoading ? (
+                <div className="flex flex-col gap-3">
+                  {[1, 2, 3].map((item) => (
+                    <Skeleton key={item} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : upcomingClasses.length === 0 ? (
+                <Empty className="border bg-muted/30 p-6">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <CalendarDays className="size-5 text-primary" />
+                    </EmptyMedia>
+                    <EmptyTitle>No classes scheduled</EmptyTitle>
+                    <EmptyDescription>
+                      Create the next class from the Classes screen.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="hidden grid-cols-[1fr_1.4fr_1fr_auto] gap-3 border-b pb-2 text-xs font-semibold uppercase text-muted-foreground sm:grid">
+                    <span>Time</span>
+                    <span>Class</span>
+                    <span>Trainer</span>
+                    <span className="text-right">Enrolled</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  {upcomingClasses.map((gymClass) => (
+                    <div
+                      key={gymClass.id}
+                      className="rounded-md border bg-background p-3 sm:grid sm:grid-cols-[1fr_1.4fr_1fr_auto] sm:items-center sm:gap-3"
+                    >
+                      <div className="text-sm text-muted-foreground">
+                        {format(new Date(gymClass.date), "MMM d")} · {gymClass.startTime}
+                      </div>
+                      <div className="mt-2 min-w-0 sm:mt-0">
+                        <div className="truncate font-semibold">{gymClass.name}</div>
+                        <Badge
+                          variant={gymClass.status === "scheduled" ? "default" : "secondary"}
+                          className="mt-2 sm:hidden"
+                        >
+                          {gymClass.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 truncate text-sm text-muted-foreground sm:mt-0">
+                        {gymClass.trainer}
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-2 sm:mt-0 sm:flex-col sm:items-end">
+                        <Badge
+                          variant={gymClass.status === "scheduled" ? "default" : "secondary"}
+                          className="hidden sm:inline-flex"
+                        >
+                          {gymClass.status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {gymClass.enrolledCount}/{gymClass.maxParticipants}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

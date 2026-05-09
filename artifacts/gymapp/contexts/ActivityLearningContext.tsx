@@ -5,6 +5,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey } from "@/lib/date-key";
 
 const ACTIVITY_LEARNING_STORAGE_KEY = "@gymapp_activity_learning_sync";
@@ -144,21 +145,19 @@ export function ActivityLearningProvider({ children }: { children: React.ReactNo
           return;
         }
 
-        const token = await getToken();
-        if (!token || cancelled) {
+        if (cancelled) {
           return;
         }
 
-        const response = await fetch(`${apiBase}/api/ai/activity-snapshot`, {
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: "/api/ai/activity-snapshot",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(snapshot),
+          body: snapshot,
         });
 
-        if (response.ok && !cancelled) {
+        if (!cancelled) {
           await AsyncStorage.setItem(
             storageKey,
             JSON.stringify({ date: snapshot.date, signature }),

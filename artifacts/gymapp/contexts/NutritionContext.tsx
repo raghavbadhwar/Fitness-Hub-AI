@@ -1,7 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { getApiBase } from "@/lib/api-base";
+import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey, getMillisecondsUntilNextLocalDate } from "@/lib/date-key";
+import { generateId } from "@/lib/id";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
 
@@ -37,10 +40,6 @@ export interface NutritionSummary {
   water: number;
 }
 
-function generateId(): string {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
-
 interface NutritionContextType {
   todayLog: DailyLog;
   getLogForDate: (date: string) => DailyLog;
@@ -56,12 +55,27 @@ interface NutritionContextType {
 const NutritionContext = createContext<NutritionContextType | null>(null);
 const NUTRITION_STORAGE_KEY = "@gymapp_nutrition";
 
+type ServerNutritionLog = DailyLog & {
+  id?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+function logsArrayToMap(logs: DailyLog[]): Record<string, DailyLog> {
+  return Object.fromEntries(logs.map((log) => [log.date, log]));
+}
+
 export function NutritionProvider({ children }: { children: React.ReactNode }) {
-  const { isLoaded: authLoaded, userId } = useAuth();
+  const { getToken, isLoaded: authLoaded, userId } = useAuth();
   const [logs, setLogs] = useState<Record<string, DailyLog>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [today, setToday] = useState(() => getLocalDateKey());
+  const getTokenRef = useRef(getToken);
   const storageKey = `${NUTRITION_STORAGE_KEY}:${userId ?? "guest"}`;
+
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -93,8 +107,30 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       try {
         const stored = await AsyncStorage.getItem(storageKey);
+        const storedLogs = stored ? (JSON.parse(stored) as Record<string, DailyLog>) : {};
+        if (userId) {
+          const apiBase = getApiBase();
+          if (apiBase) {
+            try {
+              const serverLogs = await authenticatedJsonRequest<ServerNutritionLog[]>({
+                apiBase,
+                getToken: getTokenRef.current,
+                path: "/api/nutrition/logs",
+              });
+              const mergedLogs = { ...storedLogs, ...logsArrayToMap(serverLogs) };
+              if (!cancelled) {
+                setLogs(mergedLogs);
+                await AsyncStorage.setItem(storageKey, JSON.stringify(mergedLogs));
+              }
+              return;
+            } catch (error) {
+              console.error("Failed to load nutrition logs from server", error);
+            }
+          }
+        }
+
         if (!cancelled) {
-          setLogs(stored ? JSON.parse(stored) : {});
+          setLogs(storedLogs);
         }
       } catch (e) {
         console.error("Failed to load nutrition", e);
@@ -110,7 +146,31 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [authLoaded, storageKey]);
+  }, [authLoaded, storageKey, userId]);
+
+  const syncLogToServer = useCallback(
+    async (log: DailyLog) => {
+      if (!userId) return;
+      const apiBase = getApiBase();
+      if (!apiBase) return;
+
+      try {
+        await authenticatedJsonRequest<unknown>({
+          apiBase,
+          getToken,
+          path: `/api/nutrition/logs/${encodeURIComponent(log.date)}`,
+          method: "PUT",
+          body: {
+            entries: log.entries,
+            waterIntake: log.waterIntake,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to sync nutrition log", error);
+      }
+    },
+    [getToken, userId],
+  );
 
   const saveLogs = useCallback(
     async (newLogs: Record<string, DailyLog>) => {
@@ -136,8 +196,9 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
         [date]: { ...currentLog, entries: [...currentLog.entries, newEntry] },
       };
       await saveLogs(newLogs);
+      await syncLogToServer(newLogs[date]);
     },
-    [logs, saveLogs, today],
+    [logs, saveLogs, syncLogToServer, today],
   );
 
   const removeFoodEntry = useCallback(
@@ -149,8 +210,9 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
         [date]: { ...currentLog, entries: currentLog.entries.filter((e) => e.id !== entryId) },
       };
       await saveLogs(newLogs);
+      await syncLogToServer(newLogs[date]);
     },
-    [logs, saveLogs, today],
+    [logs, saveLogs, syncLogToServer, today],
   );
 
   const updateWaterIntake = useCallback(
@@ -158,8 +220,9 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
       const currentLog = logs[date] || { date, entries: [], waterIntake: 0 };
       const newLogs = { ...logs, [date]: { ...currentLog, waterIntake: glasses } };
       await saveLogs(newLogs);
+      await syncLogToServer(newLogs[date]);
     },
-    [logs, saveLogs, today],
+    [logs, saveLogs, syncLogToServer, today],
   );
 
   const getLogsForRange = useCallback(

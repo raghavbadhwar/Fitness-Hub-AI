@@ -7,6 +7,8 @@ info:
 servers:
   - url: /api
     description: Base API path
+security:
+  - ClerkBearerAuth: []
 tags:
   - name: health
     description: Health operations
@@ -20,6 +22,12 @@ tags:
     description: AI coaching and analysis operations
   - name: workouts
     description: Workout templates, assignments, and saved plan operations
+  - name: nutrition
+    description: Member nutrition log synchronization operations
+  - name: progress
+    description: Member progress and body measurement synchronization operations
+  - name: notifications
+    description: Member notification preference operations
   - name: monthly-reviews
     description: Saved member monthly progress review operations
 paths:
@@ -29,6 +37,7 @@ paths:
       tags: [health]
       summary: Health check
       description: Returns server health status
+      security: []
       responses:
         "200":
           description: Healthy
@@ -42,7 +51,7 @@ paths:
       operationId: listClasses
       tags: [classes]
       summary: List all gym classes
-      description: Returns all upcoming gym classes (public endpoint for mobile app)
+      description: Returns all upcoming gym classes for the authenticated caller's approved gym access
       responses:
         "200":
           description: List of gym classes
@@ -52,6 +61,18 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GymClass"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /classes/enrolled:
     get:
@@ -72,6 +93,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /classes/waitlisted:
     get:
@@ -88,6 +115,12 @@ paths:
                 $ref: "#/components/schemas/WaitlistedClassIdsResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -119,6 +152,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -164,6 +203,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Class not found
           content:
@@ -197,6 +242,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -238,6 +289,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -674,6 +731,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/audit-logs:
+    get:
+      operationId: adminListAuditLogs
+      tags: [admin]
+      summary: List admin audit logs
+      description: Returns recent owner-only audit events for sensitive admin actions in the current gym.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Recent audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminAuditLog"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/dashboard:
     get:
       operationId: adminGetDashboard
@@ -1078,6 +1172,344 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /nutrition/logs:
+    get:
+      operationId: nutritionListLogs
+      tags: [nutrition]
+      summary: List nutrition logs for the signed-in member
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      responses:
+        "200":
+          description: Nutrition logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /nutrition/logs/{date}:
+    get:
+      operationId: nutritionGetLog
+      tags: [nutrition]
+      summary: Get one nutrition log for the signed-in member
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      responses:
+        "200":
+          description: Nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: nutritionPutLog
+      tags: [nutrition]
+      summary: Upsert one nutrition log for the signed-in member
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertNutritionLogBody"
+      responses:
+        "200":
+          description: Saved nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NutritionLog"
+        "400":
+          description: Invalid nutrition log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Member access is not approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /progress/entries:
+    get:
+      operationId: progressListEntries
+      tags: [progress]
+      summary: List signed-in member progress entries
+      responses:
+        "200":
+          description: Progress entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProgressEntry"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to list progress entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: progressCreateEntry
+      tags: [progress]
+      summary: Create or upsert a signed-in member progress entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertProgressEntryBody"
+      responses:
+        "201":
+          description: Created progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressEntry"
+        "400":
+          description: Invalid progress entry payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to save progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /progress/entries/{id}:
+    patch:
+      operationId: progressUpdateEntry
+      tags: [progress]
+      summary: Update a signed-in member progress entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertProgressEntryBody"
+      responses:
+        "200":
+          description: Updated progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressEntry"
+        "400":
+          description: Invalid progress entry payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Progress entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: progressDeleteEntry
+      tags: [progress]
+      summary: Delete a signed-in member progress entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Progress entry deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid progress entry id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Progress entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to delete progress entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /notifications/preferences:
+    get:
+      operationId: notificationsGetPreferences
+      tags: [notifications]
+      summary: Get signed-in member notification preferences
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: notificationsUpdatePreferences
+      tags: [notifications]
+      summary: Update signed-in member notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: Updated notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "400":
+          description: Invalid notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /monthly-reviews/generate:
     post:
       operationId: monthlyReviewsGenerate
@@ -1448,6 +1880,189 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /workouts/sessions:
+    get:
+      operationId: workoutsListSessions
+      tags: [workouts]
+      summary: List signed-in member workout sessions
+      responses:
+        "200":
+          description: Workout sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutSession"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch workout sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: workoutsCreateSession
+      tags: [workouts]
+      summary: Create or upsert a signed-in member workout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutSession"
+      responses:
+        "201":
+          description: Created workout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSessionMutationResponse"
+        "400":
+          description: Invalid workout session payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Workout session id already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to save workout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/sessions/{id}:
+    patch:
+      operationId: workoutsUpdateSession
+      tags: [workouts]
+      summary: Update a signed-in member workout session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutSession"
+      responses:
+        "200":
+          description: Updated workout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutSessionMutationResponse"
+        "400":
+          description: Invalid workout session payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workout session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to update workout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: workoutsDeleteSession
+      tags: [workouts]
+      summary: Delete a signed-in member workout session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workout session deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid workout session id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workout session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to delete workout session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts/personal-records:
+    get:
+      operationId: workoutsListPersonalRecords
+      tags: [workouts]
+      summary: List signed-in member personal records
+      responses:
+        "200":
+          description: Personal records keyed by exerciseId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonalRecordsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to fetch personal records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /workouts/member-plans/{id}:
     patch:
       operationId: workoutsUpdateMemberPlan
@@ -1659,6 +2274,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  securitySchemes:
+    ClerkBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Clerk session bearer token sent as Authorization: Bearer <token>."
   schemas:
     HealthStatus:
       type: object
@@ -1781,6 +2402,8 @@ components:
           type: integer
         waitlistedCount:
           type: integer
+        checkedInCount:
+          type: integer
         room:
           type: string
         status:
@@ -1804,6 +2427,7 @@ components:
         - maxParticipants
         - enrolledCount
         - waitlistedCount
+        - checkedInCount
         - room
         - status
         - color
@@ -1910,6 +2534,36 @@ components:
           type: string
         description:
           type: string
+
+    AdminAuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        gymId:
+          type: string
+        actorClerkId:
+          type: string
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - gymId
+        - actorClerkId
+        - action
+        - targetType
+        - targetId
+        - metadata
+        - createdAt
 
     ClassEnrollmentMember:
       type: object
@@ -2032,6 +2686,34 @@ components:
         - day
         - count
 
+    DashboardLowAttendanceClass:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        enrolledCount:
+          type: integer
+        maxParticipants:
+          type: integer
+        occupancyPercent:
+          type: integer
+          minimum: 0
+      required:
+        - id
+        - name
+        - date
+        - startTime
+        - enrolledCount
+        - maxParticipants
+        - occupancyPercent
+
     DashboardStats:
       type: object
       properties:
@@ -2039,10 +2721,21 @@ components:
           type: integer
         totalEnrollments:
           type: integer
+        totalEnrollmentsThisWeek:
+          type: integer
+        averageClassOccupancy:
+          type: integer
+          minimum: 0
+        upcomingClassesCount:
+          type: integer
         mostPopularCategory:
           type: string
         totalActiveMembers:
           type: integer
+        lowAttendanceClasses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardLowAttendanceClass"
         weeklyClassCounts:
           type: array
           items:
@@ -2050,8 +2743,12 @@ components:
       required:
         - totalClassesThisWeek
         - totalEnrollments
+        - totalEnrollmentsThisWeek
+        - averageClassOccupancy
+        - upcomingClassesCount
         - mostPopularCategory
         - totalActiveMembers
+        - lowAttendanceClasses
         - weeklyClassCounts
 
     AiMemoryMessage:
@@ -2226,6 +2923,8 @@ components:
           type: string
         availableTime:
           type: integer
+        userProfile:
+          $ref: "#/components/schemas/JsonObject"
         todayStats:
           $ref: "#/components/schemas/JsonObject"
         behaviorProfile:
@@ -2479,6 +3178,150 @@ components:
           type: string
           enum: [generated, reviewed]
 
+    NutritionEntry:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        foodId:
+          type: string
+        name:
+          type: string
+        mealType:
+          type: string
+        servings:
+          type: number
+        servingSize:
+          type: string
+        calories:
+          type: number
+        protein:
+          type: number
+        carbs:
+          type: number
+        fat:
+          type: number
+        fiber:
+          type: number
+        timestamp:
+          type: number
+        fromPhoto:
+          type: boolean
+        photoUri:
+          type: string
+      required:
+        - id
+        - name
+
+    NutritionLog:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionEntry"
+        waterIntake:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - date
+        - entries
+        - waterIntake
+
+    UpsertNutritionLogBody:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionEntry"
+        waterIntake:
+          type: number
+      required:
+        - entries
+        - waterIntake
+
+    ProgressEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        weight:
+          type: number
+        chest:
+          type: number
+        waist:
+          type: number
+        hips:
+          type: number
+        biceps:
+          type: number
+        thighs:
+          type: number
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - date
+        - createdAt
+        - updatedAt
+
+    UpsertProgressEntryBody:
+      type: object
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        weight:
+          type: number
+        chest:
+          type: number
+        waist:
+          type: number
+        hips:
+          type: number
+        biceps:
+          type: number
+        thighs:
+          type: number
+
+    NotificationPreferences:
+      type: object
+      properties:
+        classRemindersEnabled:
+          type: boolean
+        workoutRemindersEnabled:
+          type: boolean
+        reminderLeadMinutes:
+          type: integer
+        emailEnabled:
+          type: boolean
+        pushEnabled:
+          type: boolean
+        updatedAt:
+          type: string
+      required:
+        - classRemindersEnabled
+        - workoutRemindersEnabled
+        - reminderLeadMinutes
+        - emailEnabled
+        - pushEnabled
+
     WorkoutMember:
       type: object
       properties:
@@ -2588,6 +3431,130 @@ components:
       required:
         - templateId
         - memberId
+
+    WorkoutSessionSet:
+      type: object
+      properties:
+        id:
+          type: string
+        weight:
+          type: number
+        reps:
+          type: integer
+        completed:
+          type: boolean
+      required:
+        - id
+        - weight
+        - reps
+        - completed
+
+    WorkoutSessionExercise:
+      type: object
+      properties:
+        id:
+          type: string
+        exerciseId:
+          type: string
+        name:
+          type: string
+        sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutSessionSet"
+        notes:
+          type: ["string", "null"]
+      required:
+        - id
+        - exerciseId
+        - name
+        - sets
+
+    WorkoutSession:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        startTime:
+          type: number
+        endTime:
+          type: number
+        duration:
+          type: integer
+        exercises:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutSessionExercise"
+        notes:
+          type: ["string", "null"]
+        totalVolume:
+          type: integer
+        caloriesBurned:
+          type: integer
+        completed:
+          type: boolean
+        aiGenerated:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - date
+        - startTime
+        - exercises
+        - totalVolume
+        - caloriesBurned
+        - completed
+
+    PersonalRecord:
+      type: object
+      properties:
+        exerciseId:
+          type: string
+        name:
+          type: string
+        weight:
+          type: number
+        reps:
+          type: integer
+        date:
+          type: string
+        sessionId:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - exerciseId
+        - name
+        - weight
+        - reps
+        - date
+
+    PersonalRecordsResponse:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/PersonalRecord"
+
+    WorkoutSessionMutationResponse:
+      type: object
+      properties:
+        session:
+          $ref: "#/components/schemas/WorkoutSession"
+        personalRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/PersonalRecord"
+      required:
+        - session
+        - personalRecords
 
     MemberWorkoutPlanExercise:
       type: object

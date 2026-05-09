@@ -18,12 +18,9 @@ import { useTypography } from "@/hooks/useTypography";
 import { useWorkout } from "@/contexts/WorkoutContext";
 import { EXERCISES } from "@/constants/exercises";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
+import { generateId } from "@/lib/id";
 
 type Colors = ReturnType<typeof useColors>;
-
-function generateId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
-}
 
 const DEFAULT_REST_DURATION = 90;
 const RING_SIZE = 140;
@@ -243,6 +240,9 @@ function RestTimerOverlay({
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onDismiss();
           }}
+          accessibilityRole="button"
+          accessibilityLabel="Skip rest timer"
+          accessibilityHint={`${timeStr} remaining`}
         >
           <Feather name="skip-forward" size={16} color={colors.mutedForeground} />
           <Text style={[styles.skipRestText, { color: colors.mutedForeground }]}>Skip Rest</Text>
@@ -259,6 +259,7 @@ function StepperInput({
   decimals,
   editable,
   colors,
+  accessibilityLabel,
 }: {
   value: number;
   onChange: (val: number) => void;
@@ -266,6 +267,7 @@ function StepperInput({
   decimals: number;
   editable: boolean;
   colors: Colors;
+  accessibilityLabel: string;
 }) {
   const handleDecrement = () => {
     const next = Math.max(0, parseFloat((value - step).toFixed(decimals)));
@@ -288,6 +290,9 @@ function StepperInput({
         ]}
         onPress={editable ? handleDecrement : undefined}
         disabled={!editable}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrease ${accessibilityLabel}`}
+        accessibilityState={{ disabled: !editable }}
       >
         <Feather name="minus" size={14} color={editable ? colors.text : colors.mutedForeground} />
       </Pressable>
@@ -305,6 +310,7 @@ function StepperInput({
         placeholder="0"
         placeholderTextColor={colors.mutedForeground}
         editable={editable}
+        accessibilityLabel={accessibilityLabel}
       />
       <Pressable
         style={[
@@ -314,6 +320,9 @@ function StepperInput({
         ]}
         onPress={editable ? handleIncrement : undefined}
         disabled={!editable}
+        accessibilityRole="button"
+        accessibilityLabel={`Increase ${accessibilityLabel}`}
+        accessibilityState={{ disabled: !editable }}
       >
         <Feather name="plus" size={14} color={editable ? colors.text : colors.mutedForeground} />
       </Pressable>
@@ -518,6 +527,9 @@ export default function WorkoutSessionScreen() {
                 <Pressable
                   key={ex.id}
                   onPress={() => setExpandedExercise(expandedExercise === ex.id ? null : ex.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${expandedExercise === ex.id ? "Collapse" : "Expand"} ${ex.name}`}
+                  accessibilityHint={`${ex.sets.filter((s) => s.completed).length} of ${ex.sets.length} sets completed`}
                 >
                   <View
                     style={[
@@ -608,6 +620,7 @@ export default function WorkoutSessionScreen() {
                                     decimals={1}
                                     editable={!set.completed}
                                     colors={colors}
+                                    accessibilityLabel={`${ex.name} set ${idx + 1} weight in kilograms`}
                                   />
                                 </View>
                                 <View style={styles.setStepperCell}>
@@ -620,6 +633,7 @@ export default function WorkoutSessionScreen() {
                                     decimals={0}
                                     editable={!set.completed}
                                     colors={colors}
+                                    accessibilityLabel={`${ex.name} set ${idx + 1} reps`}
                                   />
                                 </View>
                                 <Animated.View style={{ transform: [{ scale: checkAnim }] }}>
@@ -631,6 +645,9 @@ export default function WorkoutSessionScreen() {
                                         : { backgroundColor: colors.border, borderWidth: 0 },
                                     ]}
                                     onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${set.completed ? "Mark incomplete" : "Mark complete"} ${ex.name} set ${idx + 1}`}
+                                    accessibilityState={{ checked: set.completed }}
                                   >
                                     <Feather
                                       name="check"
@@ -652,6 +669,8 @@ export default function WorkoutSessionScreen() {
                                 completed: false,
                               });
                             }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add set to ${ex.name}`}
                           >
                             <Feather name="plus" size={14} color={colors.mutedForeground} />
                             <Text style={[styles.addSetText, { color: colors.mutedForeground }]}>
@@ -671,6 +690,8 @@ export default function WorkoutSessionScreen() {
             <Pressable
               style={[styles.addExerciseBtn, { borderColor: colors.border }]}
               onPress={() => setShowExercisePicker(!showExercisePicker)}
+              accessibilityRole="button"
+              accessibilityLabel={showExercisePicker ? "Hide exercise picker" : "Add exercise"}
             >
               <Feather name="plus" size={18} color={colors.text} />
               <Text style={[styles.addExerciseBtnText, { color: colors.text }]}>Add Exercise</Text>
@@ -678,6 +699,9 @@ export default function WorkoutSessionScreen() {
             <Pressable
               style={[styles.finishBtn, { backgroundColor: colors.success }]}
               onPress={() => setShowFinishSheet(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Finish workout session"
+              accessibilityHint={`${completedSets} of ${totalSets} sets completed`}
             >
               <Feather name="check-circle" size={18} color="#fff" />
               <Text style={styles.finishBtnText}>Finish</Text>
@@ -699,6 +723,9 @@ export default function WorkoutSessionScreen() {
                     key={ex.id}
                     style={[styles.exercisePickerItem, { borderBottomColor: colors.border }]}
                     onPress={() => addExercise(ex.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${ex.name}`}
+                    accessibilityHint={`${ex.muscleGroup}, default ${ex.defaultSets} sets`}
                   >
                     <View style={[styles.exercisePickerAccent, { backgroundColor: muscleColor }]} />
                     <Text style={[styles.exercisePickerName, { color: colors.text }]}>

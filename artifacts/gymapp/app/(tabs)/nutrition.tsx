@@ -16,11 +16,13 @@ import { SafeAreaView } from "@/components/native-compat";
 import Svg, { Circle } from "react-native-svg";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
 import { MacroBar } from "@/components/MacroBar";
 import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";
+import { impact, notifySuccess, notifyWarning, selection } from "@/lib/haptics";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
@@ -124,6 +126,7 @@ export default function NutritionScreen() {
   const [activeMeal, setActiveMeal] = useState<MealType | null>(null);
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [servings, setServings] = useState("1");
 
@@ -141,11 +144,14 @@ export default function NutritionScreen() {
   }, [todayLog.entries]);
 
   const searchResults = useMemo(() => {
-    return searchQuery.length > 0 ? searchFoods(searchQuery) : INDIAN_FOODS.slice(0, 30);
-  }, [searchQuery]);
+    return debouncedSearchQuery.length > 0
+      ? searchFoods(debouncedSearchQuery)
+      : INDIAN_FOODS.slice(0, 30);
+  }, [debouncedSearchQuery]);
 
   const handleAddFood = async () => {
     if (!selectedFood || !activeMeal) return;
+    impact();
     const s = parseFloat(servings) || 1;
     await addFoodEntry({
       foodId: selectedFood.id,
@@ -163,11 +169,13 @@ export default function NutritionScreen() {
     setSelectedFood(null);
     setSearchQuery("");
     setServings("1");
+    notifySuccess();
   };
 
   const getEntriesForMeal = (type: MealType) => todayLog.entries.filter((e) => e.mealType === type);
 
   const handleWaterToggle = (glasses: number) => {
+    selection();
     updateWaterIntake(todayLog.waterIntake === glasses ? glasses - 1 : glasses);
   };
 
@@ -179,7 +187,13 @@ export default function NutritionScreen() {
         </Text>
         <Pressable
           style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/add-meal")}
+          onPress={() => {
+            impact();
+            router.push("/add-meal");
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Log food with AI photo analysis"
+          accessibilityHint="Opens the meal photo analysis screen"
         >
           <Feather name="camera" size={18} color="#fff" />
           <Text style={styles.cameraBtnText}>AI Photo Log</Text>
@@ -259,6 +273,9 @@ export default function NutritionScreen() {
                   styles.waterGlass,
                   { backgroundColor: i < todayLog.waterIntake ? colors.info : colors.border },
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Set water intake to ${i + 1} glass${i === 0 ? "" : "es"}`}
+                accessibilityState={{ selected: i < todayLog.waterIntake }}
               >
                 <Feather
                   name="droplet"
@@ -289,9 +306,13 @@ export default function NutritionScreen() {
               <Pressable
                 style={styles.mealHeader}
                 onPress={() => {
+                  impact();
                   setActiveMeal(meal.type);
                   setShowFoodSearch(true);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Add food to ${meal.label}`}
+                accessibilityHint={`${mealCals} calories logged in this meal`}
               >
                 <View style={styles.mealTitleRow}>
                   <View style={[styles.mealIconBg, { backgroundColor: meal.color + "20" }]}>
@@ -324,7 +345,15 @@ export default function NutritionScreen() {
                     </Text>
                     <Text style={[styles.calorieChipUnit, { color: meal.color + "90" }]}>kcal</Text>
                   </View>
-                  <Pressable onPress={() => removeFoodEntry(entry.id)} style={styles.deleteBtn}>
+                  <Pressable
+                    onPress={() => {
+                      notifyWarning();
+                      removeFoodEntry(entry.id);
+                    }}
+                    style={styles.deleteBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${entry.name}`}
+                  >
                     <Feather name="trash-2" size={14} color={colors.error} />
                   </Pressable>
                 </View>
@@ -342,9 +371,12 @@ export default function NutritionScreen() {
             </Text>
             <Pressable
               onPress={() => {
+                impact();
                 setShowFoodSearch(false);
                 setSelectedFood(null);
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Close food search"
             >
               <Feather name="x" size={24} color={colors.text} />
             </Pressable>
@@ -360,6 +392,7 @@ export default function NutritionScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
+              accessibilityLabel="Search foods"
             />
           </View>
           {selectedFood ? (
@@ -392,6 +425,7 @@ export default function NutritionScreen() {
                   value={servings}
                   onChangeText={setServings}
                   keyboardType="decimal-pad"
+                  accessibilityLabel={`Servings for ${selectedFood.name}`}
                 />
                 <Text style={[styles.servingTotal, { color: colors.text }]}>
                   = {Math.round(selectedFood.calories * (parseFloat(servings) || 1))} kcal
@@ -400,7 +434,12 @@ export default function NutritionScreen() {
               <View style={styles.modalActions}>
                 <Pressable
                   style={[styles.modalBtn, { borderColor: colors.border }]}
-                  onPress={() => setSelectedFood(null)}
+                  onPress={() => {
+                    selection();
+                    setSelectedFood(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to food search results"
                 >
                   <Text style={[styles.modalBtnText, { color: colors.text }]}>Back</Text>
                 </Pressable>
@@ -410,6 +449,8 @@ export default function NutritionScreen() {
                     { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
                   onPress={handleAddFood}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${selectedFood.name} to ${MEAL_SECTIONS.find((m) => m.type === activeMeal)?.label}`}
                 >
                   <Text style={[styles.modalBtnText, { color: "#fff" }]}>Add Food</Text>
                 </Pressable>
@@ -422,7 +463,12 @@ export default function NutritionScreen() {
               renderItem={({ item }: { item: FoodItem }) => (
                 <Pressable
                   style={[styles.foodResult, { borderBottomColor: colors.border }]}
-                  onPress={() => setSelectedFood(item)}
+                  onPress={() => {
+                    selection();
+                    setSelectedFood(item);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${item.name}, ${item.calories} calories`}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.foodResultName, { color: colors.text }]}>{item.name}</Text>

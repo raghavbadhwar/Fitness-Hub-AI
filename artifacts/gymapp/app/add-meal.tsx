@@ -1,5 +1,6 @@
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useAuth } from "@clerk/expo";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
@@ -18,7 +19,8 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
-import { getApiBase } from "@/lib/api-base";
+import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
+import { impact, notifyError, notifySuccess, selection } from "@/lib/haptics";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -46,6 +48,7 @@ export default function AddMealScreen() {
   const router = useRouter();
   const { mealType: initialMealType } = useLocalSearchParams<{ mealType?: string }>();
   const { addFoodEntry } = useNutrition();
+  const { getToken } = useAuth();
   const colors = useColors();
 
   const [mealType, setMealType] = useState<MealType>((initialMealType as MealType) || "lunch");
@@ -65,10 +68,12 @@ export default function AddMealScreen() {
   });
 
   const pickImage = async (fromCamera: boolean) => {
+    impact();
     const perm = fromCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
+      notifyError();
       Alert.alert(
         "Permission Required",
         "Please grant permission to access your " + (fromCamera ? "camera" : "photo library"),
@@ -85,28 +90,37 @@ export default function AddMealScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      selection();
       setImageUri(asset.uri);
       setAnalysisResult(null);
       if (asset.base64) {
-        analyzeFood(asset.base64);
+        void analyzeFood(asset.base64);
       }
     }
+  };
+
+  const getAnalysisFallbackMessage = (error: unknown) => {
+    if (error instanceof AuthenticatedApiError) {
+      return `${error.message} Please enter details manually.`;
+    }
+
+    return "Couldn't analyze the food. Please enter details manually.";
   };
 
   const analyzeFood = async (base64: string) => {
     setAnalyzing(true);
     try {
-      const apiBase = getApiBase();
-      const response = await fetch(`${apiBase}/api/ai/analyze-food`, {
+      const result = await authenticatedJsonRequest<FoodAnalysisResult>({
+        getToken,
+        path: "/api/ai/analyze-food",
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
+        body: { imageBase64: base64, mimeType: "image/jpeg" },
       });
-      if (!response.ok) throw new Error("Analysis failed");
-      const result = (await response.json()) as FoodAnalysisResult;
       setAnalysisResult(result);
-    } catch {
-      Alert.alert("Analysis Failed", "Couldn't analyze the food. Please enter details manually.");
+      notifySuccess();
+    } catch (error) {
+      notifyError();
+      Alert.alert("Analysis Failed", getAnalysisFallbackMessage(error));
       setMode("manual");
     } finally {
       setAnalyzing(false);
@@ -115,6 +129,7 @@ export default function AddMealScreen() {
 
   const handleAddFromPhoto = async () => {
     if (!analysisResult) return;
+    impact();
     const s = parseFloat(servings) || 1;
     await addFoodEntry({
       foodId: "photo_" + Date.now(),
@@ -130,14 +145,17 @@ export default function AddMealScreen() {
       fromPhoto: true,
       photoUri: imageUri || undefined,
     });
+    notifySuccess();
     router.back();
   };
 
   const handleAddManual = async () => {
     if (!manualFood.name || !manualFood.calories) {
+      notifyError();
       Alert.alert("Missing Info", "Please enter at least the food name and calories.");
       return;
     }
+    impact();
     await addFoodEntry({
       foodId: "manual_" + Date.now(),
       name: manualFood.name,
@@ -150,6 +168,7 @@ export default function AddMealScreen() {
       fat: parseFloat(manualFood.fat) || 0,
       fiber: 0,
     });
+    notifySuccess();
     router.back();
   };
 
@@ -163,7 +182,10 @@ export default function AddMealScreen() {
           <View style={styles.modeToggle}>
             <Pressable
               style={[styles.modeBtn, mode === "photo" && { backgroundColor: colors.primary }]}
-              onPress={() => setMode("photo")}
+              onPress={() => {
+                selection();
+                setMode("photo");
+              }}
             >
               <Feather
                 name="camera"
@@ -181,7 +203,10 @@ export default function AddMealScreen() {
             </Pressable>
             <Pressable
               style={[styles.modeBtn, mode === "manual" && { backgroundColor: colors.primary }]}
-              onPress={() => setMode("manual")}
+              onPress={() => {
+                selection();
+                setMode("manual");
+              }}
             >
               <Feather
                 name="edit-3"
@@ -215,7 +240,10 @@ export default function AddMealScreen() {
                     borderColor: mealType === m.value ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setMealType(m.value)}
+                onPress={() => {
+                  selection();
+                  setMealType(m.value);
+                }}
               >
                 <Text
                   style={[
@@ -276,6 +304,7 @@ export default function AddMealScreen() {
                   <Pressable
                     style={[styles.retakeBtn, { backgroundColor: colors.card }]}
                     onPress={() => {
+                      selection();
                       setImageUri(null);
                       setAnalysisResult(null);
                     }}

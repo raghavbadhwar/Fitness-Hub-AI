@@ -14,6 +14,7 @@ const reviews = new Map();
 const profiles = new Map([
   ["member_1", { clerkId: "member_1", gymId: "gym_1", role: "member", name: "Member One" }],
   ["member_2", { clerkId: "member_2", gymId: "gym_1", role: "member", name: "Member Two" }],
+  ["member_3", { clerkId: "member_3", gymId: "gym_2", role: "member", name: "Member Three" }],
 ]);
 
 const monthlyReviews = {
@@ -93,6 +94,9 @@ mock.module("@clerk/express", {
   namedExports: {
     requireAuth() {
       return (_req, _res, next) => next();
+    },
+    getAuth() {
+      return { userId: authState.userId };
     },
   },
 });
@@ -320,6 +324,38 @@ describe("monthly review routes", () => {
     assert.equal(reviewed.status, 200);
     assert.equal(reviewed.body.review.status, "reviewed");
     assert.ok(reviewed.body.review.reviewedAt);
+  });
+
+  it("keeps trainer monthly review access scoped to the trainer's gym", async () => {
+    authState.userId = "member_3";
+    authState.role = "member";
+    authState.gymId = "gym_2";
+    const generated = await request(app).post("/monthly-reviews/generate").send(reviewPayload());
+    assert.equal(generated.status, 201);
+
+    authState.userId = "trainer_1";
+    authState.role = "trainer";
+    authState.gymId = "gym_1";
+
+    const crossGymFetch = await request(app).get(
+      "/monthly-reviews?memberId=member_3&month=2026-05",
+    );
+    assert.equal(crossGymFetch.status, 404);
+    assert.deepEqual(crossGymFetch.body, { error: "Member not found" });
+
+    const crossGymReview = await request(app)
+      .patch(`/monthly-reviews/${generated.body.review.id}/review`)
+      .send({ reviewed: true });
+    assert.equal(crossGymReview.status, 404);
+    assert.deepEqual(crossGymReview.body, { error: "Monthly review not found" });
+    assert.equal(reviews.get(generated.body.review.id).status, "generated");
+
+    authState.userId = "trainer_2";
+    authState.role = "trainer";
+    authState.gymId = "gym_2";
+    const sameGymFetch = await request(app).get("/monthly-reviews?memberId=member_3&month=2026-05");
+    assert.equal(sameGymFetch.status, 200);
+    assert.equal(sameGymFetch.body.review.id, generated.body.review.id);
   });
 
   it("rejects invalid months and cross-member member access", async () => {

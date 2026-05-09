@@ -16,25 +16,8 @@ import {
 
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useColors } from "@/hooks/useColors";
-
-function fieldErrorMessage(source: unknown, field: string): string | undefined {
-  if (!source || typeof source !== "object") {
-    return undefined;
-  }
-
-  const fields = "fields" in source ? source.fields : undefined;
-  if (!fields || typeof fields !== "object") {
-    return undefined;
-  }
-
-  const candidate = (fields as Record<string, unknown>)[field];
-  if (!candidate || typeof candidate !== "object") {
-    return undefined;
-  }
-
-  const candidateRecord = candidate as { message?: unknown };
-  return typeof candidateRecord.message === "string" ? candidateRecord.message : undefined;
-}
+import { authFieldErrorMessage, authFormErrorMessage } from "@/lib/auth-error-message";
+import { impact, notifyError, notifySuccess, selection } from "@/lib/haptics";
 
 function firstStringParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
@@ -59,7 +42,7 @@ export default function SignIn() {
     signIn.status === "needs_client_trust" || signIn.status === "needs_second_factor";
 
   function fieldError(field: string): string | undefined {
-    return fieldErrorMessage(errors, field);
+    return authFieldErrorMessage(errors, field);
   }
 
   useEffect(() => {
@@ -138,20 +121,32 @@ export default function SignIn() {
 
   const handleSignIn = async () => {
     if (!email || !password) return;
+    impact();
     const { error } = await signIn.password({ emailAddress: email, password });
-    if (error) return;
+    if (error) {
+      notifyError();
+      return;
+    }
 
     if (signIn.status === "complete") {
+      notifySuccess();
       await finalizeSignIn();
     }
   };
 
   const handleVerify = async () => {
+    impact();
     await signIn.mfa.verifyEmailCode({ code });
     if (signIn.status === "complete") {
+      notifySuccess();
       await finalizeSignIn();
     }
   };
+
+  const emailError = fieldError("identifier") ?? fieldError("emailAddress");
+  const passwordError = fieldError("password");
+  const formError = authFormErrorMessage(errors);
+  const generalError = formError && formError !== emailError && formError !== passwordError ? formError : "";
 
   if (isTicketSignIn) {
     return (
@@ -181,6 +176,7 @@ export default function SignIn() {
                 styles.input,
                 { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
               ]}
+              accessibilityLabel="Verification code"
               placeholder="Verification code"
               placeholderTextColor={colors.mutedForeground}
               value={code}
@@ -195,6 +191,8 @@ export default function SignIn() {
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={handleVerify}
               disabled={isLoading}
+              accessibilityRole="button"
+              accessibilityState={{ busy: isLoading, disabled: isLoading }}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
@@ -202,10 +200,24 @@ export default function SignIn() {
                 <Text style={styles.buttonText}>Verify</Text>
               )}
             </Pressable>
-            <Pressable onPress={() => signIn.mfa.sendEmailCode()} style={styles.resend}>
+            <Pressable
+              onPress={() => {
+                selection();
+                void signIn.mfa.sendEmailCode();
+              }}
+              style={styles.resend}
+              accessibilityRole="button"
+            >
               <Text style={[styles.resendText, { color: colors.primary }]}>Resend code</Text>
             </Pressable>
-            <Pressable onPress={() => signIn.reset()} style={styles.resend}>
+            <Pressable
+              onPress={() => {
+                selection();
+                signIn.reset();
+              }}
+              style={styles.resend}
+              accessibilityRole="button"
+            >
               <Text style={[styles.resendText, { color: colors.mutedForeground }]}>Start over</Text>
             </Pressable>
           </View>
@@ -247,6 +259,7 @@ export default function SignIn() {
                   styles.input,
                   { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
                 ]}
+                accessibilityLabel="Email"
                 placeholder="your@email.com"
                 placeholderTextColor={colors.mutedForeground}
                 value={email}
@@ -255,11 +268,7 @@ export default function SignIn() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {fieldError("identifier") && (
-                <Text style={[styles.errorText, { color: colors.error }]}>
-                  {fieldError("identifier")}
-                </Text>
-              )}
+              {emailError && <Text style={[styles.errorText, { color: colors.error }]}>{emailError}</Text>}
             </View>
             <View style={styles.field}>
               <Text style={[styles.label, { color: colors.mutedForeground }]}>Password</Text>
@@ -268,26 +277,34 @@ export default function SignIn() {
                   styles.input,
                   { backgroundColor: colors.card, borderColor: colors.border, color: colors.text },
                 ]}
+                accessibilityLabel="Password"
                 placeholder="Your password"
                 placeholderTextColor={colors.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
-              {fieldError("password") && (
-                <Text style={[styles.errorText, { color: colors.error }]}>
-                  {fieldError("password")}
-                </Text>
+              {passwordError && (
+                <Text style={[styles.errorText, { color: colors.error }]}>{passwordError}</Text>
               )}
             </View>
+            {generalError ? (
+              <Text style={[styles.errorText, styles.formErrorText, { color: colors.error }]}>
+                {generalError}
+              </Text>
+            ) : null}
             <Pressable
-              style={[
+              style={({ pressed }) => [
                 styles.button,
                 { backgroundColor: colors.primary },
                 (!email || !password || isLoading) && styles.buttonDisabled,
+                pressed && email && password && !isLoading && styles.buttonPressed,
               ]}
               onPress={handleSignIn}
               disabled={!email || !password || isLoading}
+              accessibilityRole="button"
+              accessibilityState={{ busy: isLoading, disabled: !email || !password || isLoading }}
+              testID="sign-in-submit"
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
@@ -296,7 +313,13 @@ export default function SignIn() {
               )}
             </Pressable>
             <View style={styles.secondaryActions}>
-              <Pressable onPress={() => router.push("/forgot-password")}>
+              <Pressable
+                onPress={() => {
+                  selection();
+                  router.push("/forgot-password");
+                }}
+                accessibilityRole="link"
+              >
                 <Text style={[styles.secondaryLink, { color: colors.primary }]}>
                   Forgot password?
                 </Text>
@@ -306,7 +329,13 @@ export default function SignIn() {
               <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
                 Don't have an account?{" "}
               </Text>
-              <Pressable onPress={() => router.push("/sign-up")}>
+              <Pressable
+                onPress={() => {
+                  selection();
+                  router.push("/sign-up");
+                }}
+                accessibilityRole="link"
+              >
                 <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
               </Pressable>
             </View>
@@ -336,6 +365,7 @@ const styles = StyleSheet.create({
   },
   button: { borderRadius: 12, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   buttonDisabled: { opacity: 0.5 },
+  buttonPressed: { opacity: 0.85, transform: [{ translateY: 1 }] },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   divider: { alignItems: "center", flexDirection: "row", gap: 12 },
   dividerLine: { flex: 1, height: 1 },
@@ -346,6 +376,7 @@ const styles = StyleSheet.create({
   secondaryActions: { alignItems: "flex-end" },
   secondaryLink: { fontSize: 14, fontWeight: "600" },
   errorText: { fontSize: 13, marginTop: 2 },
+  formErrorText: { textAlign: "center" },
   ticketErrorText: { textAlign: "center" },
   ticketLoading: { alignItems: "center", flex: 1, justifyContent: "center", padding: 24 },
   resend: { alignItems: "center", paddingVertical: 8 },
