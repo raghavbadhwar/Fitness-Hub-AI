@@ -27,11 +27,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   };
 
   const formatErrorDetails = (): string => {
-    let details = `Error: ${error.message}\n\n`;
-    if (error.stack) {
-      details += `Stack Trace:\n${error.stack}`;
-    }
-    return details;
+    return [error.message, error.stack].filter(Boolean).join("\n\n");
   };
 
   const monoFont = Platform.select({

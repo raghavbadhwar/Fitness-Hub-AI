@@ -132,7 +132,27 @@ function E2EAccessDeniedPreview() {
 }
 
 function FullScreenLoadingState() {
-  return <div className="flex min-h-[100dvh] items-center justify-center">Loading...</div>;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="admin-loading-state"
+      className="flex min-h-[100dvh] items-center justify-center bg-background p-6 text-center"
+    >
+      <div className="flex w-full max-w-sm flex-col items-center gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-xl font-bold text-primary shadow-sm">
+          G
+        </div>
+        <div className="h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-foreground">Preparing admin workspace</p>
+          <p className="text-xs text-muted-foreground">Checking access and syncing operations data</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type RouteComponent = ComponentType | LazyExoticComponent<ComponentType>;
@@ -242,6 +262,7 @@ function ClerkProviderWithRoutes() {
           <TooltipProvider>
             <Switch>
               <Route path="/__e2e/access-denied" component={E2EAccessDeniedPreview} />
+              <Route path="/__e2e/loading" component={FullScreenLoadingState} />
               <Route path="/__e2e/dashboard" component={AdminDashboardPreview} />
               <Route path="/__e2e/classes" component={AdminClassesPreview} />
               <Route path="/__e2e/members" component={AdminMembersPreview} />

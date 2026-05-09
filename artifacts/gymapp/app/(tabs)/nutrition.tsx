@@ -22,6 +22,7 @@ import { useNutrition, MealType } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
 import { MacroBar } from "@/components/MacroBar";
 import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";
+import { impact, notifySuccess, notifyWarning, selection } from "@/lib/haptics";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
@@ -150,6 +151,7 @@ export default function NutritionScreen() {
 
   const handleAddFood = async () => {
     if (!selectedFood || !activeMeal) return;
+    impact();
     const s = parseFloat(servings) || 1;
     await addFoodEntry({
       foodId: selectedFood.id,
@@ -167,11 +169,13 @@ export default function NutritionScreen() {
     setSelectedFood(null);
     setSearchQuery("");
     setServings("1");
+    notifySuccess();
   };
 
   const getEntriesForMeal = (type: MealType) => todayLog.entries.filter((e) => e.mealType === type);
 
   const handleWaterToggle = (glasses: number) => {
+    selection();
     updateWaterIntake(todayLog.waterIntake === glasses ? glasses - 1 : glasses);
   };
 
@@ -183,7 +187,10 @@ export default function NutritionScreen() {
         </Text>
         <Pressable
           style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/add-meal")}
+          onPress={() => {
+            impact();
+            router.push("/add-meal");
+          }}
           accessibilityRole="button"
           accessibilityLabel="Log food with AI photo analysis"
           accessibilityHint="Opens the meal photo analysis screen"
@@ -299,6 +306,7 @@ export default function NutritionScreen() {
               <Pressable
                 style={styles.mealHeader}
                 onPress={() => {
+                  impact();
                   setActiveMeal(meal.type);
                   setShowFoodSearch(true);
                 }}
@@ -338,7 +346,10 @@ export default function NutritionScreen() {
                     <Text style={[styles.calorieChipUnit, { color: meal.color + "90" }]}>kcal</Text>
                   </View>
                   <Pressable
-                    onPress={() => removeFoodEntry(entry.id)}
+                    onPress={() => {
+                      notifyWarning();
+                      removeFoodEntry(entry.id);
+                    }}
                     style={styles.deleteBtn}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${entry.name}`}
@@ -360,6 +371,7 @@ export default function NutritionScreen() {
             </Text>
             <Pressable
               onPress={() => {
+                impact();
                 setShowFoodSearch(false);
                 setSelectedFood(null);
               }}
@@ -422,7 +434,10 @@ export default function NutritionScreen() {
               <View style={styles.modalActions}>
                 <Pressable
                   style={[styles.modalBtn, { borderColor: colors.border }]}
-                  onPress={() => setSelectedFood(null)}
+                  onPress={() => {
+                    selection();
+                    setSelectedFood(null);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Back to food search results"
                 >
@@ -448,7 +463,10 @@ export default function NutritionScreen() {
               renderItem={({ item }: { item: FoodItem }) => (
                 <Pressable
                   style={[styles.foodResult, { borderBottomColor: colors.border }]}
-                  onPress={() => setSelectedFood(item)}
+                  onPress={() => {
+                    selection();
+                    setSelectedFood(item);
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={`Select ${item.name}, ${item.calories} calories`}
                 >

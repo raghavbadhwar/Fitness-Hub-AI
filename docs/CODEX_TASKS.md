@@ -49,8 +49,10 @@ Before closeout:
 | Member auth/access UI                                            | member package tests plus `pnpm run test:e2e:ui` when services are available                   |
 | Deterministic CI browser coverage                                | `pnpm run test:e2e:ci` with placeholder CI env and `FITNESS_HUB_SKIP_ENV_LOCAL=1`              |
 | Full member auth browser flow                                    | `pnpm run test:e2e:member` with local or pre-release Clerk test env                            |
+| Live Clerk role matrix                                           | `pnpm run test:e2e:live-clerk` with local Clerk test keys and disposable QA users              |
 | Cross-surface auth, routing, generated client, or deploy changes | `pnpm run verify:internal-beta`                                                                |
 | Vercel production build behavior                                 | `pnpm run build:vercel` with production-like envs                                              |
+| Premium hardening / launch-readiness regression                   | `pnpm run stress:premium-hardening`                                                            |
 
 ## Standing QA Matrix
 
@@ -64,6 +66,7 @@ Use this matrix whenever a task touches auth, access control, routing, onboardin
 | Non-owner opens admin app                     | Admin data and owner actions are blocked                                 | API route test plus browser check when possible            |
 | Authorized member opens member app            | Member home, profile, workouts/classes, and allowed data render          | Member test or UI E2E                                      |
 | Revoked or unapproved member opens member app | Access-blocked state renders without privileged data                     | Member test or UI E2E                                      |
+| Disposable Clerk role matrix                  | Owner admin allowed, trainer/member admin denied, pending/revoked blocked | `pnpm run test:e2e:live-clerk`                             |
 | API health check                              | `/api/healthz` returns healthy status                                    | API smoke                                                  |
 | Gemini unavailable or invalid response        | UI/API returns a clear degraded/error state without leaking secrets      | API route test or manual API check                         |
 | Monthly review generated or reviewed          | Saved aggregate review respects member/trainer access and AI fallback    | Monthly review route test plus member aggregation test     |
@@ -79,7 +82,9 @@ For internal beta:
 3. `pnpm run test:e2e:ci` passes for deterministic admin/API browser proof.
 4. `pnpm run test:e2e:member` passes when Clerk test auth is available.
 5. `pnpm run verify:internal-beta` passes.
-6. Admin, member, API, auth, and AI degraded states have been checked for the changed surface.
+6. `pnpm run stress:premium-hardening` passes when the change touches dependency hygiene, AI quality, browser UX, or performance budgets.
+7. `pnpm run test:e2e:live-clerk` passes when local Clerk test keys and a local QA database are available.
+8. Admin, member, API, auth, and AI degraded states have been checked for the changed surface.
 
 For production:
 

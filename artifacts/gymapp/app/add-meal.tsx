@@ -20,6 +20,7 @@ import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
 import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
+import { impact, notifyError, notifySuccess, selection } from "@/lib/haptics";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: "breakfast", label: "Breakfast" },
@@ -67,10 +68,12 @@ export default function AddMealScreen() {
   });
 
   const pickImage = async (fromCamera: boolean) => {
+    impact();
     const perm = fromCamera
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
+      notifyError();
       Alert.alert(
         "Permission Required",
         "Please grant permission to access your " + (fromCamera ? "camera" : "photo library"),
@@ -87,6 +90,7 @@ export default function AddMealScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      selection();
       setImageUri(asset.uri);
       setAnalysisResult(null);
       if (asset.base64) {
@@ -113,7 +117,9 @@ export default function AddMealScreen() {
         body: { imageBase64: base64, mimeType: "image/jpeg" },
       });
       setAnalysisResult(result);
+      notifySuccess();
     } catch (error) {
+      notifyError();
       Alert.alert("Analysis Failed", getAnalysisFallbackMessage(error));
       setMode("manual");
     } finally {
@@ -123,6 +129,7 @@ export default function AddMealScreen() {
 
   const handleAddFromPhoto = async () => {
     if (!analysisResult) return;
+    impact();
     const s = parseFloat(servings) || 1;
     await addFoodEntry({
       foodId: "photo_" + Date.now(),
@@ -138,14 +145,17 @@ export default function AddMealScreen() {
       fromPhoto: true,
       photoUri: imageUri || undefined,
     });
+    notifySuccess();
     router.back();
   };
 
   const handleAddManual = async () => {
     if (!manualFood.name || !manualFood.calories) {
+      notifyError();
       Alert.alert("Missing Info", "Please enter at least the food name and calories.");
       return;
     }
+    impact();
     await addFoodEntry({
       foodId: "manual_" + Date.now(),
       name: manualFood.name,
@@ -158,6 +168,7 @@ export default function AddMealScreen() {
       fat: parseFloat(manualFood.fat) || 0,
       fiber: 0,
     });
+    notifySuccess();
     router.back();
   };
 
@@ -171,7 +182,10 @@ export default function AddMealScreen() {
           <View style={styles.modeToggle}>
             <Pressable
               style={[styles.modeBtn, mode === "photo" && { backgroundColor: colors.primary }]}
-              onPress={() => setMode("photo")}
+              onPress={() => {
+                selection();
+                setMode("photo");
+              }}
             >
               <Feather
                 name="camera"
@@ -189,7 +203,10 @@ export default function AddMealScreen() {
             </Pressable>
             <Pressable
               style={[styles.modeBtn, mode === "manual" && { backgroundColor: colors.primary }]}
-              onPress={() => setMode("manual")}
+              onPress={() => {
+                selection();
+                setMode("manual");
+              }}
             >
               <Feather
                 name="edit-3"
@@ -223,7 +240,10 @@ export default function AddMealScreen() {
                     borderColor: mealType === m.value ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setMealType(m.value)}
+                onPress={() => {
+                  selection();
+                  setMealType(m.value);
+                }}
               >
                 <Text
                   style={[
@@ -284,6 +304,7 @@ export default function AddMealScreen() {
                   <Pressable
                     style={[styles.retakeBtn, { backgroundColor: colors.card }]}
                     onPress={() => {
+                      selection();
                       setImageUri(null);
                       setAnalysisResult(null);
                     }}

@@ -16,6 +16,7 @@ import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/contexts/AppContext";
 import { authenticatedJsonRequest } from "@/lib/authenticated-api";
+import { impact, notifySuccess, notifyWarning, selection } from "@/lib/haptics";
 
 interface NotificationPreferences {
   classRemindersEnabled: boolean;
@@ -103,6 +104,7 @@ export default function ProfileScreen() {
   };
 
   const handleSave = async () => {
+    impact();
     await updateProfile({
       name: form.name,
       weight: parseFloat(form.weight) || profile.weight,
@@ -110,15 +112,18 @@ export default function ProfileScreen() {
       targetWeight: parseFloat(form.targetWeight) || profile.targetWeight,
     });
     setEditing(false);
+    notifySuccess();
   };
 
   const handleSignOut = () => {
+    notifyWarning();
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
+          impact("medium");
           await signOut();
           router.replace("/sign-in");
         },
@@ -263,7 +268,10 @@ export default function ProfileScreen() {
               </View>
               <Switch
                 value={notificationPreferences[item.key]}
-                onValueChange={(value) => void saveNotificationPreferences({ [item.key]: value })}
+                onValueChange={(value) => {
+                  selection();
+                  void saveNotificationPreferences({ [item.key]: value });
+                }}
                 accessibilityLabel={item.label}
                 trackColor={{ false: colors.border, true: colors.primary + "80" }}
                 thumbColor={notificationPreferences[item.key] ? colors.primary : colors.surface}
@@ -344,7 +352,10 @@ export default function ProfileScreen() {
               <View style={styles.editButtons}>
                 <Pressable
                   style={[styles.editBtn, { borderColor: colors.border }]}
-                  onPress={() => setEditing(false)}
+                  onPress={() => {
+                    selection();
+                    setEditing(false);
+                  }}
                 >
                   <Text style={[styles.editBtnText, { color: colors.text }]}>Cancel</Text>
                 </Pressable>
@@ -363,7 +374,10 @@ export default function ProfileScreen() {
         ) : (
           <Pressable
             style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => setEditing(true)}
+            onPress={() => {
+              impact();
+              setEditing(true);
+            }}
           >
             <Feather name="edit-2" size={18} color={colors.text} />
             <Text style={[styles.actionBtnText, { color: colors.text }]}>Edit Profile</Text>
@@ -373,7 +387,10 @@ export default function ProfileScreen() {
 
         <Pressable
           style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => router.push("/progress")}
+          onPress={() => {
+            impact();
+            router.push("/progress");
+          }}
         >
           <Feather name="trending-up" size={18} color={colors.text} />
           <Text style={[styles.actionBtnText, { color: colors.text }]}>View Progress</Text>

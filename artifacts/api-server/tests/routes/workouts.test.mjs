@@ -407,6 +407,20 @@ describe("workouts routes", () => {
     assert.equal(recordsResponse.body.bench.reps, 5);
   });
 
+  it("rejects workout sessions with exercises that have no valid sets", async () => {
+    const response = await request(app)
+      .post("/workouts/sessions")
+      .send(
+        workoutSessionPayload({
+          exercises: [{ id: "exercise_1", exerciseId: "bench", name: "Bench Press", sets: [] }],
+        }),
+      );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "Invalid workout session payload" });
+    assert.equal(sessionsById.size, 0);
+  });
+
   it("lists sessions and records only for the signed-in member", async () => {
     await request(app).post("/workouts/sessions").send(workoutSessionPayload());
 

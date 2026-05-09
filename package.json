@@ -29,6 +29,9 @@
     "test:e2e:ui": "sh -c 'ADMIN_BASE_URL=${ADMIN_BASE_URL:-http://localhost:4173/admin/} MEMBER_BASE_URL=${MEMBER_BASE_URL:-http://localhost:3100/} pnpm exec playwright test tests/e2e/ui-preview.spec.ts'",
     "test:e2e:ci": "PLAYWRIGHT_INCLUDE_MEMBER_WEB=0 CI=1 pnpm exec playwright test tests/e2e/admin-api-smoke.spec.ts tests/e2e/ui-preview.spec.ts --grep \"admin|api\"",
     "test:e2e:member": "pnpm exec playwright test tests/e2e/member-flows.spec.ts",
+    "qa:clerk-role-matrix": "pnpm --filter @workspace/scripts exec tsx ../artifacts/api-server/src/tools/clerk-role-matrix.ts",
+    "test:e2e:live-clerk": "sh -c 'pnpm run qa:clerk-role-matrix && set -a; . ./.env.local; . ./.local/clerk-role-matrix.playwright.env; set +a; FITNESS_HUB_SKIP_ENV_LOCAL=1 CI=1 pnpm exec playwright test tests/e2e/live-clerk-role-matrix.spec.ts'",
+    "stress:premium-hardening": "pnpm run preflight:node && pnpm audit --audit-level high && pnpm -r --if-present run test && pnpm run build && pnpm --filter @workspace/scripts run performance-budget-check && CI=1 pnpm exec playwright test tests/e2e/admin-api-smoke.spec.ts tests/e2e/ui-preview.spec.ts tests/e2e/member-flows.spec.ts",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },

@@ -699,6 +699,7 @@ export const AiWorkoutSuggestionBody = zod.object({
   goals: zod.string().optional(),
   fitnessLevel: zod.string().optional(),
   availableTime: zod.number().optional(),
+  userProfile: zod.record(zod.string(), zod.unknown()).optional(),
   todayStats: zod.record(zod.string(), zod.unknown()).optional(),
   behaviorProfile: zod.record(zod.string(), zod.unknown()).optional(),
   savedPlans: zod.array(zod.record(zod.string(), zod.unknown())).optional(),

@@ -18,6 +18,7 @@ import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireApiAuth } from "../middlewares/apiAuth.ts";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 import { listAllClerkUsers } from "../lib/clerk-request.ts";
+import { readObjectBody } from "../lib/request-validation.ts";
 
 const router = Router();
 
@@ -118,7 +119,7 @@ function parseWorkoutSets(value: unknown): MemberWorkoutSessionSet[] | null {
     });
   }
 
-  return parsed;
+  return parsed.length ? parsed : null;
 }
 
 function parseWorkoutExercises(value: unknown): MemberWorkoutSessionExercise[] | null {
@@ -147,7 +148,7 @@ function parseWorkoutExercises(value: unknown): MemberWorkoutSessionExercise[] |
     });
   }
 
-  return parsed;
+  return parsed.length ? parsed : null;
 }
 
 function parseWorkoutSessionPayload(
@@ -398,10 +399,12 @@ router.post("/templates", async (req: Request, res: Response) => {
   try {
     const access = await requireTrainerOrOwner(req, res);
     if (!access) return;
-    const { name, exercises, trainerName } = (req.body ?? {}) as {
-      name?: string;
-      exercises?: unknown[];
-      trainerName?: string;
+    const body = readObjectBody(req.body, res);
+    if (!body) return;
+    const { name, exercises, trainerName } = body as {
+      name?: unknown;
+      exercises?: unknown;
+      trainerName?: unknown;
     };
     if (!name || typeof name !== "string" || !name.trim()) {
       res.status(400).json({ error: "name is required" });
@@ -469,9 +472,11 @@ router.post("/assign", async (req: Request, res: Response) => {
   try {
     const access = await requireTrainerOrOwner(req, res);
     if (!access) return;
-    const { templateId, memberId } = (req.body ?? {}) as {
-      templateId?: number;
-      memberId?: string;
+    const body = readObjectBody(req.body, res);
+    if (!body) return;
+    const { templateId, memberId } = body as {
+      templateId?: unknown;
+      memberId?: unknown;
     };
     if (!templateId || typeof templateId !== "number") {
       res.status(400).json({ error: "templateId is required" });

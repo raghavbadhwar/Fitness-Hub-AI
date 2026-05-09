@@ -145,6 +145,12 @@ function parsePositiveInteger(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function getSuggestedWorkoutMinutes(fitnessExperience: string): number {
+  if (fitnessExperience === "advanced") return 60;
+  if (fitnessExperience === "intermediate") return 45;
+  return 30;
+}
+
 export default function WorkoutScreen() {
   const { profile: storedProfile, refreshProfile } = useApp();
   const {
@@ -508,8 +514,17 @@ export default function WorkoutScreen() {
         body: {
           recentWorkouts: recentData,
           goals: profile.fitnessGoal,
-          fitnessLevel: "intermediate",
-          availableTime: 45,
+          fitnessLevel: profile.fitnessExperience,
+          availableTime: getSuggestedWorkoutMinutes(profile.fitnessExperience),
+          userProfile: {
+            goal: profile.fitnessGoal,
+            activityLevel: profile.activityLevel,
+            fitnessExperience: profile.fitnessExperience,
+            equipment: profile.equipment,
+            injuries: profile.injuries,
+            workoutTime: profile.workoutTime,
+            role: profile.role,
+          },
           todayStats: todayNutritionSummary,
           behaviorProfile,
           savedPlans: savedPlanSummaries,

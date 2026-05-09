@@ -12,6 +12,7 @@ export interface AiWorkoutSuggestionRequest {
   goals?: string;
   fitnessLevel?: string;
   availableTime?: number;
+  userProfile?: JsonObject;
   todayStats?: JsonObject;
   behaviorProfile?: JsonObject;
   savedPlans?: JsonObject[];

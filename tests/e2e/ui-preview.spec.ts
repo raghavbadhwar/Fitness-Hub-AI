@@ -17,6 +17,14 @@ test("admin access-denied preview can return the user to sign-in", async ({ page
   await expect(page.getByText("Admin Operations Hub")).toBeVisible();
 });
 
+test("admin loading preview uses accessible branded progress copy", async ({ page }) => {
+  await page.goto(`${ADMIN_BASE_URL}__e2e/loading`);
+
+  await expect(page.getByTestId("admin-loading-state")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Preparing admin workspace");
+  await expect(page.getByText("Loading...")).toHaveCount(0);
+});
+
 test("admin access-denied preview switch-account action also routes to sign-in", async ({
   page,
 }) => {

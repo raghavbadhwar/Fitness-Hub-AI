@@ -1,0 +1,133 @@
+{
+  "name": "Fitness Hub premium hardening",
+  "createdAt": "2026-05-09",
+  "repoRoot": "/Volumes/RAGHAV2/Projects/Fitness-Hub-AI",
+  "goal": "Fix repo-side blockers that keep the app below premium readiness: dependency audit, auth error leakage, API validation, AI quality tests, UX loading polish, performance gates, and live Clerk role-matrix QA.",
+  "externalBlockers": [
+    "Live Clerk account browser QA needs local Clerk test keys, database URL, and permission to create/update disposable codex-fh-* test users.",
+    "Strict production env preflight needs live Clerk, database, and Gemini env vars.",
+    "No production database writes or migrations are planned."
+  ],
+  "files": {
+    "dependencySecurity": ["pnpm-workspace.yaml", "pnpm-lock.yaml"],
+    "memberErrorSafety": [
+      "artifacts/gymapp/app/(auth)/sign-up.tsx",
+      "artifacts/gymapp/components/ErrorFallback.tsx",
+      "artifacts/gymapp/lib/auth-error-message.ts",
+      "artifacts/gymapp/lib/auth-error-message.test.ts"
+    ],
+    "apiValidation": [
+      "artifacts/api-server/src/lib/request-validation.ts",
+      "artifacts/api-server/src/routes/profiles.ts",
+      "artifacts/api-server/src/routes/workouts.ts",
+      "artifacts/api-server/tests/routes/profiles.test.mjs",
+      "artifacts/api-server/tests/routes/workouts.test.mjs"
+    ],
+    "aiQuality": ["artifacts/api-server/tests/routes/ai-quality.test.mjs"],
+    "uxPerformance": [
+      "artifacts/admin/src/App.tsx",
+      "tests/e2e/ui-preview.spec.ts",
+      "scripts/src/performance-budget-check.ts",
+      "scripts/src/performance-budget-check.test.ts",
+      "scripts/package.json",
+      "package.json",
+      "docs/CODEX_TASKS.md"
+    ],
+    "liveClerkRoleMatrix": [
+      "artifacts/api-server/src/lib/clerk-role-matrix.ts",
+      "artifacts/api-server/src/tools/clerk-role-matrix.ts",
+      "artifacts/api-server/tests/lib/clerk-role-matrix.test.mjs",
+      "tests/e2e/live-clerk-role-matrix.spec.ts",
+      "package.json"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "T0",
+      "title": "Validate plan and baseline",
+      "commands": [
+        "node -e \"JSON.parse(require('fs').readFileSync('docs/superpowers/plans/2026-05-09-premium-hardening-execution-plan.json','utf8')); console.log('plan-json-ok')\"",
+        "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs",
+        "mise exec node@22 -- pnpm audit --audit-level high"
+      ],
+      "pass": "JSON parses, focused AI tests pass, audit target is captured."
+    },
+    {
+      "id": "T1",
+      "title": "Clear high dependency audit findings",
+      "commands": [
+        "mise exec node@22 -- pnpm install",
+        "mise exec node@22 -- pnpm audit --audit-level high",
+        "mise exec node@22 -- pnpm run build"
+      ],
+      "pass": "Install/build succeed and high audit findings are gone or narrowed to a documented upstream blocker."
+    },
+    {
+      "id": "T2",
+      "title": "Remove member debug leakage",
+      "commands": [
+        "mise exec node@22 -- pnpm --dir artifacts/gymapp test",
+        "rg -n \"JSON\\\\.stringify\\\\(errors|debugText|Stack Trace\" artifacts/gymapp/app artifacts/gymapp/components artifacts/gymapp/lib"
+      ],
+      "pass": "Gymapp tests pass and grep finds no raw auth/debug leakage."
+    },
+    {
+      "id": "T3",
+      "title": "Harden mutating API validation",
+      "commands": [
+        "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/profiles.test.mjs tests/routes/workouts.test.mjs",
+        "mise exec node@22 -- pnpm run typecheck"
+      ],
+      "pass": "Malformed payload tests return controlled 400s and typecheck exits 0."
+    },
+    {
+      "id": "T4",
+      "title": "Add AI quality regression fixtures",
+      "commands": [
+        "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs"
+      ],
+      "pass": "Workout/food AI fixtures prove injury, duration, numeric, and schema guardrails."
+    },
+    {
+      "id": "T5",
+      "title": "Polish covered UX states",
+      "commands": [
+        "mise exec node@22 -- pnpm run test:e2e:ci",
+        "mise exec node@22 -- pnpm run test:e2e:ui"
+      ],
+      "pass": "Admin/API and UI preview E2E pass with safer loading/error states."
+    },
+    {
+      "id": "T6",
+      "title": "Add performance stress gate",
+      "commands": [
+        "mise exec node@22 -- pnpm --filter @workspace/scripts test -- performance-budget-check.test.ts",
+        "mise exec node@22 -- pnpm run build",
+        "mise exec node@22 -- pnpm run stress:premium-hardening"
+      ],
+      "pass": "Budget tests, build, and stress script pass locally."
+    },
+    {
+      "id": "T6.5",
+      "title": "Add live Clerk role-matrix gate",
+      "commands": [
+        "mise exec node@22 -- pnpm --dir artifacts/api-server test -- tests/lib/clerk-role-matrix.test.mjs",
+        "mise exec node@22 -- pnpm run qa:clerk-role-matrix",
+        "mise exec node@22 -- pnpm run test:e2e:live-clerk"
+      ],
+      "pass": "Disposable owner, trainer, approved member, pending member, and revoked member personas are created in the Clerk test instance; API boundaries and member/admin browser ticket sign-in pass."
+    },
+    {
+      "id": "T7",
+      "title": "Final release gate and rerating",
+      "commands": [
+        "mise exec node@22 -- pnpm -r --if-present run test",
+        "mise exec node@22 -- pnpm run lint",
+        "mise exec node@22 -- pnpm run build",
+        "mise exec node@22 -- pnpm run verify:internal-beta",
+        "git diff --check"
+      ],
+      "pass": "Full tests, lint, build, internal beta gate, and diff check pass."
+    }
+  ]
+}

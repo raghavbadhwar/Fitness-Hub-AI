@@ -456,6 +456,24 @@ describe("profiles routes", () => {
     });
   });
 
+  it("rejects profile sync when name is not a string", async () => {
+    accessControlsByEmail.set("morgan@example.com", {
+      email: "morgan@example.com",
+      role: "member",
+      status: "approved",
+      note: "",
+      createdByClerkId: "owner_1",
+      updatedAt: new Date("2026-04-20T09:00:00.000Z"),
+      createdAt: new Date("2026-04-20T09:00:00.000Z"),
+    });
+
+    const response = await request(app).post("/profiles/sync").send({ name: { raw: "Morgan" } });
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(response.body, { error: "name must be a string" });
+    assert.equal(profilesByClerkId.has("member_1"), false);
+  });
+
   it("preserves the existing role when clerk metadata is invalid", async () => {
     profilesByClerkId.set("member_1", {
       id: 7,

@@ -15,7 +15,29 @@ const dbState = {
   lastUpdate: null,
 };
 const memoryExtractionState = { value: null };
-const aiState = { generateContentCalls: 0, chatCreateCalls: 0 };
+const defaultWorkoutSuggestion = {
+  workoutName: "Upper Body Strength",
+  focus: "push",
+  duration: 45,
+  exercises: [
+    {
+      name: "Bench Press",
+      sets: 3,
+      reps: "8-10",
+      restSeconds: 60,
+      notes: "keep the shoulder blades set",
+    },
+  ],
+  warmup: "5 minutes of light cardio and shoulder circles",
+  cooldown: "2 minutes of chest and triceps stretching",
+  motivationalTip: "Stay consistent and finish strong.",
+};
+const aiState = {
+  generateContentCalls: 0,
+  chatCreateCalls: 0,
+  generateContentTexts: [],
+  promptTexts: [],
+};
 
 mock.module("drizzle-orm", {
   namedExports: {
@@ -159,26 +181,14 @@ mock.module("@workspace/integrations-gemini-ai", {
   namedExports: {
     ai: {
       models: {
-        async generateContent() {
+        async generateContent(args) {
           aiState.generateContentCalls += 1;
+          const promptText =
+            args?.contents?.[0]?.parts?.find?.((part) => typeof part.text === "string")?.text ?? "";
+          aiState.promptTexts.push(promptText);
+          const queuedText = aiState.generateContentTexts.shift();
           return {
-            text: JSON.stringify({
-              workoutName: "Upper Body Strength",
-              focus: "push",
-              duration: 45,
-              exercises: [
-                {
-                  name: "Bench Press",
-                  sets: 3,
-                  reps: "8-10",
-                  restSeconds: 60,
-                  notes: "keep the shoulder blades set",
-                },
-              ],
-              warmup: "5 minutes of light cardio and shoulder circles",
-              cooldown: "2 minutes of chest and triceps stretching",
-              motivationalTip: "Stay consistent and finish strong.",
-            }),
+            text: queuedText ?? JSON.stringify(defaultWorkoutSuggestion),
           };
         },
       },
@@ -241,6 +251,8 @@ beforeEach(() => {
   memoryExtractionState.value = null;
   aiState.generateContentCalls = 0;
   aiState.chatCreateCalls = 0;
+  aiState.generateContentTexts = [];
+  aiState.promptTexts = [];
 });
 
 describe("ai routes", () => {
@@ -253,23 +265,95 @@ describe("ai routes", () => {
     });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body, {
-      workoutName: "Upper Body Strength",
-      focus: "push",
-      duration: 45,
-      exercises: [
-        {
-          name: "Bench Press",
-          sets: 3,
-          reps: "8-10",
-          restSeconds: 60,
-          notes: "keep the shoulder blades set",
+    assert.deepEqual(response.body, defaultWorkoutSuggestion);
+  });
+
+  it("sends full member constraints and durable memory to workout generation", async () => {
+    dbState.selectedProfiles = [
+      {
+        memorySummary: "Prefers repeatable strength work and short morning sessions.",
+        goals: ["build muscle"],
+        preferences: ["dumbbell work"],
+        barriers: ["limited time"],
+        motivators: ["visible strength progress"],
+        injuries: ["lower_back"],
+      },
+    ];
+
+    const response = await request(app)
+      .post("/ai/workout-suggestion")
+      .send({
+        recentWorkouts: [{ name: "Push Day", exercises: ["Bench Press"] }],
+        goals: "build_muscle",
+        fitnessLevel: "beginner",
+        availableTime: 30,
+        userProfile: {
+          equipment: "home_gym",
+          injuries: ["lower_back"],
+          workoutTime: "morning",
+          activityLevel: "light",
         },
-      ],
-      warmup: "5 minutes of light cardio and shoulder circles",
-      cooldown: "2 minutes of chest and triceps stretching",
-      motivationalTip: "Stay consistent and finish strong.",
+        behaviorProfile: {
+          consistencyLabel: "building",
+          preferredTrainingWindow: "morning",
+        },
+        savedPlans: [{ name: "Saved Strength", exerciseCount: 4 }],
+      });
+
+    assert.equal(response.status, 200);
+    assert.match(aiState.promptTexts[0], /Member Profile Constraints:/);
+    assert.match(aiState.promptTexts[0], /home_gym/);
+    assert.match(aiState.promptTexts[0], /lower_back/);
+    assert.match(aiState.promptTexts[0], /morning/);
+    assert.match(aiState.promptTexts[0], /Saved Strength/);
+    assert.match(aiState.promptTexts[0], /Durable Member Memory:/);
+    assert.match(aiState.promptTexts[0], /repeatable strength work/);
+  });
+
+  it("rejects malformed workout suggestion payloads from AI", async () => {
+    aiState.generateContentTexts.push(
+      JSON.stringify({
+        ...defaultWorkoutSuggestion,
+        exercises: [],
+      }),
+    );
+
+    const response = await request(app).post("/ai/workout-suggestion").send({
+      recentWorkouts: [],
+      goals: "build strength",
     });
+
+    assert.equal(response.status, 502);
+    assert.deepEqual(response.body, { error: "AI returned malformed workout suggestion JSON" });
+  });
+
+  it("rejects workout suggestions that conflict with injury constraints", async () => {
+    aiState.generateContentTexts.push(
+      JSON.stringify({
+        ...defaultWorkoutSuggestion,
+        workoutName: "Heavy Pull Day",
+        exercises: [
+          {
+            name: "Deadlift",
+            sets: 4,
+            reps: "5",
+            restSeconds: 120,
+            notes: "brace hard",
+          },
+        ],
+      }),
+    );
+
+    const response = await request(app)
+      .post("/ai/workout-suggestion")
+      .send({
+        recentWorkouts: [],
+        goals: "build strength",
+        userProfile: { injuries: ["lower_back"] },
+      });
+
+    assert.equal(response.status, 502);
+    assert.deepEqual(response.body, { error: "AI returned malformed workout suggestion JSON" });
   });
 
   it("blocks AI endpoints when member access is revoked", async () => {
@@ -329,6 +413,31 @@ describe("ai routes", () => {
     assert.equal(response.status, 413);
     assert.deepEqual(response.body, { error: "imageBase64 exceeds the maximum allowed size" });
     assert.equal(aiState.generateContentCalls, 0);
+  });
+
+  it("rejects malformed food analysis payloads from AI", async () => {
+    aiState.generateContentTexts.push(
+      JSON.stringify({
+        dishName: "Paneer Bowl",
+        cuisine: "Indian",
+        servingSize: "1 serving",
+        calories: 99999,
+        protein: 30,
+        carbs: 40,
+        fat: 20,
+        fiber: 5,
+        confidence: "certain",
+        ingredients: [],
+        healthTip: "Balanced enough for a normal meal.",
+      }),
+    );
+
+    const response = await request(app)
+      .post("/ai/analyze-food")
+      .send({ imageBase64: "small", mimeType: "image/jpeg" });
+
+    assert.equal(response.status, 502);
+    assert.deepEqual(response.body, { error: "AI returned malformed food analysis JSON" });
   });
 
   it("rejects chat requests with too many messages", async () => {
