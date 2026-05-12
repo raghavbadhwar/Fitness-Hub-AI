@@ -1,0 +1,4 @@
+## 2026-05-12 - IP Spoofing in Proxy Middleware
+**Vulnerability:** The `clerkProxyMiddleware.ts` manually extracted client IPs from the `x-forwarded-for` header and passed it along as `X-Forwarded-For` to the upstream proxy. This manual extraction bypassed framework-level proxy trust settings, allowing malicious clients to trivially spoof their origin IP by supplying their own `x-forwarded-for` header.
+**Learning:** Frameworks like Express have built-in, secure mechanisms (like `req.ip` configured via `trust proxy`) specifically designed to correctly parse proxy headers and reject spoofed headers from untrusted sources. Bypassing these mechanisms to parse headers manually introduces security vulnerabilities.
+**Prevention:** Always rely on framework-provided primitives like `req.ip` for determining client IP addresses, ensuring that the application's global 'trust proxy' settings are correctly configured rather than attempting to parse HTTP headers manually.
