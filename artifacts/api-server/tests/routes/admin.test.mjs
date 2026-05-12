@@ -135,11 +135,17 @@ mock.module("drizzle-orm", {
     gte(field, value) {
       return { op: "gte", field, value };
     },
+    lte(field, value) {
+      return { op: "lte", field, value };
+    },
+    desc(field) {
+      return { op: "desc", field };
+    },
     count() {
       return { op: "count" };
     },
-    sum() {
-      return { op: "sum" };
+    sum(field) {
+      return { op: "sum", field };
     },
   },
 });
