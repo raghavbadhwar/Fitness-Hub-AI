@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import { useAuth } from "@clerk/expo";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -18,10 +19,16 @@ import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useApp } from "@/contexts/AppContext";
-import { useNutrition, MealType } from "@/contexts/NutritionContext";
+import { useNutrition, MealType, type FoodEntry } from "@/contexts/NutritionContext";
 import { MacroRing } from "@/components/MacroRing";
 import { MacroBar } from "@/components/MacroBar";
-import { INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";
+import { FOOD_CATEGORIES, INDIAN_FOODS, searchFoods, type FoodItem } from "@/constants/indianFoods";
+import {
+  foodSearchItemToEntryDraft,
+  searchFoodDrafts,
+  type FoodEntryDraft,
+  type FoodSearchItem,
+} from "@/lib/food-logging-api";
 import { impact, notifySuccess, notifyWarning, selection } from "@/lib/haptics";
 
 const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
@@ -36,6 +43,65 @@ const MEAL_SECTIONS: { type: MealType; label: string; icon: FeatherIconName; col
   { type: "pre_workout", label: "Pre-Workout", icon: "zap", color: "#FF6B00" },
   { type: "post_workout", label: "Post-Workout", icon: "activity", color: "#14B8A6" },
 ];
+
+const FEATURED_BROWSE_FOOD_IDS = [
+  "roti",
+  "basmati_rice",
+  "dal_tadka",
+  "paneer_bhurji",
+  "chicken_biryani",
+  "idli",
+  "poha",
+  "boiled_egg",
+  "curd",
+  "banana",
+  "protein_shake",
+  "oats",
+];
+
+function getBrowseFoods(): FoodItem[] {
+  const foodsById = new Map(INDIAN_FOODS.map((food) => [food.id, food]));
+  const featuredFoods = FEATURED_BROWSE_FOOD_IDS.flatMap((id) => {
+    const food = foodsById.get(id);
+    return food ? [food] : [];
+  });
+  const featuredIds = new Set(featuredFoods.map((food) => food.id));
+  return [...featuredFoods, ...INDIAN_FOODS.filter((food) => !featuredIds.has(food.id))];
+}
+
+function localFoodToSearchItem(food: FoodItem): FoodSearchItem {
+  return {
+    id: `local-${food.id}`,
+    source: "curated",
+    sourceProductId: food.id,
+    name: food.name,
+    servingLabel: food.servingSize,
+    servingGrams: food.servingGrams,
+    calories: food.calories,
+    protein: food.protein,
+    carbs: food.carbs,
+    fat: food.fat,
+    fiber: food.fiber,
+    ingredients: [],
+    allergens: [],
+    portionOptions: [
+      {
+        label: food.servingSize,
+        grams: food.servingGrams,
+        region: food.cuisine === "Indian" || !food.cuisine ? "IN" : food.cuisine,
+        ...(food.aliases?.length ? { aliases: food.aliases } : {}),
+      },
+    ],
+    confidence: "medium",
+    provenance: { provider: "local-food-catalog", cached: true, qualityScore: 55 },
+  };
+}
+
+function getFoodSourceLabel(food: FoodEntryDraft): string {
+  if (food.provider) return food.provider.replace(/[-_]/g, " ");
+  if (food.source === "recent") return "recent";
+  return food.source ?? "search";
+}
 
 function MacroPill({
   label,
@@ -119,16 +185,23 @@ const macroPillStyles = StyleSheet.create({
 
 export default function NutritionScreen() {
   const { profile } = useApp();
-  const { todayLog, addFoodEntry, removeFoodEntry, updateWaterIntake } = useNutrition();
+  const { todayLog, addFoodEntry, removeFoodEntry, updateWaterIntake, getRecentFoodEntries } =
+    useNutrition();
   const router = useRouter();
+  const { getToken } = useAuth();
   const colors = useColors();
   const typography = useTypography();
   const [activeMeal, setActiveMeal] = useState<MealType | null>(null);
   const [showFoodSearch, setShowFoodSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery);
-  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
+  const [selectedFood, setSelectedFood] = useState<FoodEntryDraft | null>(null);
   const [servings, setServings] = useState("1");
+  const [apiFoodResults, setApiFoodResults] = useState<FoodEntryDraft[]>([]);
+  const [foodSearchState, setFoodSearchState] = useState<"idle" | "loading" | "api" | "fallback">(
+    "idle",
+  );
+  const [foodSearchError, setFoodSearchError] = useState<string | null>(null);
 
   const totals = useMemo(() => {
     return todayLog.entries.reduce(
@@ -143,18 +216,64 @@ export default function NutritionScreen() {
     );
   }, [todayLog.entries]);
 
-  const searchResults = useMemo(() => {
-    return debouncedSearchQuery.length > 0
-      ? searchFoods(debouncedSearchQuery)
-      : INDIAN_FOODS.slice(0, 30);
+  const localSearchItems = useMemo(() => {
+    const foods =
+      debouncedSearchQuery.length > 0 ? searchFoods(debouncedSearchQuery) : getBrowseFoods();
+    return foods.map(localFoodToSearchItem);
   }, [debouncedSearchQuery]);
+  const localSearchDrafts = useMemo(
+    () =>
+      localSearchItems.map((food) =>
+        foodSearchItemToEntryDraft(food, activeMeal ?? "lunch", 1, "search"),
+      ),
+    [activeMeal, localSearchItems],
+  );
+  const searchResults =
+    apiFoodResults.length > 0 || foodSearchState === "fallback"
+      ? apiFoodResults
+      : localSearchDrafts;
+  const recentFoodEntries = useMemo(() => getRecentFoodEntries(8), [getRecentFoodEntries]);
+
+  useEffect(() => {
+    if (!showFoodSearch || !activeMeal) {
+      return;
+    }
+
+    const query = debouncedSearchQuery.trim();
+    if (query.length < 2) {
+      setApiFoodResults([]);
+      setFoodSearchState("idle");
+      setFoodSearchError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setFoodSearchState("loading");
+    setFoodSearchError(null);
+    void searchFoodDrafts({
+      getToken,
+      query,
+      mealType: activeMeal,
+      limit: 20,
+      fallbackItems: localSearchItems.slice(0, 20),
+    }).then((result) => {
+      if (cancelled) return;
+      setApiFoodResults(result.items);
+      setFoodSearchState(result.source);
+      setFoodSearchError(result.error ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMeal, debouncedSearchQuery, getToken, localSearchItems, showFoodSearch]);
 
   const handleAddFood = async () => {
     if (!selectedFood || !activeMeal) return;
     impact();
     const s = parseFloat(servings) || 1;
     await addFoodEntry({
-      foodId: selectedFood.id,
+      foodId: selectedFood.foodId,
       name: selectedFood.name,
       mealType: activeMeal,
       servings: s,
@@ -164,11 +283,59 @@ export default function NutritionScreen() {
       carbs: Math.round(selectedFood.carbs * s * 10) / 10,
       fat: Math.round(selectedFood.fat * s * 10) / 10,
       fiber: Math.round(selectedFood.fiber * s * 10) / 10,
+      source: selectedFood.source ?? "search",
+      confidence: selectedFood.confidence,
+      ingredients: selectedFood.ingredients,
+      servingGrams: selectedFood.servingGrams,
+      barcode: selectedFood.barcode,
+      brand: selectedFood.brand,
+      catalogItemId: selectedFood.catalogItemId,
+      memberFoodItemId: selectedFood.memberFoodItemId,
+      sourceProductId: selectedFood.sourceProductId,
+      provider: selectedFood.provider,
+      providerCached: selectedFood.providerCached,
+      providerQualityScore: selectedFood.providerQualityScore,
+      portionOptions: selectedFood.portionOptions,
     });
     setShowFoodSearch(false);
     setSelectedFood(null);
     setSearchQuery("");
     setServings("1");
+    notifySuccess();
+  };
+
+  const handleRelogFood = async (entry: FoodEntry) => {
+    if (!activeMeal) return;
+    impact();
+    await addFoodEntry({
+      foodId: entry.foodId,
+      name: entry.name,
+      mealType: activeMeal,
+      servings: entry.servings,
+      servingSize: entry.servingSize,
+      calories: entry.calories,
+      protein: entry.protein,
+      carbs: entry.carbs,
+      fat: entry.fat,
+      fiber: entry.fiber,
+      source: "recent",
+      confidence: entry.confidence,
+      ingredients: entry.ingredients,
+      servingGrams: entry.servingGrams,
+      barcode: entry.barcode,
+      brand: entry.brand,
+      catalogItemId: entry.catalogItemId,
+      memberFoodItemId: entry.memberFoodItemId,
+      sourceProductId: entry.sourceProductId,
+      provider: entry.provider,
+      providerCached: entry.providerCached,
+      providerQualityScore: entry.providerQualityScore,
+      portionOptions: entry.portionOptions,
+      relogOf: entry.id,
+    });
+    setShowFoodSearch(false);
+    setSelectedFood(null);
+    setSearchQuery("");
     notifySuccess();
   };
 
@@ -338,6 +505,12 @@ export default function NutritionScreen() {
                     <Text style={[styles.foodMeta, { color: colors.mutedForeground }]}>
                       {entry.servingSize} · P:{entry.protein}g C:{entry.carbs}g F:{entry.fat}g
                     </Text>
+                    {entry.source ? (
+                      <Text style={[styles.foodSource, { color: colors.mutedForeground }]}>
+                        {entry.source}
+                        {entry.confidence ? ` · ${entry.confidence}` : ""}
+                      </Text>
+                    ) : null}
                   </View>
                   <View style={[styles.calorieChip, { backgroundColor: meal.color + "18" }]}>
                     <Text style={[styles.calorieChipText, { color: meal.color }]}>
@@ -387,7 +560,7 @@ export default function NutritionScreen() {
             <Feather name="search" size={16} color={colors.mutedForeground} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search Indian foods..."
+              placeholder="Search foods, brands, roti, oats..."
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -408,6 +581,11 @@ export default function NutritionScreen() {
               <Text style={[styles.selectedFoodMeta, { color: colors.mutedForeground }]}>
                 {selectedFood.servingSize} · {selectedFood.calories} kcal · P:{selectedFood.protein}
                 g C:{selectedFood.carbs}g F:{selectedFood.fat}g
+              </Text>
+              <Text style={[styles.selectedFoodSource, { color: colors.mutedForeground }]}>
+                {getFoodSourceLabel(selectedFood)}
+                {selectedFood.confidence ? ` · ${selectedFood.confidence}` : ""}
+                {selectedFood.providerCached === false ? " · live lookup" : ""}
               </Text>
               <View style={styles.servingRow}>
                 <Text style={[styles.servingLabel, { color: colors.mutedForeground }]}>
@@ -457,37 +635,95 @@ export default function NutritionScreen() {
               </View>
             </View>
           ) : (
-            <FlatList<FoodItem>
-              data={searchResults}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }: { item: FoodItem }) => (
-                <Pressable
-                  style={[styles.foodResult, { borderBottomColor: colors.border }]}
-                  onPress={() => {
-                    selection();
-                    setSelectedFood(item);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${item.name}, ${item.calories} calories`}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.foodResultName, { color: colors.text }]}>{item.name}</Text>
-                    <Text style={[styles.foodResultMeta, { color: colors.mutedForeground }]}>
-                      {item.servingSize} · P:{item.protein}g C:{item.carbs}g F:{item.fat}g
-                    </Text>
-                  </View>
-                  <View style={[styles.searchCalChip, { backgroundColor: colors.primary + "18" }]}>
-                    <Text style={[styles.searchCalVal, { color: colors.primary }]}>
-                      {item.calories}
-                    </Text>
-                    <Text style={[styles.searchCalUnit, { color: colors.primary + "90" }]}>
-                      kcal
-                    </Text>
-                  </View>
-                </Pressable>
-              )}
-              contentContainerStyle={{ paddingBottom: 40 }}
-            />
+            <>
+              {!debouncedSearchQuery && recentFoodEntries.length > 0 ? (
+                <View style={styles.recentFoods}>
+                  <Text style={[styles.recentTitle, { color: colors.mutedForeground }]}>
+                    Recent foods
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.recentFoodScroller}
+                  >
+                    {recentFoodEntries.map((entry) => (
+                      <Pressable
+                        key={entry.id}
+                        style={[
+                          styles.recentFoodChip,
+                          { backgroundColor: colors.card, borderColor: colors.border },
+                        ]}
+                        onPress={() => handleRelogFood(entry)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Relog ${entry.name}`}
+                      >
+                        <Text style={[styles.recentFoodName, { color: colors.text }]}>
+                          {entry.name}
+                        </Text>
+                        <Text style={[styles.recentFoodMeta, { color: colors.mutedForeground }]}>
+                          {entry.calories} kcal
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+              {foodSearchState === "loading" ? (
+                <Text style={[styles.searchStatus, { color: colors.mutedForeground }]}>
+                  Searching verified food sources...
+                </Text>
+              ) : null}
+              {foodSearchState === "fallback" && foodSearchError ? (
+                <Text style={[styles.searchStatus, { color: colors.mutedForeground }]}>
+                  Showing offline matches. {foodSearchError}
+                </Text>
+              ) : null}
+              {!debouncedSearchQuery ? (
+                <Text style={[styles.searchStatus, { color: colors.mutedForeground }]}>
+                  Browse {INDIAN_FOODS.length} foods across {FOOD_CATEGORIES.length} categories
+                </Text>
+              ) : null}
+              <FlatList<FoodEntryDraft>
+                data={searchResults}
+                keyExtractor={(item) => item.foodId}
+                renderItem={({ item }: { item: FoodEntryDraft }) => (
+                  <Pressable
+                    style={[styles.foodResult, { borderBottomColor: colors.border }]}
+                    onPress={() => {
+                      selection();
+                      setSelectedFood(item);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${item.name}, ${item.calories} calories`}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.foodResultName, { color: colors.text }]}>
+                        {item.name}
+                      </Text>
+                      <Text style={[styles.foodResultMeta, { color: colors.mutedForeground }]}>
+                        {item.servingSize} · P:{item.protein}g C:{item.carbs}g F:{item.fat}g
+                        {item.brand ? ` · ${item.brand}` : ""}
+                      </Text>
+                      <Text style={[styles.foodResultSource, { color: colors.mutedForeground }]}>
+                        {getFoodSourceLabel(item)}
+                        {item.confidence ? ` · ${item.confidence}` : ""}
+                      </Text>
+                    </View>
+                    <View
+                      style={[styles.searchCalChip, { backgroundColor: colors.primary + "18" }]}
+                    >
+                      <Text style={[styles.searchCalVal, { color: colors.primary }]}>
+                        {item.calories}
+                      </Text>
+                      <Text style={[styles.searchCalUnit, { color: colors.primary + "90" }]}>
+                        kcal
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
+                contentContainerStyle={{ paddingBottom: 40 }}
+              />
+            </>
           )}
         </View>
       </Modal>
@@ -566,6 +802,7 @@ const styles = StyleSheet.create({
   },
   foodName: { fontSize: 14, fontWeight: "500" },
   foodMeta: { fontSize: 12, marginTop: 2 },
+  foodSource: { fontSize: 11, marginTop: 2, textTransform: "capitalize" },
   calorieChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, alignItems: "center" },
   calorieChipText: { fontSize: 14, fontWeight: "700" },
   calorieChipUnit: { fontSize: 9, fontWeight: "600" },
@@ -588,6 +825,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   searchInput: { flex: 1, fontSize: 16 },
+  recentFoods: { marginBottom: 12, gap: 8 },
+  recentTitle: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  recentFoodScroller: { gap: 8 },
+  recentFoodChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 130,
+  },
+  recentFoodName: { fontSize: 13, fontWeight: "700" },
+  recentFoodMeta: { fontSize: 11, marginTop: 2 },
   foodResult: {
     flexDirection: "row",
     alignItems: "center",
@@ -597,6 +846,8 @@ const styles = StyleSheet.create({
   },
   foodResultName: { fontSize: 15, fontWeight: "500" },
   foodResultMeta: { fontSize: 12, marginTop: 2 },
+  foodResultSource: { fontSize: 11, marginTop: 3, textTransform: "capitalize" },
+  searchStatus: { fontSize: 12, marginBottom: 8 },
   searchCalChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -609,6 +860,7 @@ const styles = StyleSheet.create({
   selectedFoodCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
   selectedFoodName: { fontSize: 18, fontWeight: "700" },
   selectedFoodMeta: { fontSize: 13 },
+  selectedFoodSource: { fontSize: 12, textTransform: "capitalize" },
   servingRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   servingLabel: { fontSize: 14 },
   servingInput: {

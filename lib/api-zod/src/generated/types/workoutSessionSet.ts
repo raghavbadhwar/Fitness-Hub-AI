@@ -5,10 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WorkoutSessionSetType } from "./workoutSessionSetType";
 
 export interface WorkoutSessionSet {
   id: string;
   weight: number;
   reps: number;
   completed: boolean;
+  type?: WorkoutSessionSetType;
+  /**
+   * @minimum 1
+   * @maximum 10
+   */
+  rpe?: number;
+  /**
+   * @minimum 0
+   * @maximum 10
+   */
+  rir?: number;
+  notes?: string;
+  previousWeight?: number;
+  previousReps?: number;
+  progressionHint?: string;
 }

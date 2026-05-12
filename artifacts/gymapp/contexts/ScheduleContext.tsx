@@ -1,6 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getApiBase } from "@/lib/api-base";
 import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import {
@@ -584,30 +592,43 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [waitlistedClassIds],
   );
 
-  return (
-    <ScheduleContext.Provider
-      value={{
-        classes,
-        enrolledClassIds,
-        waitlistedClassIds,
-        enrollInClass,
-        unenrollFromClass,
-        joinWaitlist,
-        leaveWaitlist,
-        addClass: managementMovedToAdmin,
-        updateClass: managementMovedToAdmin,
-        deleteClass: managementMovedToAdmin,
-        getTodayClasses,
-        getClassesForDate,
-        isEnrolled,
-        isWaitlisted,
-        refreshSchedule,
-        isLoading,
-      }}
-    >
-      {children}
-    </ScheduleContext.Provider>
+  const contextValue = useMemo<ScheduleContextType>(
+    () => ({
+      classes,
+      enrolledClassIds,
+      waitlistedClassIds,
+      enrollInClass,
+      unenrollFromClass,
+      joinWaitlist,
+      leaveWaitlist,
+      addClass: managementMovedToAdmin,
+      updateClass: managementMovedToAdmin,
+      deleteClass: managementMovedToAdmin,
+      getTodayClasses,
+      getClassesForDate,
+      isEnrolled,
+      isWaitlisted,
+      refreshSchedule,
+      isLoading,
+    }),
+    [
+      classes,
+      enrolledClassIds,
+      waitlistedClassIds,
+      enrollInClass,
+      unenrollFromClass,
+      joinWaitlist,
+      leaveWaitlist,
+      getTodayClasses,
+      getClassesForDate,
+      isEnrolled,
+      isWaitlisted,
+      refreshSchedule,
+      isLoading,
+    ],
   );
+
+  return <ScheduleContext.Provider value={contextValue}>{children}</ScheduleContext.Provider>;
 }
 
 export function useSchedule() {

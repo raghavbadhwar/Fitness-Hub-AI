@@ -1,10 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@clerk/expo";
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getApiBase } from "@/lib/api-base";
 import { authenticatedJsonRequest } from "@/lib/authenticated-api";
 import { getLocalDateKey, getMillisecondsUntilNextLocalDate } from "@/lib/date-key";
 import { generateId } from "@/lib/id";
+import { getRecentUniqueFoodEntries } from "@/lib/nutrition-history";
 
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks" | "pre_workout" | "post_workout";
 
@@ -23,6 +32,28 @@ export interface FoodEntry {
   timestamp: number;
   fromPhoto?: boolean;
   photoUri?: string;
+  source?: "manual" | "photo" | "search" | "recent" | "barcode" | "label";
+  confidence?: "high" | "medium" | "low";
+  ingredients?: string[];
+  servingGrams?: number;
+  barcode?: string;
+  brand?: string;
+  catalogItemId?: string;
+  memberFoodItemId?: string;
+  sourceProductId?: string;
+  provider?: string;
+  providerCached?: boolean;
+  providerQualityScore?: number;
+  portionOptions?: Array<{
+    label: string;
+    grams?: number;
+    milliliters?: number;
+    aliases?: string[];
+  }>;
+  correctionOf?: string;
+  correctedAt?: number;
+  relogOf?: string;
+  notes?: string;
 }
 
 export interface DailyLog {
@@ -47,6 +78,7 @@ interface NutritionContextType {
   removeFoodEntry: (entryId: string, date?: string) => Promise<void>;
   updateWaterIntake: (glasses: number, date?: string) => Promise<void>;
   getLogsForRange: (startDate: string, endDate: string) => DailyLog[];
+  getRecentFoodEntries: (limit?: number) => FoodEntry[];
   getWeeklyCalories: () => { date: string; calories: number }[];
   get30DayCalories: () => { date: string; calories: number }[];
   isLoading: boolean;
@@ -234,6 +266,11 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     [logs],
   );
 
+  const getRecentFoodEntries = useCallback(
+    (limit = 8) => getRecentUniqueFoodEntries(logs, limit),
+    [logs],
+  );
+
   const getWeeklyCalories = useCallback(() => {
     const result = [];
     for (let i = 6; i >= 0; i--) {
@@ -260,23 +297,34 @@ export function NutritionProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [logs]);
 
-  return (
-    <NutritionContext.Provider
-      value={{
-        todayLog,
-        getLogForDate,
-        addFoodEntry,
-        removeFoodEntry,
-        updateWaterIntake,
-        getLogsForRange,
-        getWeeklyCalories,
-        get30DayCalories,
-        isLoading,
-      }}
-    >
-      {children}
-    </NutritionContext.Provider>
+  const contextValue = useMemo<NutritionContextType>(
+    () => ({
+      todayLog,
+      getLogForDate,
+      addFoodEntry,
+      removeFoodEntry,
+      updateWaterIntake,
+      getLogsForRange,
+      getRecentFoodEntries,
+      getWeeklyCalories,
+      get30DayCalories,
+      isLoading,
+    }),
+    [
+      todayLog,
+      getLogForDate,
+      addFoodEntry,
+      removeFoodEntry,
+      updateWaterIntake,
+      getLogsForRange,
+      getRecentFoodEntries,
+      getWeeklyCalories,
+      get30DayCalories,
+      isLoading,
+    ],
   );
+
+  return <NutritionContext.Provider value={contextValue}>{children}</NutritionContext.Provider>;
 }
 
 export function useNutrition() {

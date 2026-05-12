@@ -2,6 +2,8 @@ export interface FoodItem {
   id: string;
   name: string;
   category: string;
+  cuisine?: string;
+  aliases?: string[];
   servingSize: string;
   servingGrams: number;
   calories: number;
@@ -1717,6 +1719,8 @@ export const INDIAN_FOODS: FoodItem[] = [
     id: "green_tea",
     name: "Green Tea",
     category: "Beverages",
+    cuisine: "Global",
+    aliases: ["tea", "chai", "green chai"],
     servingSize: "1 cup (200ml)",
     servingGrams: 200,
     calories: 2,
@@ -1729,6 +1733,8 @@ export const INDIAN_FOODS: FoodItem[] = [
     id: "masala_chai",
     name: "Masala Chai (with milk & sugar)",
     category: "Beverages",
+    cuisine: "Indian",
+    aliases: ["chai", "tea", "masala tea", "milk tea", "chaai", "chay"],
     servingSize: "1 cup (200ml)",
     servingGrams: 200,
     calories: 80,
@@ -1741,6 +1747,8 @@ export const INDIAN_FOODS: FoodItem[] = [
     id: "black_coffee",
     name: "Black Coffee",
     category: "Beverages",
+    cuisine: "Global",
+    aliases: ["coffee", "americano", "espresso"],
     servingSize: "1 cup (200ml)",
     servingGrams: 200,
     calories: 5,
@@ -1895,13 +1903,474 @@ export const INDIAN_FOODS: FoodItem[] = [
     fat: 2,
     fiber: 0,
   },
+  {
+    id: "burger",
+    name: "Burger",
+    category: "Global Fast Food",
+    cuisine: "American",
+    aliases: ["hamburger", "cheeseburger", "veg burger", "chicken burger"],
+    servingSize: "1 burger (220g)",
+    servingGrams: 220,
+    calories: 520,
+    protein: 24,
+    carbs: 48,
+    fat: 28,
+    fiber: 3,
+  },
+  {
+    id: "french_fries",
+    name: "French Fries",
+    category: "Global Fast Food",
+    cuisine: "American",
+    aliases: ["fries", "potato fries", "chips"],
+    servingSize: "1 medium serving (120g)",
+    servingGrams: 120,
+    calories: 365,
+    protein: 4,
+    carbs: 48,
+    fat: 17,
+    fiber: 4,
+  },
+  {
+    id: "margherita_pizza",
+    name: "Margherita Pizza",
+    category: "Pizza & Pasta",
+    cuisine: "Italian",
+    aliases: ["pizza", "pizzas", "cheese pizza"],
+    servingSize: "2 slices (180g)",
+    servingGrams: 180,
+    calories: 450,
+    protein: 18,
+    carbs: 58,
+    fat: 16,
+    fiber: 3,
+  },
+  {
+    id: "veggie_pizza",
+    name: "Vegetable Pizza",
+    category: "Pizza & Pasta",
+    cuisine: "Italian",
+    aliases: ["veg pizza", "pizza", "pizzas"],
+    servingSize: "2 slices (190g)",
+    servingGrams: 190,
+    calories: 430,
+    protein: 16,
+    carbs: 60,
+    fat: 14,
+    fiber: 5,
+  },
+  {
+    id: "garlic_bread",
+    name: "Garlic Bread",
+    category: "Pizza & Pasta",
+    cuisine: "Italian",
+    aliases: ["cheese garlic bread", "garlic toast"],
+    servingSize: "2 pieces (90g)",
+    servingGrams: 90,
+    calories: 260,
+    protein: 6,
+    carbs: 34,
+    fat: 10,
+    fiber: 2,
+  },
+  {
+    id: "croissant",
+    name: "Croissant",
+    category: "Bakery",
+    cuisine: "French",
+    aliases: ["butter croissant", "plain croissant"],
+    servingSize: "1 croissant (65g)",
+    servingGrams: 65,
+    calories: 270,
+    protein: 5,
+    carbs: 30,
+    fat: 14,
+    fiber: 2,
+  },
+  {
+    id: "hakka_noodles",
+    name: "Hakka Noodles",
+    category: "Noodles",
+    cuisine: "Indo-Chinese",
+    aliases: ["noodles", "chinese noodles", "chow mein", "veg noodles"],
+    servingSize: "1 plate (280g)",
+    servingGrams: 280,
+    calories: 470,
+    protein: 12,
+    carbs: 72,
+    fat: 14,
+    fiber: 5,
+  },
+  {
+    id: "veg_fried_rice",
+    name: "Vegetable Fried Rice",
+    category: "Chinese",
+    cuisine: "Chinese",
+    aliases: ["fried rice", "chinese fried rice"],
+    servingSize: "1 plate (280g)",
+    servingGrams: 280,
+    calories: 420,
+    protein: 10,
+    carbs: 64,
+    fat: 13,
+    fiber: 5,
+  },
+  {
+    id: "momos",
+    name: "Momos / Dumplings",
+    category: "Chinese",
+    cuisine: "Tibetan-Chinese",
+    aliases: ["momo", "dumplings", "dim sum", "dimsum"],
+    servingSize: "6 pieces (180g)",
+    servingGrams: 180,
+    calories: 290,
+    protein: 12,
+    carbs: 42,
+    fat: 8,
+    fiber: 3,
+  },
+  {
+    id: "spring_roll",
+    name: "Spring Roll",
+    category: "Chinese",
+    cuisine: "Chinese",
+    aliases: ["veg spring roll", "spring rolls"],
+    servingSize: "2 rolls (160g)",
+    servingGrams: 160,
+    calories: 330,
+    protein: 8,
+    carbs: 42,
+    fat: 14,
+    fiber: 4,
+  },
+  {
+    id: "pad_thai",
+    name: "Pad Thai",
+    category: "Thai",
+    cuisine: "Thai",
+    aliases: ["thai noodles"],
+    servingSize: "1 plate (300g)",
+    servingGrams: 300,
+    calories: 550,
+    protein: 22,
+    carbs: 76,
+    fat: 18,
+    fiber: 4,
+  },
+  {
+    id: "thai_green_curry",
+    name: "Thai Green Curry",
+    category: "Thai",
+    cuisine: "Thai",
+    aliases: ["green curry", "thai curry"],
+    servingSize: "1 bowl (250g)",
+    servingGrams: 250,
+    calories: 360,
+    protein: 18,
+    carbs: 18,
+    fat: 25,
+    fiber: 4,
+  },
+  {
+    id: "pasta_arrabbiata",
+    name: "Pasta Arrabbiata",
+    category: "Pizza & Pasta",
+    cuisine: "Italian",
+    aliases: ["red sauce pasta", "penne arrabbiata", "pasta"],
+    servingSize: "1 plate (280g)",
+    servingGrams: 280,
+    calories: 430,
+    protein: 14,
+    carbs: 76,
+    fat: 8,
+    fiber: 5,
+  },
+  {
+    id: "pasta_alfredo",
+    name: "Pasta Alfredo",
+    category: "Pizza & Pasta",
+    cuisine: "Italian",
+    aliases: ["white sauce pasta", "cream pasta", "pasta"],
+    servingSize: "1 plate (300g)",
+    servingGrams: 300,
+    calories: 620,
+    protein: 18,
+    carbs: 72,
+    fat: 28,
+    fiber: 4,
+  },
+  {
+    id: "club_sandwich",
+    name: "Club Sandwich",
+    category: "Sandwiches & Wraps",
+    cuisine: "American",
+    aliases: ["sandwich", "chicken sandwich"],
+    servingSize: "1 sandwich (250g)",
+    servingGrams: 250,
+    calories: 520,
+    protein: 28,
+    carbs: 52,
+    fat: 22,
+    fiber: 5,
+  },
+  {
+    id: "burrito",
+    name: "Burrito",
+    category: "Sandwiches & Wraps",
+    cuisine: "Mexican",
+    aliases: ["wrap", "bean burrito", "chicken burrito"],
+    servingSize: "1 burrito (320g)",
+    servingGrams: 320,
+    calories: 650,
+    protein: 28,
+    carbs: 82,
+    fat: 24,
+    fiber: 12,
+  },
+  {
+    id: "shawarma",
+    name: "Chicken Shawarma",
+    category: "Sandwiches & Wraps",
+    cuisine: "Middle Eastern",
+    aliases: ["shawarma roll", "chicken roll", "wrap"],
+    servingSize: "1 wrap (260g)",
+    servingGrams: 260,
+    calories: 560,
+    protein: 34,
+    carbs: 48,
+    fat: 24,
+    fiber: 4,
+  },
+  {
+    id: "cappuccino",
+    name: "Cappuccino",
+    category: "Beverages",
+    cuisine: "Global",
+    aliases: ["capuccino", "coffee", "milk coffee"],
+    servingSize: "1 cup (180ml)",
+    servingGrams: 180,
+    calories: 120,
+    protein: 6,
+    carbs: 12,
+    fat: 5,
+    fiber: 0,
+  },
+  {
+    id: "frappe",
+    name: "Frappe",
+    category: "Beverages",
+    cuisine: "Global",
+    aliases: ["frape", "frappuccino", "cold coffee", "coffee"],
+    servingSize: "1 glass (350ml)",
+    servingGrams: 350,
+    calories: 420,
+    protein: 8,
+    carbs: 62,
+    fat: 16,
+    fiber: 0,
+  },
+  {
+    id: "quinoa_bowl",
+    name: "Quinoa Bowl",
+    category: "Healthy Bowls",
+    cuisine: "Global",
+    aliases: ["healthy bowl", "protein bowl"],
+    servingSize: "1 bowl (300g)",
+    servingGrams: 300,
+    calories: 420,
+    protein: 16,
+    carbs: 58,
+    fat: 14,
+    fiber: 10,
+  },
+  {
+    id: "greek_yogurt_parfait",
+    name: "Greek Yogurt Parfait",
+    category: "Healthy Breakfast",
+    cuisine: "Global",
+    aliases: ["greek yoghurt", "yogurt parfait", "healthy breakfast"],
+    servingSize: "1 cup (200g)",
+    servingGrams: 200,
+    calories: 260,
+    protein: 20,
+    carbs: 30,
+    fat: 6,
+    fiber: 4,
+  },
+  {
+    id: "avocado_toast",
+    name: "Avocado Toast",
+    category: "Healthy Breakfast",
+    cuisine: "Global",
+    aliases: ["avo toast", "healthy toast"],
+    servingSize: "1 toast (160g)",
+    servingGrams: 160,
+    calories: 300,
+    protein: 9,
+    carbs: 32,
+    fat: 16,
+    fiber: 8,
+  },
+  {
+    id: "tofu_stir_fry",
+    name: "Tofu Stir Fry",
+    category: "Healthy Protein",
+    cuisine: "Chinese",
+    aliases: ["tofu vegetables", "plant protein"],
+    servingSize: "1 bowl (240g)",
+    servingGrams: 240,
+    calories: 320,
+    protein: 24,
+    carbs: 22,
+    fat: 17,
+    fiber: 6,
+  },
+  {
+    id: "hummus",
+    name: "Hummus",
+    category: "Healthy Snacks",
+    cuisine: "Middle Eastern",
+    aliases: ["chickpea dip", "healthy dip"],
+    servingSize: "1 small bowl (100g)",
+    servingGrams: 100,
+    calories: 240,
+    protein: 8,
+    carbs: 20,
+    fat: 15,
+    fiber: 6,
+  },
 ];
 
 export const FOOD_CATEGORIES = [...new Set(INDIAN_FOODS.map((f) => f.category))];
 
+const STOP_WORDS = new Set(["a", "an", "and", "by", "for", "of", "the", "with"]);
+
+const SYNONYM_GROUPS = [
+  ["tea", "chai", "chaai", "chay", "masala tea", "milk tea"],
+  ["coffee", "espresso", "cappuccino", "capuccino", "latte", "frappe", "frape", "cold coffee"],
+  ["burger", "hamburger", "cheeseburger"],
+  ["fries", "french fries", "chips"],
+  ["pizza", "pizzas", "piza"],
+  ["noodle", "noodles", "chow mein", "hakka"],
+  ["momo", "momos", "dumpling", "dumplings", "dim sum"],
+  ["pasta", "spaghetti", "penne", "macaroni"],
+  ["croissant", "crossaint", "croisant"],
+  ["garlic bread", "garlic toast"],
+  ["roti", "chapati", "phulka", "fulka"],
+  ["biryani", "biriyani", "briyani"],
+  ["curd", "dahi", "yogurt", "yoghurt"],
+];
+
+const SYNONYM_TOKEN_MAP = new Map<string, Set<string>>();
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function tokenize(value: string) {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) return [];
+  return normalized
+    .split(" ")
+    .map((token) => token.trim().replace(/s$/, ""))
+    .filter((token) => token && !STOP_WORDS.has(token));
+}
+
+for (const group of SYNONYM_GROUPS) {
+  const expanded = new Set(group.flatMap((entry) => tokenize(entry)));
+  for (const entry of group) {
+    for (const token of tokenize(entry)) {
+      const existing = SYNONYM_TOKEN_MAP.get(token) ?? new Set<string>();
+      expanded.forEach((expandedToken) => existing.add(expandedToken));
+      SYNONYM_TOKEN_MAP.set(token, existing);
+    }
+  }
+}
+
+function levenshteinDistance(left: string, right: string) {
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+
+  let previous = Array.from({ length: right.length + 1 }, (_value, index) => index);
+  for (let leftIndex = 0; leftIndex < left.length; leftIndex += 1) {
+    const current = [leftIndex + 1];
+    for (let rightIndex = 0; rightIndex < right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex] === right[rightIndex] ? 0 : 1;
+      current[rightIndex + 1] = Math.min(
+        current[rightIndex] + 1,
+        previous[rightIndex + 1] + 1,
+        previous[rightIndex] + substitutionCost,
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length] ?? Math.max(left.length, right.length);
+}
+
+function searchableText(food: FoodItem) {
+  return [food.name, food.category, food.cuisine, ...(food.aliases ?? [])]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function expandedQueryTokens(query: string) {
+  const tokens = new Set(tokenize(query));
+  for (const token of [...tokens]) {
+    const synonyms = SYNONYM_TOKEN_MAP.get(token);
+    if (synonyms) synonyms.forEach((synonym) => tokens.add(synonym));
+  }
+  return tokens;
+}
+
+function scoreFood(food: FoodItem, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return 0;
+
+  const normalizedName = normalizeSearchText(food.name);
+  const normalizedAliases = (food.aliases ?? []).map(normalizeSearchText);
+  const searchText = normalizeSearchText(searchableText(food));
+  const foodTokens = new Set(tokenize(searchText));
+  const queryTokens = tokenize(normalizedQuery);
+  const expandedTokens = expandedQueryTokens(normalizedQuery);
+
+  let score = 0;
+  if (normalizedName === normalizedQuery) score += 100;
+  if (normalizedAliases.includes(normalizedQuery)) score += 95;
+  if (normalizedName.includes(normalizedQuery)) score += 60;
+  if (searchText.includes(normalizedQuery)) score += 35;
+
+  for (const token of queryTokens) {
+    if (foodTokens.has(token)) {
+      score += 18;
+      continue;
+    }
+    for (const foodToken of foodTokens) {
+      if (foodToken.startsWith(token) || token.startsWith(foodToken)) score += 9;
+      const typoLimit = token.length <= 5 ? 1 : 2;
+      if (levenshteinDistance(token, foodToken) <= typoLimit) score += 8;
+    }
+  }
+
+  for (const token of expandedTokens) {
+    if (!queryTokens.includes(token) && foodTokens.has(token)) score += 10;
+  }
+
+  return score;
+}
+
 export function searchFoods(query: string): FoodItem[] {
-  const q = query.toLowerCase();
-  return INDIAN_FOODS.filter(
-    (f) => f.name.toLowerCase().includes(q) || f.category.toLowerCase().includes(q),
-  );
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return [];
+
+  return INDIAN_FOODS.map((food) => ({ food, score: scoreFood(food, normalizedQuery) }))
+    .filter((candidate) => candidate.score >= 10)
+    .sort((left, right) => right.score - left.score)
+    .map((candidate) => candidate.food);
 }

@@ -13,3 +13,6 @@ export * from "./member_ai_profiles";
 export * from "./monthly_reviews";
 export * from "./user_profiles";
 export * from "./admin_audit_logs";
+export * from "./food_logging";
+export * from "./exercise_logging";
+export * from "./ai_infrastructure";

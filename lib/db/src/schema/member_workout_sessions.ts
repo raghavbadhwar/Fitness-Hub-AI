@@ -13,6 +13,13 @@ export interface MemberWorkoutSessionSet {
   weight: number;
   reps: number;
   completed: boolean;
+  type?: "warmup" | "normal" | "drop" | "failure";
+  rpe?: number;
+  rir?: number;
+  notes?: string;
+  previousWeight?: number;
+  previousReps?: number;
+  progressionHint?: string;
 }
 
 export interface MemberWorkoutSessionExercise {

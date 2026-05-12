@@ -15,6 +15,15 @@ export interface MemberNutritionEntry {
   timestamp: number;
   fromPhoto?: boolean;
   photoUri?: string;
+  source?: "manual" | "photo" | "search" | "recent" | "barcode" | "label";
+  confidence?: "high" | "medium" | "low";
+  ingredients?: string[];
+  servingGrams?: number;
+  barcode?: string;
+  correctionOf?: string;
+  correctedAt?: number;
+  relogOf?: string;
+  notes?: string;
 }
 
 export const memberNutritionLogs = pgTable(

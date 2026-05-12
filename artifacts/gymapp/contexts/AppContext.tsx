@@ -620,24 +620,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [bodyMeasurements, replaceBodyMeasurements, syncProgressEntryToServer],
   );
 
-  return (
-    <AppContext.Provider
-      value={{
-        profile,
-        accessState,
-        updateProfile,
-        completeOnboarding,
-        refreshProfile,
-        isLoading,
-        weightLog,
-        logWeight,
-        bodyMeasurements,
-        logMeasurement,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
+  const contextValue = useMemo<AppContextType>(
+    () => ({
+      profile,
+      accessState,
+      updateProfile,
+      completeOnboarding,
+      refreshProfile,
+      isLoading,
+      weightLog,
+      logWeight,
+      bodyMeasurements,
+      logMeasurement,
+    }),
+    [
+      profile,
+      accessState,
+      updateProfile,
+      completeOnboarding,
+      refreshProfile,
+      isLoading,
+      weightLog,
+      logWeight,
+      bodyMeasurements,
+      logMeasurement,
+    ],
   );
+
+  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

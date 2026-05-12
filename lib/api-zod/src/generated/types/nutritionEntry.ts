@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { NutritionEntryConfidence } from "./nutritionEntryConfidence";
+import type { NutritionEntrySource } from "./nutritionEntrySource";
 
 export interface NutritionEntry {
   id: string;
@@ -21,5 +23,14 @@ export interface NutritionEntry {
   timestamp?: number;
   fromPhoto?: boolean;
   photoUri?: string;
+  source?: NutritionEntrySource;
+  confidence?: NutritionEntryConfidence;
+  ingredients?: string[];
+  servingGrams?: number;
+  barcode?: string;
+  correctionOf?: string;
+  correctedAt?: number;
+  relogOf?: string;
+  notes?: string;
   [key: string]: unknown;
 }

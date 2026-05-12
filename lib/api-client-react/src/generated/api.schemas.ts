@@ -410,6 +410,7 @@ export interface AiFoodAnalysis {
   carbs: number;
   fat: number;
   fiber: number;
+  servingGrams?: number;
   confidence: AiFoodAnalysisConfidence;
   ingredients: string[];
   healthTip: string;
@@ -636,6 +637,26 @@ export interface MonthlyReviewReviewBody {
   status?: MonthlyReviewReviewBodyStatus;
 }
 
+export type NutritionEntrySource = (typeof NutritionEntrySource)[keyof typeof NutritionEntrySource];
+
+export const NutritionEntrySource = {
+  manual: "manual",
+  photo: "photo",
+  search: "search",
+  recent: "recent",
+  barcode: "barcode",
+  label: "label",
+} as const;
+
+export type NutritionEntryConfidence =
+  (typeof NutritionEntryConfidence)[keyof typeof NutritionEntryConfidence];
+
+export const NutritionEntryConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
 export interface NutritionEntry {
   id: string;
   foodId?: string;
@@ -651,6 +672,15 @@ export interface NutritionEntry {
   timestamp?: number;
   fromPhoto?: boolean;
   photoUri?: string;
+  source?: NutritionEntrySource;
+  confidence?: NutritionEntryConfidence;
+  ingredients?: string[];
+  servingGrams?: number;
+  barcode?: string;
+  correctionOf?: string;
+  correctedAt?: number;
+  relogOf?: string;
+  notes?: string;
   [key: string]: unknown;
 }
 
@@ -666,6 +696,120 @@ export interface NutritionLog {
 export interface UpsertNutritionLogBody {
   entries: NutritionEntry[];
   waterIntake: number;
+}
+
+export interface FoodPortionOption {
+  label: string;
+  grams?: number;
+  milliliters?: number;
+  aliases?: string[];
+  region?: string;
+}
+
+export interface FoodItemProvenance {
+  provider: string;
+  cached: boolean;
+  qualityScore?: number;
+}
+
+export type FoodSearchItemSource = (typeof FoodSearchItemSource)[keyof typeof FoodSearchItemSource];
+
+export const FoodSearchItemSource = {
+  open_food_facts: "open_food_facts",
+  usda: "usda",
+  nutritionix: "nutritionix",
+  curated: "curated",
+  user: "user",
+  ai_label: "ai_label",
+  member_custom: "member_custom",
+} as const;
+
+export type FoodSearchItemConfidence =
+  (typeof FoodSearchItemConfidence)[keyof typeof FoodSearchItemConfidence];
+
+export const FoodSearchItemConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface FoodSearchItem {
+  id: string;
+  source: FoodSearchItemSource;
+  sourceProductId?: string;
+  catalogItemId?: string;
+  memberFoodItemId?: string;
+  barcode?: string;
+  name: string;
+  brand?: string;
+  servingLabel: string;
+  servingGrams?: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar?: number;
+  sodiumMg?: number;
+  ingredients: string[];
+  allergens: string[];
+  portionOptions: FoodPortionOption[];
+  confidence: FoodSearchItemConfidence;
+  provenance: FoodItemProvenance;
+}
+
+export interface FoodSearchResponse {
+  items: FoodSearchItem[];
+  /** @nullable */
+  fallbackUsed?: string | null;
+}
+
+export interface FoodLookupResponse {
+  item: FoodSearchItem;
+  /** @nullable */
+  fallbackUsed?: string | null;
+}
+
+export type FoodLookupErrorResponse = ErrorResponse & {
+  fallbackUsed?: string;
+};
+
+export type CreateCustomFoodBodyMicronutrients = { [key: string]: unknown };
+
+export type CreateCustomFoodBodyConfidence =
+  (typeof CreateCustomFoodBodyConfidence)[keyof typeof CreateCustomFoodBodyConfidence];
+
+export const CreateCustomFoodBodyConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface CreateCustomFoodBody {
+  catalogItemId?: string;
+  name: string;
+  brand?: string;
+  servingLabel?: string;
+  servingGrams?: number;
+  /** @minimum 0 */
+  calories: number;
+  /** @minimum 0 */
+  protein: number;
+  /** @minimum 0 */
+  carbs: number;
+  /** @minimum 0 */
+  fat: number;
+  /** @minimum 0 */
+  fiber?: number;
+  micronutrients?: CreateCustomFoodBodyMicronutrients;
+  portionOptions?: FoodPortionOption[];
+  source?: string;
+  confidence?: CreateCustomFoodBodyConfidence;
+  isFavorite?: boolean;
+}
+
+export interface CustomFoodResponse {
+  item: FoodSearchItem;
 }
 
 export interface ProgressEntry {
@@ -750,11 +894,36 @@ export interface WorkoutAssignBody {
   memberId: string;
 }
 
+export type WorkoutSessionSetType =
+  (typeof WorkoutSessionSetType)[keyof typeof WorkoutSessionSetType];
+
+export const WorkoutSessionSetType = {
+  warmup: "warmup",
+  normal: "normal",
+  drop: "drop",
+  failure: "failure",
+} as const;
+
 export interface WorkoutSessionSet {
   id: string;
   weight: number;
   reps: number;
   completed: boolean;
+  type?: WorkoutSessionSetType;
+  /**
+   * @minimum 1
+   * @maximum 10
+   */
+  rpe?: number;
+  /**
+   * @minimum 0
+   * @maximum 10
+   */
+  rir?: number;
+  notes?: string;
+  previousWeight?: number;
+  previousReps?: number;
+  progressionHint?: string;
 }
 
 export interface WorkoutSessionExercise {
@@ -797,6 +966,137 @@ export interface PersonalRecord {
 
 export interface PersonalRecordsResponse {
   [key: string]: PersonalRecord;
+}
+
+export type ExerciseLibraryItemSource =
+  (typeof ExerciseLibraryItemSource)[keyof typeof ExerciseLibraryItemSource];
+
+export const ExerciseLibraryItemSource = {
+  system: "system",
+  member_custom: "member_custom",
+} as const;
+
+export type ExerciseLibraryItemExerciseType =
+  (typeof ExerciseLibraryItemExerciseType)[keyof typeof ExerciseLibraryItemExerciseType];
+
+export const ExerciseLibraryItemExerciseType = {
+  weight_reps: "weight_reps",
+  bodyweight_reps: "bodyweight_reps",
+  duration: "duration",
+  distance_duration: "distance_duration",
+} as const;
+
+export interface ExerciseLibraryItem {
+  id: string;
+  source: ExerciseLibraryItemSource;
+  slug?: string;
+  baseExerciseId?: string;
+  name: string;
+  aliases: string[];
+  primaryMuscles: string[];
+  secondaryMuscles?: string[];
+  equipment?: string;
+  exerciseType: ExerciseLibraryItemExerciseType;
+  instructions?: string[];
+  notes?: string;
+  isSystem?: boolean;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExerciseSearchResponse {
+  items: ExerciseLibraryItem[];
+}
+
+export type CreateCustomExerciseBodyExerciseType =
+  (typeof CreateCustomExerciseBodyExerciseType)[keyof typeof CreateCustomExerciseBodyExerciseType];
+
+export const CreateCustomExerciseBodyExerciseType = {
+  weight_reps: "weight_reps",
+  bodyweight_reps: "bodyweight_reps",
+  duration: "duration",
+  distance_duration: "distance_duration",
+} as const;
+
+export interface CreateCustomExerciseBody {
+  baseExerciseId?: string;
+  name: string;
+  aliases?: string[];
+  primaryMuscles?: string[];
+  equipment?: string;
+  exerciseType?: CreateCustomExerciseBodyExerciseType;
+  notes?: string;
+}
+
+export interface CreateCustomExerciseResponse {
+  item: ExerciseLibraryItem;
+}
+
+export interface WorkoutSetHistoryItem {
+  id: string;
+  sessionId: string;
+  exerciseId: string;
+  exerciseName: string;
+  setId: string;
+  setIndex: number;
+  setType: string;
+  weight: number;
+  reps: number;
+  durationSeconds?: number;
+  distanceMeters?: number;
+  rpe?: number;
+  rir?: number;
+  completed: boolean;
+  performedAt: string;
+  date: string;
+}
+
+export type ExercisePrMetricMetric =
+  (typeof ExercisePrMetricMetric)[keyof typeof ExercisePrMetricMetric];
+
+export const ExercisePrMetricMetric = {
+  estimated_1rm: "estimated_1rm",
+  max_weight: "max_weight",
+  max_reps: "max_reps",
+  max_volume_set: "max_volume_set",
+} as const;
+
+export interface ExercisePrMetric {
+  id: string;
+  exerciseId: string;
+  metric: ExercisePrMetricMetric;
+  value: number;
+  weight?: number;
+  reps?: number;
+  sessionId?: string;
+  setId?: string;
+  achievedAt: string;
+  updatedAt: string;
+}
+
+export interface ExerciseHistoryResponse {
+  exerciseId: string;
+  sets: WorkoutSetHistoryItem[];
+  personalRecords: ExercisePrMetric[];
+}
+
+export interface WorkoutAnalyticsExerciseSummary {
+  exerciseId: string;
+  name: string;
+  volume: number;
+  sets: number;
+}
+
+export interface WorkoutAnalyticsResponse {
+  /** @nullable */
+  from?: string | null;
+  /** @nullable */
+  to?: string | null;
+  completedSets: number;
+  totalVolume: number;
+  workoutDays: number;
+  topExercises: WorkoutAnalyticsExerciseSummary[];
 }
 
 export interface WorkoutSessionMutationResponse {
@@ -866,6 +1166,15 @@ export type AdminListAuditLogsParams = {
   limit?: number;
 };
 
+export type FoodsSearchParams = {
+  q?: string;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
+  limit?: number;
+};
+
 export type MonthlyReviewsGetParams = {
   memberId?: string;
   /**
@@ -875,6 +1184,26 @@ export type MonthlyReviewsGetParams = {
 };
 
 export type NutritionListLogsParams = {
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  from?: string;
+  /**
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  to?: string;
+};
+
+export type WorkoutsSearchExercisesParams = {
+  q?: string;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type WorkoutsGetAnalyticsParams = {
   /**
    * @pattern ^\d{4}-\d{2}-\d{2}$
    */

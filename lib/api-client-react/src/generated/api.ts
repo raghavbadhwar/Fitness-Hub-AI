@@ -31,11 +31,21 @@ import type {
   AssignedWorkout,
   ClassEnrollmentAttendanceUpdateResponse,
   ClassEnrollmentMember,
+  CreateCustomExerciseBody,
+  CreateCustomExerciseResponse,
+  CreateCustomFoodBody,
   CreateGymClassBody,
   CreateWorkoutTemplateBody,
+  CustomFoodResponse,
   DashboardStats,
   EnrolledClassIdsResponse,
   ErrorResponse,
+  ExerciseHistoryResponse,
+  ExerciseSearchResponse,
+  FoodLookupErrorResponse,
+  FoodLookupResponse,
+  FoodSearchResponse,
+  FoodsSearchParams,
   GymClass,
   GymSettings,
   HealthStatus,
@@ -63,6 +73,7 @@ import type {
   UpsertNutritionLogBody,
   UpsertProgressEntryBody,
   WaitlistedClassIdsResponse,
+  WorkoutAnalyticsResponse,
   WorkoutAssignBody,
   WorkoutAssignment,
   WorkoutAssignmentsBindResponse,
@@ -70,7 +81,9 @@ import type {
   WorkoutSession,
   WorkoutSessionMutationResponse,
   WorkoutTemplate,
+  WorkoutsGetAnalyticsParams,
   WorkoutsListAssignedParams,
+  WorkoutsSearchExercisesParams,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2280,6 +2293,240 @@ export const useAiWorkoutSuggestion = <
 };
 
 /**
+ * @summary Search foods across member, catalog, and provider-backed sources
+ */
+export const getFoodsSearchUrl = (params?: FoodsSearchParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/foods/search?${stringifiedParams}`
+    : `/api/foods/search`;
+};
+
+export const foodsSearch = async (
+  params?: FoodsSearchParams,
+  options?: RequestInit,
+): Promise<FoodSearchResponse> => {
+  return customFetch<FoodSearchResponse>(getFoodsSearchUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getFoodsSearchQueryKey = (params?: FoodsSearchParams) => {
+  return [`/api/foods/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getFoodsSearchQueryOptions = <
+  TData = Awaited<ReturnType<typeof foodsSearch>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: FoodsSearchParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof foodsSearch>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getFoodsSearchQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof foodsSearch>>> = ({ signal }) =>
+    foodsSearch(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof foodsSearch>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type FoodsSearchQueryResult = NonNullable<Awaited<ReturnType<typeof foodsSearch>>>;
+export type FoodsSearchQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Search foods across member, catalog, and provider-backed sources
+ */
+
+export function useFoodsSearch<
+  TData = Awaited<ReturnType<typeof foodsSearch>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: FoodsSearchParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof foodsSearch>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getFoodsSearchQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Resolve a packaged food barcode
+ */
+export const getFoodsGetBarcodeUrl = (barcode: string) => {
+  return `/api/foods/barcode/${barcode}`;
+};
+
+export const foodsGetBarcode = async (
+  barcode: string,
+  options?: RequestInit,
+): Promise<FoodLookupResponse> => {
+  return customFetch<FoodLookupResponse>(getFoodsGetBarcodeUrl(barcode), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getFoodsGetBarcodeQueryKey = (barcode: string) => {
+  return [`/api/foods/barcode/${barcode}`] as const;
+};
+
+export const getFoodsGetBarcodeQueryOptions = <
+  TData = Awaited<ReturnType<typeof foodsGetBarcode>>,
+  TError = ErrorType<ErrorResponse | FoodLookupErrorResponse>,
+>(
+  barcode: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof foodsGetBarcode>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getFoodsGetBarcodeQueryKey(barcode);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof foodsGetBarcode>>> = ({ signal }) =>
+    foodsGetBarcode(barcode, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!barcode, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof foodsGetBarcode>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type FoodsGetBarcodeQueryResult = NonNullable<Awaited<ReturnType<typeof foodsGetBarcode>>>;
+export type FoodsGetBarcodeQueryError = ErrorType<ErrorResponse | FoodLookupErrorResponse>;
+
+/**
+ * @summary Resolve a packaged food barcode
+ */
+
+export function useFoodsGetBarcode<
+  TData = Awaited<ReturnType<typeof foodsGetBarcode>>,
+  TError = ErrorType<ErrorResponse | FoodLookupErrorResponse>,
+>(
+  barcode: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof foodsGetBarcode>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getFoodsGetBarcodeQueryOptions(barcode, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a corrected or custom food for the signed-in member
+ */
+export const getFoodsCreateCustomUrl = () => {
+  return `/api/foods/custom`;
+};
+
+export const foodsCreateCustom = async (
+  createCustomFoodBody: CreateCustomFoodBody,
+  options?: RequestInit,
+): Promise<CustomFoodResponse> => {
+  return customFetch<CustomFoodResponse>(getFoodsCreateCustomUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCustomFoodBody),
+  });
+};
+
+export const getFoodsCreateCustomMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof foodsCreateCustom>>,
+    TError,
+    { data: BodyType<CreateCustomFoodBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof foodsCreateCustom>>,
+  TError,
+  { data: BodyType<CreateCustomFoodBody> },
+  TContext
+> => {
+  const mutationKey = ["foodsCreateCustom"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof foodsCreateCustom>>,
+    { data: BodyType<CreateCustomFoodBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return foodsCreateCustom(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FoodsCreateCustomMutationResult = NonNullable<
+  Awaited<ReturnType<typeof foodsCreateCustom>>
+>;
+export type FoodsCreateCustomMutationBody = BodyType<CreateCustomFoodBody>;
+export type FoodsCreateCustomMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Save a corrected or custom food for the signed-in member
+ */
+export const useFoodsCreateCustom = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof foodsCreateCustom>>,
+    TError,
+    { data: BodyType<CreateCustomFoodBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof foodsCreateCustom>>,
+  TError,
+  { data: BodyType<CreateCustomFoodBody> },
+  TContext
+> => {
+  return useMutation(getFoodsCreateCustomMutationOptions(options));
+};
+
+/**
  * Returns a saved member monthly review for the requested calendar month. Members can read their own review; trainers and owners can read member reviews in their gym.
  * @summary Fetch a saved monthly review
  */
@@ -3232,6 +3479,329 @@ export const useMonthlyReviewsMarkReviewed = <
 > => {
   return useMutation(getMonthlyReviewsMarkReviewedMutationOptions(options));
 };
+
+/**
+ * @summary Search system and custom exercises
+ */
+export const getWorkoutsSearchExercisesUrl = (params?: WorkoutsSearchExercisesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/workouts/exercises?${stringifiedParams}`
+    : `/api/workouts/exercises`;
+};
+
+export const workoutsSearchExercises = async (
+  params?: WorkoutsSearchExercisesParams,
+  options?: RequestInit,
+): Promise<ExerciseSearchResponse> => {
+  return customFetch<ExerciseSearchResponse>(getWorkoutsSearchExercisesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWorkoutsSearchExercisesQueryKey = (params?: WorkoutsSearchExercisesParams) => {
+  return [`/api/workouts/exercises`, ...(params ? [params] : [])] as const;
+};
+
+export const getWorkoutsSearchExercisesQueryOptions = <
+  TData = Awaited<ReturnType<typeof workoutsSearchExercises>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: WorkoutsSearchExercisesParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsSearchExercises>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWorkoutsSearchExercisesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof workoutsSearchExercises>>> = ({
+    signal,
+  }) => workoutsSearchExercises(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof workoutsSearchExercises>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WorkoutsSearchExercisesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsSearchExercises>>
+>;
+export type WorkoutsSearchExercisesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Search system and custom exercises
+ */
+
+export function useWorkoutsSearchExercises<
+  TData = Awaited<ReturnType<typeof workoutsSearchExercises>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: WorkoutsSearchExercisesParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsSearchExercises>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWorkoutsSearchExercisesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a member custom exercise
+ */
+export const getWorkoutsCreateCustomExerciseUrl = () => {
+  return `/api/workouts/exercises/custom`;
+};
+
+export const workoutsCreateCustomExercise = async (
+  createCustomExerciseBody: CreateCustomExerciseBody,
+  options?: RequestInit,
+): Promise<CreateCustomExerciseResponse> => {
+  return customFetch<CreateCustomExerciseResponse>(getWorkoutsCreateCustomExerciseUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCustomExerciseBody),
+  });
+};
+
+export const getWorkoutsCreateCustomExerciseMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsCreateCustomExercise>>,
+    TError,
+    { data: BodyType<CreateCustomExerciseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof workoutsCreateCustomExercise>>,
+  TError,
+  { data: BodyType<CreateCustomExerciseBody> },
+  TContext
+> => {
+  const mutationKey = ["workoutsCreateCustomExercise"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof workoutsCreateCustomExercise>>,
+    { data: BodyType<CreateCustomExerciseBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return workoutsCreateCustomExercise(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type WorkoutsCreateCustomExerciseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsCreateCustomExercise>>
+>;
+export type WorkoutsCreateCustomExerciseMutationBody = BodyType<CreateCustomExerciseBody>;
+export type WorkoutsCreateCustomExerciseMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a member custom exercise
+ */
+export const useWorkoutsCreateCustomExercise = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof workoutsCreateCustomExercise>>,
+    TError,
+    { data: BodyType<CreateCustomExerciseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof workoutsCreateCustomExercise>>,
+  TError,
+  { data: BodyType<CreateCustomExerciseBody> },
+  TContext
+> => {
+  return useMutation(getWorkoutsCreateCustomExerciseMutationOptions(options));
+};
+
+/**
+ * @summary Get set history and PRs for an exercise
+ */
+export const getWorkoutsGetExerciseHistoryUrl = (exerciseId: string) => {
+  return `/api/workouts/exercises/${exerciseId}/history`;
+};
+
+export const workoutsGetExerciseHistory = async (
+  exerciseId: string,
+  options?: RequestInit,
+): Promise<ExerciseHistoryResponse> => {
+  return customFetch<ExerciseHistoryResponse>(getWorkoutsGetExerciseHistoryUrl(exerciseId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWorkoutsGetExerciseHistoryQueryKey = (exerciseId: string) => {
+  return [`/api/workouts/exercises/${exerciseId}/history`] as const;
+};
+
+export const getWorkoutsGetExerciseHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof workoutsGetExerciseHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  exerciseId: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsGetExerciseHistory>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWorkoutsGetExerciseHistoryQueryKey(exerciseId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof workoutsGetExerciseHistory>>> = ({
+    signal,
+  }) => workoutsGetExerciseHistory(exerciseId, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, enabled: !!exerciseId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof workoutsGetExerciseHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WorkoutsGetExerciseHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsGetExerciseHistory>>
+>;
+export type WorkoutsGetExerciseHistoryQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get set history and PRs for an exercise
+ */
+
+export function useWorkoutsGetExerciseHistory<
+  TData = Awaited<ReturnType<typeof workoutsGetExerciseHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  exerciseId: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsGetExerciseHistory>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWorkoutsGetExerciseHistoryQueryOptions(exerciseId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get bounded workout analytics for the signed-in member
+ */
+export const getWorkoutsGetAnalyticsUrl = (params?: WorkoutsGetAnalyticsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/workouts/analytics?${stringifiedParams}`
+    : `/api/workouts/analytics`;
+};
+
+export const workoutsGetAnalytics = async (
+  params?: WorkoutsGetAnalyticsParams,
+  options?: RequestInit,
+): Promise<WorkoutAnalyticsResponse> => {
+  return customFetch<WorkoutAnalyticsResponse>(getWorkoutsGetAnalyticsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getWorkoutsGetAnalyticsQueryKey = (params?: WorkoutsGetAnalyticsParams) => {
+  return [`/api/workouts/analytics`, ...(params ? [params] : [])] as const;
+};
+
+export const getWorkoutsGetAnalyticsQueryOptions = <
+  TData = Awaited<ReturnType<typeof workoutsGetAnalytics>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: WorkoutsGetAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsGetAnalytics>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getWorkoutsGetAnalyticsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof workoutsGetAnalytics>>> = ({ signal }) =>
+    workoutsGetAnalytics(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof workoutsGetAnalytics>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type WorkoutsGetAnalyticsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof workoutsGetAnalytics>>
+>;
+export type WorkoutsGetAnalyticsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get bounded workout analytics for the signed-in member
+ */
+
+export function useWorkoutsGetAnalytics<
+  TData = Awaited<ReturnType<typeof workoutsGetAnalytics>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: WorkoutsGetAnalyticsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof workoutsGetAnalytics>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getWorkoutsGetAnalyticsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns member accounts that a trainer or owner can assign workouts to.

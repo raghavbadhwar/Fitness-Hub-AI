@@ -1,0 +1,49 @@
+version: 1
+project:
+  name: Fitness Hub AI
+  repo_root: /Volumes/RAGHAV2/Projects/Fitness-Hub-AI
+  package_manager: pnpm
+  canonical_surfaces:
+    - artifacts/gymapp
+    - artifacts/api-server
+    - lib/api-spec
+    - lib/db
+checks:
+  baseline:
+    - pnpm run typecheck
+    - pnpm --dir artifacts/api-server test -- tests/routes/nutrition.test.mjs tests/routes/workouts.test.mjs tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs
+    - pnpm --dir artifacts/gymapp test
+    - CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts
+  contract_change:
+    - pnpm --dir lib/api-spec codegen
+    - pnpm run typecheck
+  release_candidate:
+    - pnpm run verify:internal-beta
+branching:
+  mode: feature-branch
+  prefix: codex/
+review:
+  provider: none
+  cadence: per-wave
+  on_findings: halt
+gates:
+  - id: G1
+    after_wave: W2
+    label: Food logging core review
+    conditions:
+      - API nutrition and AI tests pass
+      - Gymapp typecheck passes
+      - Food quick-log preview is covered
+  - id: G2
+    after_wave: W3
+    label: Workout logging core review
+    conditions:
+      - API workout tests pass
+      - Gymapp typecheck passes
+      - Workout session preview is covered
+  - id: G3
+    after_wave: W5
+    label: Internal beta release gate
+    conditions:
+      - Baseline checks pass
+      - verify:internal-beta passes or external blockers are documented

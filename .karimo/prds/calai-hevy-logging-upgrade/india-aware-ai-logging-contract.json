@@ -1,0 +1,696 @@
+{
+  "schemaVersion": 1,
+  "contractId": "india-aware-ai-logging-contract",
+  "featureSlug": "calai-hevy-logging-upgrade",
+  "createdAt": "2026-05-10",
+  "status": "planning-ready",
+  "purpose": "Define the implementation directions, database structures, APIs, scripts, pass/fail gates, fallbacks, and AI/data standards required to upgrade Fitness Hub AI into a global food logger with strong India-aware intelligence and Hevy-grade workout logging.",
+  "productPositioning": {
+    "primaryMarketContext": "India-first usage context, globally capable food and workout logging.",
+    "foodScope": [
+      "Western and global meals remain first-class: pizza, pasta, burgers, oats, whey, salads, sandwiches, restaurant meals, packaged foods.",
+      "Indian foods are also first-class: thalis, dal, sabzi, curries, rice dishes, rotis, dosa, idli, poha, biryani, paneer dishes, chaat, street food, sweets, regional cuisines, homemade meals.",
+      "The system must support mixed modern diets where the same user logs Indian home food, Western restaurant food, packaged snacks, supplements, and gym-focused high-protein meals."
+    ],
+    "measurementScope": [
+      "Metric units are default: grams, milliliters, kilograms, centimeters.",
+      "Indian household portions are supported through conversion metadata: katori, roti, chapati, phulka, bowl, plate, glass, piece, ladle, spoon, cup, serving.",
+      "Global units are accepted where users expect them: cup, ounce, slice, scoop, serving."
+    ],
+    "workoutScope": [
+      "Default weight unit is kg.",
+      "Workout logging must work in low-network gym environments through local-first state and later sync.",
+      "Exercise naming should support Indian gym usage, common machine names, custom exercises, and globally standard exercise taxonomy."
+    ]
+  },
+  "sourceOfTruth": {
+    "repoRoot": "/Volumes/RAGHAV2/Projects/Fitness-Hub-AI",
+    "apiContract": "lib/api-spec/openapi.yaml",
+    "databaseSchema": "lib/db/src/schema",
+    "databaseMigrations": "lib/db/migrations",
+    "memberApp": "artifacts/gymapp",
+    "apiServer": "artifacts/api-server",
+    "adminApp": "artifacts/admin",
+    "generatedFilesDoNotEdit": ["lib/api-client-react/src/generated", "lib/api-zod/src/generated"],
+    "packageManager": "pnpm"
+  },
+  "nonNegotiableStandards": {
+    "security": [
+      "No provider keys, database credentials, Clerk secrets, Gemini secrets, bearer tokens, or service-role keys may be exposed to frontend code.",
+      "All provider-backed food lookup, label extraction, and AI analysis must run through API-server routes or server-side integration packages.",
+      "Admin, trainer, and member access must continue to be enforced by Clerk-gated API middleware.",
+      "AI features are advisory and draft-based. No nutrition or workout plan mutation happens without explicit user action."
+    ],
+    "database": [
+      "Use migrations only. Do not modify production schema directly.",
+      "Migrations must be idempotent and safe to re-run where possible.",
+      "All new public-facing IDs must be UUID-compatible text IDs.",
+      "All new tables require created_at and updated_at timestamps.",
+      "Indexes must exist for columns used in WHERE, JOIN, ORDER BY, sync, lookup, or history queries.",
+      "Related writes must be wrapped in transactions.",
+      "Production migration execution requires backup confirmation first.",
+      "If the production database is Supabase Postgres and Clerk/Supabase JWT claims are mapped, enable RLS on new tables and add gym/member-scoped policies. If claims are not mapped, block RLS rollout until auth mapping is verified to avoid breaking API writes."
+    ],
+    "frontend": [
+      "TypeScript strict mode must remain green.",
+      "Stateful member logging logic belongs in hooks/contexts/helpers, not large UI-only components.",
+      "All logging flows must include loading, empty, error, and offline/fallback states.",
+      "Interactive controls must be keyboard reachable where web-previewable.",
+      "Do not introduce visual clutter or marketing-shell screens."
+    ],
+    "ai": [
+      "AI outputs must include confidence, provenance, prompt version, model version, and editable draft fields.",
+      "Low-confidence AI results must route users toward correction instead of silent auto-save.",
+      "User corrections are data signals and must be stored in structured form.",
+      "AI memory stores durable patterns only, not raw noisy daily logs or raw food images."
+    ]
+  },
+  "performanceAndAccuracyTargets": {
+    "speed": {
+      "localAddFoodDraftP95Ms": 250,
+      "localAddWorkoutSetP95Ms": 150,
+      "cachedBarcodeLookupP95Ms": 700,
+      "uncachedBarcodeLookupP95Ms": 2500,
+      "exerciseHistoryLookupP95Ms": 500,
+      "aiPhotoAnalysisSoftLimitMs": 8000,
+      "appMustRemainUsableWhenAiOrProviderIsSlow": true
+    },
+    "accuracy": {
+      "foodLogRequiresEditableDraft": true,
+      "foodEntryMustPersistSourceAndConfidence": true,
+      "macroValuesMustBeFiniteNonNegativeNumbers": true,
+      "portionConversionsMustPersistBaseGramsOrMilliliters": true,
+      "workoutHistoryMustBeDerivedFromCompletedSetsOnly": true,
+      "prUpdatesMustBeTransactionalWithSessionPersistence": true
+    },
+    "reliability": {
+      "offlineFoodAndWorkoutLogging": "must_keep_working_locally",
+      "syncConflictPolicy": "latest_user_confirmed_edit_wins_for_daily_json_logs_until_entry_level_sync_exists",
+      "providerFailurePolicy": "fallback_to_cached_or_manual_draft_without_data_loss",
+      "generatedClientDrift": "fail_build"
+    }
+  },
+  "scripts": {
+    "baseline": [
+      {
+        "name": "root_typecheck",
+        "command": "pnpm run typecheck",
+        "pass": "All workspace TypeScript checks pass.",
+        "fail": "Any TypeScript error, generated contract drift, missing import, or invalid type."
+      },
+      {
+        "name": "gymapp_tests",
+        "command": "pnpm --dir artifacts/gymapp test",
+        "pass": "All member app tests pass, including nutrition/workout history helpers.",
+        "fail": "Any helper, context, storage, or UI logic regression."
+      },
+      {
+        "name": "api_logging_tests",
+        "command": "pnpm --dir artifacts/api-server test -- tests/routes/nutrition.test.mjs tests/routes/workouts.test.mjs tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs",
+        "pass": "Nutrition, workout, AI, and AI quality route tests pass.",
+        "fail": "Any route behavior, validation, auth, persistence, or AI safety regression."
+      }
+    ],
+    "contractAndCodegen": [
+      {
+        "name": "openapi_codegen",
+        "command": "pnpm --dir lib/api-spec codegen",
+        "pass": "Generated React Query and Zod clients match OpenAPI source.",
+        "fail": "Generated files change unexpectedly after a supposedly complete implementation, or codegen exits non-zero."
+      },
+      {
+        "name": "generated_drift_check",
+        "command": "git diff -- lib/api-client-react/src/generated lib/api-zod/src/generated",
+        "pass": "No unreviewed generated drift remains after codegen.",
+        "fail": "Generated output differs from committed source-of-truth changes."
+      }
+    ],
+    "database": [
+      {
+        "name": "db_schema_typecheck",
+        "command": "pnpm run typecheck:libs",
+        "pass": "Drizzle schema and shared package types compile.",
+        "fail": "Any schema export, inferred type, or shared type failure."
+      },
+      {
+        "name": "migration_review",
+        "command": "rg -n \"DROP |TRUNCATE |DELETE FROM [^;]+;|ALTER TABLE .* DROP\" lib/db/migrations",
+        "pass": "No destructive migration pattern appears unless explicitly approved and documented.",
+        "fail": "Unapproved destructive migration statement is present."
+      }
+    ],
+    "uiAndRelease": [
+      {
+        "name": "ui_preview",
+        "command": "CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts",
+        "pass": "Admin/member preview states render without visual/logging regressions.",
+        "fail": "Any critical preview state fails, overlaps, or blocks logging."
+      },
+      {
+        "name": "smoke",
+        "command": "pnpm run test:e2e:smoke",
+        "pass": "Admin/API smoke test passes with available local services.",
+        "fail": "Auth, API base URL, admin shell, or API smoke behavior fails."
+      },
+      {
+        "name": "internal_beta_gate",
+        "command": "mise exec node@22 -- pnpm run verify:internal-beta",
+        "pass": "Node preflight, secret preflight, codegen, API tests, build, and Playwright checks pass.",
+        "fail": "Any internal beta gate command fails. If blocked by credentials or external provider setup, record exact blocker and do not call release-ready."
+      }
+    ]
+  },
+  "databaseStructures": {
+    "nutrition": [
+      {
+        "table": "food_catalog_items",
+        "purpose": "Server-side food/product cache for provider-backed and curated foods.",
+        "id": "uuid text primary key",
+        "columns": [
+          "source text not null",
+          "source_product_id text",
+          "barcode text",
+          "name text not null",
+          "brand text",
+          "food_category text",
+          "default_serving_label text",
+          "default_serving_grams integer",
+          "calories_per_100g integer",
+          "protein_per_100g numeric",
+          "carbs_per_100g numeric",
+          "fat_per_100g numeric",
+          "fiber_per_100g numeric",
+          "sugar_per_100g numeric",
+          "sodium_mg_per_100g numeric",
+          "micronutrients jsonb not null default '{}'",
+          "ingredients jsonb not null default '[]'",
+          "allergens jsonb not null default '[]'",
+          "portion_options jsonb not null default '[]'",
+          "raw_provider_payload jsonb",
+          "quality_score integer not null default 0",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "unique(source, source_product_id) where source_product_id is not null",
+          "index(barcode) where barcode is not null",
+          "index(lower(name))",
+          "index(food_category)"
+        ],
+        "notes": [
+          "Portion options must include base grams/ml conversion.",
+          "Indian household portions are stored here, not hardcoded in UI."
+        ]
+      },
+      {
+        "table": "member_food_items",
+        "purpose": "Member-specific custom foods, corrections, favorites, and personal defaults.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text not null",
+          "member_clerk_id text not null",
+          "catalog_item_id text",
+          "name text not null",
+          "brand text",
+          "serving_label text not null",
+          "serving_grams integer",
+          "calories integer not null",
+          "protein numeric not null",
+          "carbs numeric not null",
+          "fat numeric not null",
+          "fiber numeric not null default 0",
+          "micronutrients jsonb not null default '{}'",
+          "portion_options jsonb not null default '[]'",
+          "source text not null",
+          "confidence text not null default 'medium'",
+          "is_favorite boolean not null default false",
+          "last_logged_at timestamptz",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "index(gym_id, member_clerk_id, updated_at desc)",
+          "index(gym_id, member_clerk_id, is_favorite)",
+          "index(gym_id, member_clerk_id, lower(name))"
+        ]
+      },
+      {
+        "table": "food_lookup_events",
+        "purpose": "Provider, AI, barcode, label, and correction event log for reliability and accuracy evaluation.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text not null",
+          "member_clerk_id text not null",
+          "lookup_type text not null",
+          "input_hash text",
+          "barcode text",
+          "provider text",
+          "status text not null",
+          "confidence text",
+          "selected_catalog_item_id text",
+          "latency_ms integer",
+          "error_code text",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "index(gym_id, member_clerk_id, created_at desc)",
+          "index(barcode) where barcode is not null",
+          "index(provider, status, created_at desc)"
+        ],
+        "privacy": "Store hashes and structured metadata only. Do not store raw food images by default."
+      }
+    ],
+    "workouts": [
+      {
+        "table": "exercise_catalog_items",
+        "purpose": "Canonical exercise library for global gym movements and Indian gym naming aliases.",
+        "id": "uuid text primary key",
+        "columns": [
+          "slug text not null",
+          "name text not null",
+          "aliases jsonb not null default '[]'",
+          "primary_muscles jsonb not null default '[]'",
+          "secondary_muscles jsonb not null default '[]'",
+          "equipment text",
+          "exercise_type text not null",
+          "instructions jsonb not null default '[]'",
+          "is_system boolean not null default true",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "unique(slug)",
+          "index(lower(name))",
+          "index(equipment)",
+          "index(exercise_type)"
+        ]
+      },
+      {
+        "table": "member_exercises",
+        "purpose": "Custom exercises created by members or trainers without breaking history.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text not null",
+          "member_clerk_id text not null",
+          "base_exercise_id text",
+          "name text not null",
+          "aliases jsonb not null default '[]'",
+          "primary_muscles jsonb not null default '[]'",
+          "equipment text",
+          "exercise_type text not null",
+          "notes text",
+          "archived_at timestamptz",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "index(gym_id, member_clerk_id, lower(name))",
+          "index(gym_id, member_clerk_id, archived_at)"
+        ]
+      },
+      {
+        "table": "member_workout_sets",
+        "purpose": "Derived normalized set history for fast exercise history, progression, analytics, and PRs.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text not null",
+          "member_clerk_id text not null",
+          "session_id text not null",
+          "exercise_id text not null",
+          "exercise_name text not null",
+          "set_id text not null",
+          "set_index integer not null",
+          "set_type text not null default 'normal'",
+          "weight numeric not null default 0",
+          "reps integer not null default 0",
+          "duration_seconds integer",
+          "distance_meters numeric",
+          "rpe numeric",
+          "rir numeric",
+          "completed boolean not null default false",
+          "performed_at timestamptz not null",
+          "date text not null",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "unique(session_id, set_id)",
+          "index(gym_id, member_clerk_id, exercise_id, performed_at desc)",
+          "index(gym_id, member_clerk_id, date)",
+          "index(gym_id, member_clerk_id, session_id)"
+        ],
+        "writePolicy": "Rebuild derived rows transactionally whenever a workout session is created or updated."
+      },
+      {
+        "table": "member_exercise_prs",
+        "purpose": "Metric-specific PR records instead of a single one-size-fits-all personal record.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text not null",
+          "member_clerk_id text not null",
+          "exercise_id text not null",
+          "metric text not null",
+          "value numeric not null",
+          "weight numeric",
+          "reps integer",
+          "session_id text",
+          "set_id text",
+          "achieved_at timestamptz not null",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "unique(gym_id, member_clerk_id, exercise_id, metric)",
+          "index(gym_id, member_clerk_id, achieved_at desc)"
+        ]
+      }
+    ],
+    "aiDataInfrastructure": [
+      {
+        "table": "ai_prompt_versions",
+        "purpose": "Track prompt/model versions used for food analysis, label analysis, workout suggestions, and memory updates.",
+        "id": "uuid text primary key",
+        "columns": [
+          "task text not null",
+          "provider text not null",
+          "model text not null",
+          "prompt_version text not null",
+          "schema_version text not null",
+          "is_active boolean not null default false",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": ["unique(task, prompt_version)", "index(task, is_active)"]
+      },
+      {
+        "table": "ai_inference_events",
+        "purpose": "Structured telemetry for quality, latency, confidence, fallback, and correction analysis.",
+        "id": "uuid text primary key",
+        "columns": [
+          "gym_id text",
+          "member_clerk_id text",
+          "task text not null",
+          "prompt_version text",
+          "model text",
+          "input_hash text",
+          "output_schema_version text",
+          "confidence text",
+          "latency_ms integer",
+          "status text not null",
+          "fallback_used text",
+          "user_corrected boolean not null default false",
+          "correction_distance jsonb",
+          "created_at timestamptz not null default now()",
+          "updated_at timestamptz not null default now()"
+        ],
+        "indexes": [
+          "index(task, created_at desc)",
+          "index(gym_id, member_clerk_id, created_at desc)",
+          "index(status, fallback_used)"
+        ],
+        "privacy": "Use input hashes and structured summaries. Do not persist raw images or full raw prompts unless explicitly approved for a secure eval dataset."
+      }
+    ]
+  },
+  "apiPlan": [
+    {
+      "endpoint": "GET /api/foods/search",
+      "auth": "member, trainer, owner approved access",
+      "purpose": "Search member custom foods, curated catalog, Open Food Facts cached products, and USDA-backed foods.",
+      "query": ["q", "limit", "source", "locale"],
+      "fallbacks": [
+        "member_food_items",
+        "food_catalog_items",
+        "server provider search",
+        "manual draft"
+      ],
+      "passCriteria": [
+        "Never returns secrets or raw provider credentials.",
+        "Returns provenance and portion options.",
+        "Handles Indian aliases and global food terms."
+      ]
+    },
+    {
+      "endpoint": "GET /api/foods/barcode/{barcode}",
+      "auth": "member, trainer, owner approved access",
+      "purpose": "Resolve packaged food barcode to nutrition facts.",
+      "fallbacks": [
+        "food_catalog_items barcode cache",
+        "Open Food Facts barcode lookup",
+        "local manual barcode draft",
+        "nutrition label scan prompt"
+      ],
+      "passCriteria": [
+        "Cached hit is fast.",
+        "Provider miss does not block manual logging.",
+        "Lookup event records provider status and latency."
+      ]
+    },
+    {
+      "endpoint": "POST /api/foods/custom",
+      "auth": "member approved access",
+      "purpose": "Save corrected/custom foods and user defaults.",
+      "passCriteria": [
+        "Validates finite non-negative macros.",
+        "Persists serving grams or explicit conversion gap.",
+        "Stores source and confidence."
+      ]
+    },
+    {
+      "endpoint": "POST /api/ai/analyze-label",
+      "auth": "member approved access",
+      "purpose": "Extract structured nutrition from a package label image.",
+      "fallbacks": ["manual label entry", "barcode lookup", "custom food save"],
+      "passCriteria": [
+        "Returns editable draft only.",
+        "Includes prompt version, model, confidence, and fields needing review.",
+        "Rejects oversized images."
+      ]
+    },
+    {
+      "endpoint": "GET /api/workouts/exercises",
+      "auth": "member, trainer, owner approved access",
+      "purpose": "Search system and custom exercises.",
+      "fallbacks": ["local static exercise list", "custom exercise creation"],
+      "passCriteria": [
+        "Search is fast enough for live workout use.",
+        "Aliases and equipment filters work.",
+        "Archived custom exercises do not appear by default."
+      ]
+    },
+    {
+      "endpoint": "GET /api/workouts/exercises/{exerciseId}/history",
+      "auth": "member approved access",
+      "purpose": "Return previous sets, PRs, volume trend, and progression context for an exercise.",
+      "fallbacks": ["local AsyncStorage history", "empty-state guidance"],
+      "passCriteria": [
+        "Uses member_workout_sets indexes.",
+        "Returns completed set history only.",
+        "Does not leak other members' data."
+      ]
+    },
+    {
+      "endpoint": "GET /api/workouts/analytics",
+      "auth": "member approved access",
+      "purpose": "Return volume, consistency, muscle distribution, and PR summaries.",
+      "fallbacks": ["local computed summaries", "empty-state dashboard"],
+      "passCriteria": [
+        "Bounded queries with date range.",
+        "No unindexed full history scans for common views."
+      ]
+    }
+  ],
+  "fallbackMethods": {
+    "nutritionLookupCascade": [
+      "Use member custom/favorite/recent food if exact or high-similarity match exists.",
+      "Use cached food_catalog_items by barcode or source_product_id.",
+      "Use Open Food Facts for packaged barcode/product data.",
+      "Use USDA FoodData Central for generic/global nutrition details when provider coverage is better.",
+      "Use India-aware curated catalog and alias matching for common Indian foods and portions.",
+      "Use AI photo or label analysis as an editable draft with confidence.",
+      "Use manual entry as the always-available final fallback."
+    ],
+    "workoutCascade": [
+      "Use local active session and AsyncStorage first.",
+      "Use normalized server history when available.",
+      "Use local completed session history when offline.",
+      "Use exercise catalog defaults when no user history exists.",
+      "Allow custom exercise creation when catalog search fails."
+    ],
+    "aiCascade": [
+      "Provider model returns valid structured JSON.",
+      "If JSON parse fails, retry once with repair prompt server-side.",
+      "If confidence is low or required fields are missing, return manual draft state.",
+      "If AI provider is unavailable, preserve user intent and continue with manual logging.",
+      "Record fallback reason in ai_inference_events."
+    ],
+    "syncCascade": [
+      "Local write succeeds first.",
+      "Server sync attempts when auth and API base are available.",
+      "Failed sync is queued or retried without deleting local state.",
+      "Conflicts are surfaced when entry-level sync exists; until then, latest user-confirmed daily log wins."
+    ]
+  },
+  "aiDataMaturityPlan": {
+    "dataModel": [
+      "Every food and workout AI output has provenance, confidence, model, prompt version, and schema version.",
+      "Every user correction creates a structured signal for future defaults and evaluation.",
+      "AI memory stores durable behavior patterns, not raw logs.",
+      "Provider and AI failure telemetry is queryable by task, latency, status, and fallback."
+    ],
+    "evaluation": [
+      "Create a small India-aware eval set for food photos and text entries covering mixed Indian/global diets.",
+      "Include portion edge cases: katori dal, two rotis, half plate biryani, scoop whey, slice pizza, cafe sandwich, packaged snack.",
+      "Track macro error against corrected user values when user edits are available.",
+      "Track correction frequency by food type, provider, prompt version, and confidence."
+    ],
+    "prompting": [
+      "Food prompts must explicitly understand Indian and global foods.",
+      "Prompts must return uncertainty instead of overconfident estimates.",
+      "Label prompts must distinguish per-serving and per-100g nutrition.",
+      "Workout prompts must use history as context but never auto-mutate routines."
+    ],
+    "privacy": [
+      "Do not store raw images by default.",
+      "Use hashes and structured metadata for repeated lookup and evaluation.",
+      "Any future secure eval dataset requires explicit approval and retention policy."
+    ]
+  },
+  "implementationWaves": [
+    {
+      "id": "W0",
+      "title": "Baseline and Branch Hygiene",
+      "directions": [
+        "Do not mix the current staged V1 implementation with the new database/API architecture without a checkpoint.",
+        "Run baseline verification before new schema work.",
+        "Record any existing blocker before touching code."
+      ],
+      "pass": [
+        "Current staged work is understood.",
+        "Baseline tests either pass or exact pre-existing blockers are documented."
+      ],
+      "fail": [
+        "New changes are added without knowing whether the current branch is already green.",
+        "Generated files are changed manually."
+      ]
+    },
+    {
+      "id": "W1",
+      "title": "Database Foundations",
+      "directions": [
+        "Add Drizzle schema exports and one idempotent migration for the new food, exercise, derived set, PR, and AI telemetry tables.",
+        "Do not seed catalog data in migrations.",
+        "Add indexes with the migration, not later."
+      ],
+      "pass": [
+        "Schema compiles.",
+        "Migration has no destructive operations.",
+        "All new tables have timestamps and UUID-compatible IDs.",
+        "Indexes cover lookup and history queries."
+      ],
+      "fail": [
+        "Missing indexes for barcode, exercise history, or member date-range access.",
+        "Migration stores seed data.",
+        "RLS is enabled without verified auth claims and breaks API writes."
+      ]
+    },
+    {
+      "id": "W2",
+      "title": "API and Provider Layer",
+      "directions": [
+        "Update OpenAPI first, then regenerate clients.",
+        "Implement provider interfaces server-side.",
+        "Cache provider results and record lookup events.",
+        "Add strict validation for nutrition entries and workout history queries."
+      ],
+      "pass": [
+        "Endpoints are Clerk-gated.",
+        "Provider misses fall back to manual draft.",
+        "OpenAPI codegen and typecheck pass.",
+        "Route tests cover success, miss, invalid payload, auth, and provider failure."
+      ],
+      "fail": [
+        "Frontend calls providers directly.",
+        "Provider outage blocks manual logging.",
+        "OpenAPI and implementation drift."
+      ]
+    },
+    {
+      "id": "W3",
+      "title": "Member Logging UX",
+      "directions": [
+        "Upgrade food logging without removing manual entry.",
+        "Upgrade workout history without slowing active set logging.",
+        "Keep all logging local-first."
+      ],
+      "pass": [
+        "Photo, barcode, search, recent, favorite, and manual food flows are visible and recoverable.",
+        "Exercise search, custom exercise, previous sets, and history are visible during workout logging.",
+        "Low-confidence AI and provider failures have clear correction states."
+      ],
+      "fail": [
+        "AI or network failure prevents basic logging.",
+        "Workout set logging becomes slower or visually crowded.",
+        "Indian/global portion conversions are ambiguous at save time."
+      ]
+    },
+    {
+      "id": "W4",
+      "title": "AI Data Maturity",
+      "directions": [
+        "Persist inference telemetry and corrections.",
+        "Version prompts and output schemas.",
+        "Add eval fixtures before claiming AI quality improvement."
+      ],
+      "pass": [
+        "AI outputs are auditable by prompt/model/schema version.",
+        "Correction signals can be queried.",
+        "Raw images are not stored by default.",
+        "Fallback reasons are recorded."
+      ],
+      "fail": [
+        "AI quality claims are made without eval data.",
+        "Raw private inputs are stored without approval.",
+        "AI memory stores noisy raw logs."
+      ]
+    },
+    {
+      "id": "W5",
+      "title": "Verification and Release Candidate",
+      "directions": [
+        "Run targeted tests first, then full internal beta gate.",
+        "Use Node 22 for release-style verification.",
+        "Do not call the feature complete if provider credentials or migrations are unverified."
+      ],
+      "pass": [
+        "Targeted API and gymapp tests pass.",
+        "Typecheck passes.",
+        "UI previews pass.",
+        "Internal beta gate passes or exact external blocker is documented."
+      ],
+      "fail": [
+        "Skipping OpenAPI codegen after contract changes.",
+        "Skipping DB migration review.",
+        "Ignoring an auth, secret, provider, or migration blocker."
+      ]
+    }
+  ],
+  "releaseDecisionRules": {
+    "canShipInternalBeta": [
+      "All baseline and release scripts pass.",
+      "Provider failures have tested fallbacks.",
+      "Manual logging remains available.",
+      "No secrets are exposed to frontend bundles.",
+      "New DB tables are migration-backed and indexed.",
+      "Food and workout logging preserve source/provenance/history."
+    ],
+    "mustNotShip": [
+      "AI auto-saves uncertain nutrition without user review.",
+      "Workout sessions or PRs can be written outside the current member/gym scope.",
+      "Barcode or AI provider outage blocks logging.",
+      "Generated client drift remains unresolved.",
+      "Production migration backup/RLS/auth-readiness is not addressed."
+    ]
+  }
+}

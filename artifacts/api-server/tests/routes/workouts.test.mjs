@@ -7,6 +7,8 @@ const authState = { userId: "member_1", gymId: "gymos-main" };
 const plansByMemberClerkId = new Map();
 const sessionsById = new Map();
 const personalRecordsByKey = new Map();
+const workoutSetsByKey = new Map();
+const exercisePrsByKey = new Map();
 
 const memberWorkoutPlans = {
   id: Symbol("memberWorkoutPlans.id"),
@@ -24,6 +26,42 @@ const memberWorkoutSessions = {
   gymId: Symbol("memberWorkoutSessions.gymId"),
   memberClerkId: Symbol("memberWorkoutSessions.memberClerkId"),
   updatedAt: Symbol("memberWorkoutSessions.updatedAt"),
+};
+
+const memberWorkoutSets = {
+  id: Symbol("memberWorkoutSets.id"),
+  gymId: Symbol("memberWorkoutSets.gymId"),
+  memberClerkId: Symbol("memberWorkoutSets.memberClerkId"),
+  sessionId: Symbol("memberWorkoutSets.sessionId"),
+  exerciseId: Symbol("memberWorkoutSets.exerciseId"),
+  completed: Symbol("memberWorkoutSets.completed"),
+  performedAt: Symbol("memberWorkoutSets.performedAt"),
+};
+
+const memberExercisePrs = {
+  id: Symbol("memberExercisePrs.id"),
+  gymId: Symbol("memberExercisePrs.gymId"),
+  memberClerkId: Symbol("memberExercisePrs.memberClerkId"),
+  exerciseId: Symbol("memberExercisePrs.exerciseId"),
+  metric: Symbol("memberExercisePrs.metric"),
+  achievedAt: Symbol("memberExercisePrs.achievedAt"),
+  sessionId: Symbol("memberExercisePrs.sessionId"),
+};
+
+const exerciseCatalogItems = {
+  id: Symbol("exerciseCatalogItems.id"),
+  isSystem: Symbol("exerciseCatalogItems.isSystem"),
+  name: Symbol("exerciseCatalogItems.name"),
+  slug: Symbol("exerciseCatalogItems.slug"),
+};
+
+const memberExercises = {
+  id: Symbol("memberExercises.id"),
+  gymId: Symbol("memberExercises.gymId"),
+  memberClerkId: Symbol("memberExercises.memberClerkId"),
+  name: Symbol("memberExercises.name"),
+  archivedAt: Symbol("memberExercises.archivedAt"),
+  updatedAt: Symbol("memberExercises.updatedAt"),
 };
 
 const memberPersonalRecords = {
@@ -53,6 +91,22 @@ const fieldMap = new Map([
   [memberPersonalRecords.gymId, "gymId"],
   [memberPersonalRecords.memberClerkId, "memberClerkId"],
   [memberPersonalRecords.exerciseId, "exerciseId"],
+  [memberWorkoutSets.id, "id"],
+  [memberWorkoutSets.gymId, "gymId"],
+  [memberWorkoutSets.memberClerkId, "memberClerkId"],
+  [memberWorkoutSets.sessionId, "sessionId"],
+  [memberWorkoutSets.exerciseId, "exerciseId"],
+  [memberWorkoutSets.completed, "completed"],
+  [memberExercisePrs.id, "id"],
+  [memberExercisePrs.gymId, "gymId"],
+  [memberExercisePrs.memberClerkId, "memberClerkId"],
+  [memberExercisePrs.exerciseId, "exerciseId"],
+  [memberExercisePrs.metric, "metric"],
+  [memberExercisePrs.sessionId, "sessionId"],
+  [memberExercises.gymId, "gymId"],
+  [memberExercises.memberClerkId, "memberClerkId"],
+  [memberExercises.archivedAt, "archivedAt"],
+  [exerciseCatalogItems.isSystem, "isSystem"],
 ]);
 
 mock.module("drizzle-orm", {
@@ -68,6 +122,12 @@ mock.module("drizzle-orm", {
     },
     desc(field) {
       return { op: "desc", field };
+    },
+    ilike(field, value) {
+      return { op: "ilike", field, value };
+    },
+    or(...conditions) {
+      return { op: "or", conditions };
     },
   },
 });
@@ -101,6 +161,14 @@ function personalRecordKey(row) {
   return `${row.gymId}:${row.memberClerkId}:${row.exerciseId}`;
 }
 
+function workoutSetKey(row) {
+  return `${row.sessionId}:${row.setId}`;
+}
+
+function exercisePrKey(row) {
+  return `${row.gymId}:${row.memberClerkId}:${row.exerciseId}:${row.metric}`;
+}
+
 function cloneDate(value) {
   return value instanceof Date ? new Date(value) : value;
 }
@@ -127,6 +195,8 @@ function rowsForTable(table) {
   if (table === memberWorkoutPlans) return [...plansByMemberClerkId.values()];
   if (table === memberWorkoutSessions) return [...sessionsById.values()];
   if (table === memberPersonalRecords) return [...personalRecordsByKey.values()];
+  if (table === memberWorkoutSets) return [...workoutSetsByKey.values()];
+  if (table === memberExercisePrs) return [...exercisePrsByKey.values()];
   return [];
 }
 
@@ -134,6 +204,22 @@ function matchesCondition(row, condition) {
   if (!condition) return true;
   if (condition.op === "and") {
     return condition.conditions.every((child) => matchesCondition(row, child));
+  }
+  if (condition.op === "or") {
+    return condition.conditions.some((child) => matchesCondition(row, child));
+  }
+  if (condition.op === "isNull") {
+    const fieldName = fieldMap.get(condition.field);
+    return fieldName ? row[fieldName] == null : true;
+  }
+  if (condition.op === "ilike") {
+    const fieldName = fieldMap.get(condition.field);
+    if (!fieldName) return true;
+    const value = String(row[fieldName] ?? "").toLowerCase();
+    const pattern = String(condition.value ?? "")
+      .replaceAll("%", "")
+      .toLowerCase();
+    return value.includes(pattern);
   }
   if (condition.op !== "eq") return true;
   const fieldName = fieldMap.get(condition.field);
@@ -157,6 +243,14 @@ function saveTableRow(table, row) {
   }
   if (table === memberPersonalRecords) {
     personalRecordsByKey.set(personalRecordKey(row), cloneRow(row));
+    return;
+  }
+  if (table === memberWorkoutSets) {
+    workoutSetsByKey.set(workoutSetKey(row), cloneRow(row));
+    return;
+  }
+  if (table === memberExercisePrs) {
+    exercisePrsByKey.set(exercisePrKey(row), cloneRow(row));
   }
 }
 
@@ -197,16 +291,20 @@ mock.module("@workspace/db", {
           values(values) {
             const returning = () => {
               const now = new Date("2026-05-07T10:00:00.000Z");
-              const row = {
-                createdAt: now,
-                updatedAt: now,
-                ...values,
-              };
-              saveTableRow(table, row);
-              return Promise.resolve([cloneRow(row)]);
+              const rows = Array.isArray(values) ? values : [values];
+              const savedRows = rows.map((value) => {
+                const row = {
+                  createdAt: now,
+                  updatedAt: now,
+                  ...value,
+                };
+                saveTableRow(table, row);
+                return cloneRow(row);
+              });
+              return Promise.resolve(savedRows);
             };
 
-            if (table !== memberPersonalRecords) {
+            if (table !== memberPersonalRecords && table !== memberExercisePrs) {
               return { returning };
             }
 
@@ -214,7 +312,10 @@ mock.module("@workspace/db", {
               onConflictDoUpdate({ set }) {
                 return {
                   returning() {
-                    const existing = personalRecordsByKey.get(personalRecordKey(values));
+                    const existing =
+                      table === memberPersonalRecords
+                        ? personalRecordsByKey.get(personalRecordKey(values))
+                        : exercisePrsByKey.get(exercisePrKey(values));
                     const row = {
                       createdAt: existing?.createdAt ?? new Date("2026-05-07T10:00:00.000Z"),
                       updatedAt: new Date("2026-05-07T10:05:00.000Z"),
@@ -267,6 +368,12 @@ mock.module("@workspace/db", {
                 if (table === memberWorkoutPlans) {
                   for (const row of deleted) plansByMemberClerkId.delete(row.memberClerkId);
                 }
+                if (table === memberWorkoutSets) {
+                  for (const row of deleted) workoutSetsByKey.delete(workoutSetKey(row));
+                }
+                if (table === memberExercisePrs) {
+                  for (const row of deleted) exercisePrsByKey.delete(exercisePrKey(row));
+                }
                 return Promise.resolve(deleted.map((row) => ({ id: row.id })));
               },
             };
@@ -280,8 +387,12 @@ mock.module("@workspace/db", {
 
 mock.module("@workspace/db/schema", {
   namedExports: {
+    exerciseCatalogItems,
+    memberExercisePrs,
+    memberExercises,
     memberPersonalRecords,
     memberWorkoutPlans,
+    memberWorkoutSets,
     memberWorkoutSessions,
     workoutAssignments,
     workoutTemplates,
@@ -330,7 +441,19 @@ function workoutSessionPayload(overrides = {}) {
         name: "Bench Press",
         sets: [
           { id: "set_1", weight: 100, reps: 5, completed: true },
-          { id: "set_2", weight: 80, reps: 8, completed: true },
+          {
+            id: "set_2",
+            weight: 80,
+            reps: 8,
+            completed: true,
+            type: "drop",
+            rpe: 8.5,
+            rir: 1,
+            notes: "controlled",
+            previousWeight: 77.5,
+            previousReps: 8,
+            progressionHint: "Last: 77.5kg x 8",
+          },
         ],
       },
     ],
@@ -347,6 +470,8 @@ beforeEach(() => {
   plansByMemberClerkId.clear();
   sessionsById.clear();
   personalRecordsByKey.clear();
+  workoutSetsByKey.clear();
+  exercisePrsByKey.clear();
   plansByMemberClerkId.set("member_1", {
     id: "plan_1",
     gymId: "gymos-main",
@@ -398,6 +523,19 @@ describe("workouts routes", () => {
     assert.equal(response.status, 201);
     assert.equal(response.body.session.id, "session_1");
     assert.equal(response.body.session.completed, true);
+    assert.deepEqual(response.body.session.exercises[0].sets[1], {
+      id: "set_2",
+      weight: 80,
+      reps: 8,
+      completed: true,
+      type: "drop",
+      rpe: 8.5,
+      rir: 1,
+      notes: "controlled",
+      previousWeight: 77.5,
+      previousReps: 8,
+      progressionHint: "Last: 77.5kg x 8",
+    });
     assert.equal(response.body.personalRecords.length, 1);
     assert.equal(response.body.personalRecords[0].exerciseId, "bench");
 

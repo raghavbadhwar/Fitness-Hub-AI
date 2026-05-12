@@ -2,7 +2,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "@clerk/expo";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +20,11 @@ import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useNutrition, MealType } from "@/contexts/NutritionContext";
 import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authenticated-api";
+import {
+  lookupBarcodeFoodDraft,
+  saveCustomFoodDraft,
+  type FoodEntryDraft,
+} from "@/lib/food-logging-api";
 import { impact, notifyError, notifySuccess, selection } from "@/lib/haptics";
 
 const MEAL_TYPES: { value: MealType; label: string }[] = [
@@ -39,10 +44,35 @@ type FoodAnalysisResult = {
   carbs: number;
   fat: number;
   fiber?: number;
+  servingGrams?: number;
+  ingredients?: string[];
   cuisine?: string;
   confidence?: "high" | "medium" | "low" | string;
   healthTip?: string;
 };
+
+type FoodAnalysisDraft = {
+  dishName: string;
+  servingSize: string;
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  servingGrams: string;
+  ingredients: string;
+};
+
+function asNumber(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getTypedConfidence(confidence: FoodAnalysisResult["confidence"]) {
+  return confidence === "high" || confidence === "medium" || confidence === "low"
+    ? confidence
+    : undefined;
+}
 
 export default function AddMealScreen() {
   const router = useRouter();
@@ -55,8 +85,9 @@ export default function AddMealScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
+  const [analysisDraft, setAnalysisDraft] = useState<FoodAnalysisDraft | null>(null);
   const [servings, setServings] = useState("1");
-  const [mode, setMode] = useState<"photo" | "manual">("photo");
+  const [mode, setMode] = useState<"photo" | "manual" | "barcode">("photo");
 
   const [manualFood, setManualFood] = useState({
     name: "",
@@ -64,8 +95,43 @@ export default function AddMealScreen() {
     protein: "",
     carbs: "",
     fat: "",
+    fiber: "",
     servingSize: "1 serving",
   });
+  const [barcodeFood, setBarcodeFood] = useState({
+    barcode: "",
+    name: "",
+    calories: "",
+    protein: "",
+    carbs: "",
+    fat: "",
+    fiber: "",
+    servingSize: "1 package",
+  });
+  const [barcodeDraftMeta, setBarcodeDraftMeta] = useState<Partial<FoodEntryDraft>>({});
+  const [barcodeLookupState, setBarcodeLookupState] = useState<
+    "idle" | "loading" | "found" | "fallback" | "error"
+  >("idle");
+  const [barcodeLookupMessage, setBarcodeLookupMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!analysisResult) {
+      setAnalysisDraft(null);
+      return;
+    }
+
+    setAnalysisDraft({
+      dishName: analysisResult.dishName,
+      servingSize: analysisResult.servingSize,
+      calories: String(analysisResult.calories),
+      protein: String(analysisResult.protein),
+      carbs: String(analysisResult.carbs),
+      fat: String(analysisResult.fat),
+      fiber: String(analysisResult.fiber ?? 0),
+      servingGrams: analysisResult.servingGrams ? String(analysisResult.servingGrams) : "",
+      ingredients: analysisResult.ingredients?.join(", ") ?? "",
+    });
+  }, [analysisResult]);
 
   const pickImage = async (fromCamera: boolean) => {
     impact();
@@ -127,24 +193,52 @@ export default function AddMealScreen() {
     }
   };
 
+  const persistCustomFoodDraft = (draft: FoodEntryDraft) => {
+    void saveCustomFoodDraft({ getToken, draft }).catch((error) => {
+      console.warn("Failed to save custom food draft", error);
+    });
+  };
+
   const handleAddFromPhoto = async () => {
-    if (!analysisResult) return;
+    if (!analysisResult || !analysisDraft) return;
     impact();
     const s = parseFloat(servings) || 1;
-    await addFoodEntry({
+    const ingredients = analysisDraft.ingredients
+      .split(",")
+      .map((ingredient) => ingredient.trim())
+      .filter(Boolean);
+    const corrected =
+      analysisDraft.dishName !== analysisResult.dishName ||
+      analysisDraft.servingSize !== analysisResult.servingSize ||
+      asNumber(analysisDraft.calories) !== analysisResult.calories ||
+      asNumber(analysisDraft.protein) !== analysisResult.protein ||
+      asNumber(analysisDraft.carbs) !== analysisResult.carbs ||
+      asNumber(analysisDraft.fat) !== analysisResult.fat ||
+      asNumber(analysisDraft.fiber) !== (analysisResult.fiber ?? 0);
+    const draft: FoodEntryDraft = {
       foodId: "photo_" + Date.now(),
-      name: analysisResult.dishName,
+      name: analysisDraft.dishName.trim() || analysisResult.dishName,
       mealType,
       servings: s,
-      servingSize: analysisResult.servingSize,
-      calories: Math.round(analysisResult.calories * s),
-      protein: Math.round(analysisResult.protein * s * 10) / 10,
-      carbs: Math.round(analysisResult.carbs * s * 10) / 10,
-      fat: Math.round(analysisResult.fat * s * 10) / 10,
-      fiber: Math.round((analysisResult.fiber || 0) * s * 10) / 10,
+      servingSize: analysisDraft.servingSize.trim() || analysisResult.servingSize,
+      calories: Math.round(asNumber(analysisDraft.calories) * s),
+      protein: Math.round(asNumber(analysisDraft.protein) * s * 10) / 10,
+      carbs: Math.round(asNumber(analysisDraft.carbs) * s * 10) / 10,
+      fat: Math.round(asNumber(analysisDraft.fat) * s * 10) / 10,
+      fiber: Math.round(asNumber(analysisDraft.fiber) * s * 10) / 10,
       fromPhoto: true,
       photoUri: imageUri || undefined,
-    });
+      source: "photo",
+      confidence: getTypedConfidence(analysisResult.confidence),
+      ingredients,
+      servingGrams: asNumber(analysisDraft.servingGrams) || undefined,
+      correctionOf: corrected ? analysisResult.dishName : undefined,
+      correctedAt: corrected ? Date.now() : undefined,
+    };
+    await addFoodEntry(draft);
+    if (corrected) {
+      persistCustomFoodDraft(draft);
+    }
     notifySuccess();
     router.back();
   };
@@ -156,7 +250,7 @@ export default function AddMealScreen() {
       return;
     }
     impact();
-    await addFoodEntry({
+    const draft: FoodEntryDraft = {
       foodId: "manual_" + Date.now(),
       name: manualFood.name,
       mealType,
@@ -166,8 +260,96 @@ export default function AddMealScreen() {
       protein: parseFloat(manualFood.protein) || 0,
       carbs: parseFloat(manualFood.carbs) || 0,
       fat: parseFloat(manualFood.fat) || 0,
-      fiber: 0,
-    });
+      fiber: parseFloat(manualFood.fiber) || 0,
+      source: "manual",
+      confidence: "medium",
+    };
+    await addFoodEntry(draft);
+    persistCustomFoodDraft(draft);
+    notifySuccess();
+    router.back();
+  };
+
+  const handleBarcodeLookup = async () => {
+    const barcode = barcodeFood.barcode.trim();
+    if (!barcode) {
+      notifyError();
+      Alert.alert("Barcode Required", "Enter the barcode number first.");
+      return;
+    }
+
+    setBarcodeLookupState("loading");
+    setBarcodeLookupMessage(null);
+    const result = await lookupBarcodeFoodDraft({ getToken, barcode, mealType });
+    setBarcodeDraftMeta(result.item);
+
+    if (result.status === "found") {
+      setBarcodeFood({
+        barcode,
+        name: result.item.name,
+        calories: String(result.item.calories),
+        protein: String(result.item.protein),
+        carbs: String(result.item.carbs),
+        fat: String(result.item.fat),
+        fiber: String(result.item.fiber),
+        servingSize: result.item.servingSize,
+      });
+      setBarcodeLookupState("found");
+      setBarcodeLookupMessage(
+        `${result.item.provider ?? "Food database"}${result.item.providerCached === false ? " live lookup" : ""}`,
+      );
+      notifySuccess();
+      return;
+    }
+
+    setBarcodeFood((current) => ({
+      ...current,
+      barcode,
+      servingSize: current.servingSize || "Nutrition label",
+    }));
+    setBarcodeLookupState(result.status === "not_found" ? "fallback" : "error");
+    setBarcodeLookupMessage(
+      result.status === "not_found"
+        ? "Not found. Enter the nutrition label manually and we will save it for next time."
+        : "Lookup failed. Enter the label manually and continue.",
+    );
+    notifyError();
+  };
+
+  const handleAddBarcode = async () => {
+    if (!barcodeFood.barcode || !barcodeFood.name || !barcodeFood.calories) {
+      notifyError();
+      Alert.alert("Missing Info", "Please enter the barcode, food name, and calories.");
+      return;
+    }
+    impact();
+    const draft: FoodEntryDraft = {
+      foodId: barcodeDraftMeta.foodId || "label_" + barcodeFood.barcode.trim(),
+      name: barcodeFood.name.trim(),
+      mealType,
+      servings: 1,
+      servingSize: barcodeFood.servingSize,
+      calories: parseInt(barcodeFood.calories) || 0,
+      protein: parseFloat(barcodeFood.protein) || 0,
+      carbs: parseFloat(barcodeFood.carbs) || 0,
+      fat: parseFloat(barcodeFood.fat) || 0,
+      fiber: parseFloat(barcodeFood.fiber) || 0,
+      source: barcodeDraftMeta.source || (barcodeLookupState === "found" ? "barcode" : "label"),
+      barcode: barcodeFood.barcode.trim(),
+      confidence: barcodeDraftMeta.confidence || (barcodeLookupState === "found" ? "high" : "low"),
+      brand: barcodeDraftMeta.brand,
+      catalogItemId: barcodeDraftMeta.catalogItemId,
+      memberFoodItemId: barcodeDraftMeta.memberFoodItemId,
+      sourceProductId: barcodeDraftMeta.sourceProductId,
+      provider: barcodeDraftMeta.provider,
+      providerCached: barcodeDraftMeta.providerCached,
+      providerQualityScore: barcodeDraftMeta.providerQualityScore,
+      servingGrams: barcodeDraftMeta.servingGrams,
+      ingredients: barcodeDraftMeta.ingredients,
+      portionOptions: barcodeDraftMeta.portionOptions,
+    };
+    await addFoodEntry(draft);
+    persistCustomFoodDraft(draft);
     notifySuccess();
     router.back();
   };
@@ -220,6 +402,27 @@ export default function AddMealScreen() {
                 ]}
               >
                 Manual
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeBtn, mode === "barcode" && { backgroundColor: colors.primary }]}
+              onPress={() => {
+                selection();
+                setMode("barcode");
+              }}
+            >
+              <Feather
+                name="bar-chart-2"
+                size={16}
+                color={mode === "barcode" ? "#fff" : colors.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  { color: mode === "barcode" ? "#fff" : colors.mutedForeground },
+                ]}
+              >
+                Barcode
               </Text>
             </Pressable>
           </View>
@@ -332,7 +535,7 @@ export default function AddMealScreen() {
                 </View>
               )}
 
-              {analysisResult && !analyzing && (
+              {analysisResult && analysisDraft && !analyzing && (
                 <View
                   style={[
                     styles.resultCard,
@@ -342,10 +545,10 @@ export default function AddMealScreen() {
                   <View style={styles.resultHeader}>
                     <View>
                       <Text style={[styles.dishName, { color: colors.text }]}>
-                        {analysisResult.dishName}
+                        {analysisDraft.dishName}
                       </Text>
                       <Text style={[styles.cuisine, { color: colors.mutedForeground }]}>
-                        {analysisResult.cuisine} · {analysisResult.servingSize}
+                        {analysisResult.cuisine} · {analysisDraft.servingSize}
                       </Text>
                     </View>
                     <View
@@ -377,7 +580,7 @@ export default function AddMealScreen() {
                   <View style={styles.macrosGrid}>
                     <View style={[styles.macroItem, { backgroundColor: colors.primary + "15" }]}>
                       <Text style={[styles.macroVal, { color: colors.primary }]}>
-                        {analysisResult.calories}
+                        {Math.round(asNumber(analysisDraft.calories))}
                       </Text>
                       <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
                         kcal
@@ -385,7 +588,7 @@ export default function AddMealScreen() {
                     </View>
                     <View style={[styles.macroItem, { backgroundColor: colors.protein + "15" }]}>
                       <Text style={[styles.macroVal, { color: colors.protein }]}>
-                        {analysisResult.protein}g
+                        {asNumber(analysisDraft.protein)}g
                       </Text>
                       <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
                         Protein
@@ -393,7 +596,7 @@ export default function AddMealScreen() {
                     </View>
                     <View style={[styles.macroItem, { backgroundColor: colors.carbs + "15" }]}>
                       <Text style={[styles.macroVal, { color: colors.carbs }]}>
-                        {analysisResult.carbs}g
+                        {asNumber(analysisDraft.carbs)}g
                       </Text>
                       <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
                         Carbs
@@ -401,7 +604,7 @@ export default function AddMealScreen() {
                     </View>
                     <View style={[styles.macroItem, { backgroundColor: colors.fat + "15" }]}>
                       <Text style={[styles.macroVal, { color: colors.fat }]}>
-                        {analysisResult.fat}g
+                        {asNumber(analysisDraft.fat)}g
                       </Text>
                       <Text style={[styles.macroLabel, { color: colors.mutedForeground }]}>
                         Fat
@@ -416,6 +619,99 @@ export default function AddMealScreen() {
                       </Text>
                     </View>
                   )}
+                  <View style={styles.editGrid}>
+                    <View style={styles.field}>
+                      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                        Food
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.surface,
+                            borderColor: colors.border,
+                            color: colors.text,
+                          },
+                        ]}
+                        value={analysisDraft.dishName}
+                        onChangeText={(dishName) =>
+                          setAnalysisDraft({ ...analysisDraft, dishName })
+                        }
+                      />
+                    </View>
+                    <View style={styles.field}>
+                      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                        Serving
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.surface,
+                            borderColor: colors.border,
+                            color: colors.text,
+                          },
+                        ]}
+                        value={analysisDraft.servingSize}
+                        onChangeText={(servingSize) =>
+                          setAnalysisDraft({ ...analysisDraft, servingSize })
+                        }
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.macroInputs}>
+                    {(
+                      [
+                        { key: "calories" as const, label: "kcal" },
+                        { key: "protein" as const, label: "Protein" },
+                        { key: "carbs" as const, label: "Carbs" },
+                        { key: "fat" as const, label: "Fat" },
+                        { key: "fiber" as const, label: "Fiber" },
+                      ] as const
+                    ).map(({ key, label }) => (
+                      <View key={key} style={styles.macroInput}>
+                        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                          {label}
+                        </Text>
+                        <TextInput
+                          style={[
+                            styles.input,
+                            {
+                              backgroundColor: colors.surface,
+                              borderColor: colors.border,
+                              color: colors.text,
+                            },
+                          ]}
+                          value={analysisDraft[key]}
+                          onChangeText={(value) =>
+                            setAnalysisDraft({ ...analysisDraft, [key]: value })
+                          }
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                      Ingredients
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      value={analysisDraft.ingredients}
+                      onChangeText={(ingredients) =>
+                        setAnalysisDraft({ ...analysisDraft, ingredients })
+                      }
+                      placeholder="rice, chicken, oil"
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                  </View>
                   <View style={styles.servingRow}>
                     <Text style={[styles.servingLabel, { color: colors.mutedForeground }]}>
                       Servings:
@@ -434,7 +730,8 @@ export default function AddMealScreen() {
                       keyboardType="decimal-pad"
                     />
                     <Text style={[styles.totalCals, { color: colors.text }]}>
-                      = {Math.round(analysisResult.calories * (parseFloat(servings) || 1))} kcal
+                      = {Math.round(asNumber(analysisDraft.calories) * (parseFloat(servings) || 1))}{" "}
+                      kcal
                     </Text>
                   </View>
                   <Pressable
@@ -501,6 +798,7 @@ export default function AddMealScreen() {
                     { key: "protein" as const, label: "Protein (g)" },
                     { key: "carbs" as const, label: "Carbs (g)" },
                     { key: "fat" as const, label: "Fat (g)" },
+                    { key: "fiber" as const, label: "Fiber (g)" },
                   ] as const
                 ).map(({ key, label }) => (
                   <View key={key} style={[styles.macroInput, { flex: 1 }]}>
@@ -531,6 +829,125 @@ export default function AddMealScreen() {
               >
                 <Feather name="plus" size={18} color="#fff" />
                 <Text style={styles.addBtnText}>Add Food</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {mode === "barcode" && (
+            <View
+              style={[
+                styles.manualCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              {(
+                [
+                  { key: "barcode" as const, label: "Barcode *", placeholder: "890..." },
+                  { key: "name" as const, label: "Food Name *", placeholder: "Protein bar" },
+                  { key: "servingSize" as const, label: "Serving Size", placeholder: "1 package" },
+                ] as const
+              ).map(({ key, label, placeholder }) => (
+                <View key={key} style={styles.field}>
+                  <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                    {label}
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder={placeholder}
+                    placeholderTextColor={colors.mutedForeground}
+                    value={barcodeFood[key]}
+                    onChangeText={(value) => setBarcodeFood({ ...barcodeFood, [key]: value })}
+                    keyboardType={key === "barcode" ? "number-pad" : "default"}
+                  />
+                </View>
+              ))}
+              <Pressable
+                style={[
+                  styles.lookupBtn,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  barcodeLookupState === "loading" && { opacity: 0.72 },
+                ]}
+                onPress={handleBarcodeLookup}
+                disabled={barcodeLookupState === "loading"}
+                accessibilityRole="button"
+                accessibilityLabel="Look up barcode"
+              >
+                {barcodeLookupState === "loading" ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Feather name="search" size={16} color={colors.primary} />
+                )}
+                <Text style={[styles.lookupBtnText, { color: colors.text }]}>
+                  {barcodeLookupState === "loading" ? "Looking up..." : "Lookup barcode"}
+                </Text>
+              </Pressable>
+              {barcodeLookupMessage ? (
+                <View
+                  style={[
+                    styles.lookupStatus,
+                    {
+                      backgroundColor:
+                        barcodeLookupState === "found"
+                          ? colors.success + "16"
+                          : colors.warning + "16",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name={barcodeLookupState === "found" ? "check-circle" : "alert-circle"}
+                    size={14}
+                    color={barcodeLookupState === "found" ? colors.success : colors.warning}
+                  />
+                  <Text style={[styles.lookupStatusText, { color: colors.text }]}>
+                    {barcodeLookupMessage}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.macroInputs}>
+                {(
+                  [
+                    { key: "calories" as const, label: "kcal *" },
+                    { key: "protein" as const, label: "Protein" },
+                    { key: "carbs" as const, label: "Carbs" },
+                    { key: "fat" as const, label: "Fat" },
+                    { key: "fiber" as const, label: "Fiber" },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <View key={key} style={styles.macroInput}>
+                    <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                      {label}
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      placeholder="0"
+                      placeholderTextColor={colors.mutedForeground}
+                      value={barcodeFood[key]}
+                      onChangeText={(value) => setBarcodeFood({ ...barcodeFood, [key]: value })}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                ))}
+              </View>
+              <Pressable
+                style={[styles.addBtn, { backgroundColor: colors.primary }]}
+                onPress={handleAddBarcode}
+              >
+                <Feather name="plus" size={18} color="#fff" />
+                <Text style={styles.addBtnText}>Add Barcode Food</Text>
               </Pressable>
             </View>
           )}
@@ -630,6 +1047,26 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   manualCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 14 },
+  lookupBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  lookupBtnText: { fontSize: 14, fontWeight: "700" },
+  lookupStatus: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  lookupStatusText: { flex: 1, fontSize: 13, lineHeight: 18 },
   field: { gap: 6 },
   fieldLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   input: {
@@ -639,6 +1076,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
-  macroInputs: { flexDirection: "row", gap: 10 },
-  macroInput: { gap: 6 },
+  editGrid: { gap: 10 },
+  macroInputs: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  macroInput: { gap: 6, minWidth: 96, flex: 1 },
 });

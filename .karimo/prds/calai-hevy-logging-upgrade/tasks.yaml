@@ -1,0 +1,27 @@
+slug: calai-hevy-logging-upgrade
+version: 1
+waves:
+  - id: W0
+    title: KARIMO Setup And Baseline
+    tasks: [T00, T01]
+  - id: W1
+    title: Logging Data Model And Compatibility
+    tasks: [T02, T03]
+  - id: W2
+    title: Cal AI Style Food Logging V1
+    tasks: [T04, T05, T06]
+  - id: W3
+    title: Hevy Style Workout Logging V1
+    tasks: [T07, T08, T09]
+  - id: W4
+    title: Progression And Coaching
+    tasks: [T10, T11]
+  - id: W5
+    title: QA Polish And Release Gate
+    tasks: [T12, T13]
+  - id: W6
+    title: Data-Centered AI Logging Infrastructure
+    tasks: [T14, T15, T16, T17]
+  - id: W7
+    title: End-To-End Member UX And Real User Test
+    tasks: [T18, T19, T20, T21, T22]

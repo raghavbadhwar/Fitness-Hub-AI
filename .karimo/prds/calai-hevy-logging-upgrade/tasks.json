@@ -1,0 +1,385 @@
+{
+  "slug": "calai-hevy-logging-upgrade",
+  "version": 1,
+  "waves": [
+    {
+      "id": "W0",
+      "title": "KARIMO Setup And Baseline",
+      "goal": "Create the PRD execution contract and prove the existing repo is healthy before product edits.",
+      "tasks": [
+        {
+          "id": "T00",
+          "title": "Bootstrap KARIMO repo state",
+          "surface": [".karimo", ".claude/plugins/karimo"],
+          "acceptance": [
+            "KARIMO assets exist in the canonical repo",
+            "Installer defects are documented as setup notes"
+          ],
+          "verification": ["test -f .karimo/MANIFEST.json", "test -f .karimo/config.yaml"]
+        },
+        {
+          "id": "T01",
+          "title": "Run baseline quality gates",
+          "surface": ["workspace"],
+          "acceptance": [
+            "Typecheck, targeted API tests, gymapp tests, and member UI preview are recorded"
+          ],
+          "verification": [
+            "pnpm run typecheck",
+            "pnpm --dir artifacts/api-server test -- tests/routes/nutrition.test.mjs tests/routes/workouts.test.mjs tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs",
+            "pnpm --dir artifacts/gymapp test",
+            "CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W1",
+      "title": "Logging Data Model And Compatibility",
+      "goal": "Add richer metadata without breaking old logs.",
+      "tasks": [
+        {
+          "id": "T02",
+          "title": "Extend nutrition log metadata",
+          "surface": [
+            "artifacts/gymapp/contexts/NutritionContext.tsx",
+            "artifacts/api-server/src/routes/nutrition.ts",
+            "lib/db",
+            "lib/api-spec/openapi.yaml"
+          ],
+          "acceptance": [
+            "Entries can preserve source, confidence, ingredients, serving grams, barcode fields, and correction metadata",
+            "Existing entries still load"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/nutrition.test.mjs",
+            "pnpm run typecheck"
+          ]
+        },
+        {
+          "id": "T03",
+          "title": "Extend workout session metadata",
+          "surface": [
+            "artifacts/gymapp/contexts/WorkoutContext.tsx",
+            "artifacts/api-server/src/routes/workouts.ts",
+            "lib/db",
+            "lib/api-spec/openapi.yaml"
+          ],
+          "acceptance": [
+            "Sets can preserve type, RPE/RIR, previous-set reference, and notes",
+            "Existing sessions still load"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/workouts.test.mjs",
+            "pnpm run typecheck"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W2",
+      "title": "Cal AI Style Food Logging V1",
+      "goal": "Make food logging faster and more correctable.",
+      "tasks": [
+        {
+          "id": "T04",
+          "title": "Build unified quick-log modes",
+          "surface": [
+            "artifacts/gymapp/app/add-meal.tsx",
+            "artifacts/gymapp/app/(tabs)/nutrition.tsx"
+          ],
+          "acceptance": [
+            "Photo, manual/search, recent relog, and barcode placeholder modes are visible",
+            "Failed AI analysis routes to manual draft without losing user intent"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp typecheck",
+            "CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts -g \"nutrition\""
+          ]
+        },
+        {
+          "id": "T05",
+          "title": "Add AI draft correction",
+          "surface": ["artifacts/gymapp/app/add-meal.tsx", "artifacts/api-server/src/routes/ai.ts"],
+          "acceptance": [
+            "Users can edit item name, servings, grams, ingredients, and macros before saving",
+            "Low confidence is visible and actionable"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs",
+            "pnpm --dir artifacts/gymapp typecheck"
+          ]
+        },
+        {
+          "id": "T06",
+          "title": "Add food history relogging",
+          "surface": [
+            "artifacts/gymapp/contexts/NutritionContext.tsx",
+            "artifacts/gymapp/app/(tabs)/nutrition.tsx"
+          ],
+          "acceptance": [
+            "Recent foods are available for one-tap relogging",
+            "Deleted foods do not appear as broken stale records"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp test",
+            "pnpm --dir artifacts/gymapp typecheck"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W3",
+      "title": "Hevy Style Workout Logging V1",
+      "goal": "Make repeated workout logging faster and history-aware.",
+      "tasks": [
+        {
+          "id": "T07",
+          "title": "Add previous-set autofill",
+          "surface": [
+            "artifacts/gymapp/contexts/WorkoutContext.tsx",
+            "artifacts/gymapp/app/workout-session.tsx"
+          ],
+          "acceptance": [
+            "Starting a saved plan preloads last known weights and reps when history exists",
+            "New users still see sane defaults"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp test",
+            "pnpm --dir artifacts/gymapp typecheck"
+          ]
+        },
+        {
+          "id": "T08",
+          "title": "Add advanced set fields",
+          "surface": [
+            "artifacts/gymapp/app/workout-session.tsx",
+            "artifacts/gymapp/contexts/WorkoutContext.tsx",
+            "artifacts/api-server/src/routes/workouts.ts"
+          ],
+          "acceptance": [
+            "Sets support warmup, normal, drop, failure, RPE/RIR, and notes",
+            "API accepts old and new set shapes"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/workouts.test.mjs",
+            "pnpm run typecheck"
+          ]
+        },
+        {
+          "id": "T09",
+          "title": "Add exercise history surface",
+          "surface": [
+            "artifacts/gymapp/app/(tabs)/workout.tsx",
+            "artifacts/gymapp/app/workout-session.tsx"
+          ],
+          "acceptance": [
+            "Exercise cards show recent/best history",
+            "Workout session can expose previous performance before logging"
+          ],
+          "verification": [
+            "CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts -g \"workout\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W4",
+      "title": "Progression And Coaching",
+      "goal": "Add explainable suggestions without making AI autonomous.",
+      "tasks": [
+        {
+          "id": "T10",
+          "title": "Add progression hints",
+          "surface": [
+            "artifacts/gymapp/contexts/WorkoutContext.tsx",
+            "artifacts/gymapp/app/workout-session.tsx"
+          ],
+          "acceptance": [
+            "Suggestions are derived from local history and are editable",
+            "No plan mutates without user action"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp test",
+            "pnpm --dir artifacts/gymapp typecheck"
+          ]
+        },
+        {
+          "id": "T11",
+          "title": "Feed corrected logs into AI memory boundary",
+          "surface": [
+            "artifacts/api-server/src/routes/ai.ts",
+            "artifacts/api-server/src/lib/member-ai-memory.ts"
+          ],
+          "acceptance": [
+            "Durable patterns can improve future suggestions",
+            "Raw noisy logs are not stored as memory"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/ai.test.mjs tests/lib/member-ai-memory.test.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W5",
+      "title": "QA Polish And Release Gate",
+      "goal": "Turn the upgrade into a release candidate.",
+      "tasks": [
+        {
+          "id": "T12",
+          "title": "Add browser and regression coverage",
+          "surface": ["tests/e2e", "artifacts/api-server/tests", "artifacts/gymapp/lib"],
+          "acceptance": [
+            "Food quick-log and workout logging states have focused tests",
+            "Migration paths are covered"
+          ],
+          "verification": [
+            "pnpm run typecheck",
+            "CI=1 pnpm exec playwright test tests/e2e/ui-preview.spec.ts"
+          ]
+        },
+        {
+          "id": "T13",
+          "title": "Run internal beta verification",
+          "surface": ["workspace"],
+          "acceptance": ["Internal beta gate passes or external blockers are documented exactly"],
+          "verification": ["pnpm run verify:internal-beta"]
+        }
+      ]
+    },
+    {
+      "id": "W6",
+      "title": "Data-Centered AI Logging Infrastructure",
+      "goal": "Add provider-backed food lookup, normalized workout history, mature AI telemetry foundations, and generated API contracts.",
+      "tasks": [
+        {
+          "id": "T14",
+          "title": "Write JSON execution contract",
+          "surface": [".karimo/prds/calai-hevy-logging-upgrade"],
+          "acceptance": [
+            "Contract includes scripts, directions, standards, pass/fail criteria, fallbacks, APIs, database structures, and AI data maturity expectations"
+          ],
+          "verification": [
+            "node -e \"JSON.parse(require('fs').readFileSync('.karimo/prds/calai-hevy-logging-upgrade/india-aware-ai-logging-contract.json','utf8'))\"",
+            "pnpm exec prettier --check .karimo/prds/calai-hevy-logging-upgrade/india-aware-ai-logging-contract.json"
+          ]
+        },
+        {
+          "id": "T15",
+          "title": "Add food lookup and AI infrastructure schema",
+          "surface": ["lib/db/src/schema", "lib/db/migrations"],
+          "acceptance": [
+            "Schema supports food catalog, member custom foods, lookup telemetry, prompt versions, and inference events",
+            "Migration avoids destructive operations"
+          ],
+          "verification": [
+            "rg -n \"DROP |TRUNCATE |DELETE FROM [^;]+;|ALTER TABLE .* DROP\" lib/db/migrations/0012_india_aware_logging_foundations.sql"
+          ]
+        },
+        {
+          "id": "T16",
+          "title": "Add server-side food APIs",
+          "surface": ["artifacts/api-server/src/routes/foods.ts", "lib/api-spec/openapi.yaml"],
+          "acceptance": [
+            "Search, barcode lookup, and custom food save stay behind the API",
+            "Open Food Facts, optional USDA, curated India-aware fallback, and telemetry paths exist"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/foods.test.mjs",
+            "pnpm --dir lib/api-spec codegen"
+          ]
+        },
+        {
+          "id": "T17",
+          "title": "Add normalized workout history APIs",
+          "surface": ["artifacts/api-server/src/routes/workouts.ts", "lib/api-spec/openapi.yaml"],
+          "acceptance": [
+            "Completed sets persist in normalized history",
+            "Exercise history, custom exercise, analytics, and metric-specific PR routes exist"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/api-server test -- tests/routes/workouts.test.mjs",
+            "pnpm --dir lib/api-spec codegen"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W7",
+      "title": "End-To-End Member UX And Real User Test",
+      "goal": "Connect the data foundation to visible member flows and document real-user pass/fail scripts.",
+      "tasks": [
+        {
+          "id": "T18",
+          "title": "Add member food API helper",
+          "surface": ["artifacts/gymapp/lib/food-logging-api.ts"],
+          "acceptance": [
+            "Food search items convert to log drafts with source, provider, confidence, portion, and barcode metadata",
+            "Barcode miss becomes label/manual fallback"
+          ],
+          "verification": ["pnpm --dir artifacts/gymapp test"]
+        },
+        {
+          "id": "T19",
+          "title": "Connect member food search and barcode lookup",
+          "surface": [
+            "artifacts/gymapp/app/(tabs)/nutrition.tsx",
+            "artifacts/gymapp/app/add-meal.tsx"
+          ],
+          "acceptance": [
+            "Nutrition search uses API results with local curated fallback",
+            "Barcode lookup populates an editable draft and miss/error paths do not block logging",
+            "Corrected/manual foods save through the custom food API best-effort path"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp test",
+            "pnpm run typecheck",
+            "CI=1 pnpm exec playwright test tests/e2e/member-flows.spec.ts -g \"nutrition preview\""
+          ]
+        },
+        {
+          "id": "T20",
+          "title": "Connect workout history to every start path",
+          "surface": [
+            "artifacts/gymapp/contexts/WorkoutContext.tsx",
+            "artifacts/gymapp/app/workout-session.tsx",
+            "artifacts/gymapp/lib/workout-history.ts"
+          ],
+          "acceptance": [
+            "Quick starts, AI starts, assigned workouts, saved plans, and added exercises hydrate previous sets when history exists",
+            "Active workout exercise cards show last date, last set, and best estimated 1RM"
+          ],
+          "verification": ["pnpm --dir artifacts/gymapp test", "pnpm run typecheck"]
+        },
+        {
+          "id": "T21",
+          "title": "Write real-user validation plan",
+          "surface": [".karimo/prds/calai-hevy-logging-upgrade/real-user-test-plan.md"],
+          "acceptance": [
+            "Plan covers Indian mixed-diet food search, barcode fallback, AI photo correction, and repeated workout logging",
+            "Pass/fail and fallback criteria are explicit"
+          ],
+          "verification": [
+            "pnpm exec prettier --check .karimo/prds/calai-hevy-logging-upgrade/real-user-test-plan.md"
+          ]
+        },
+        {
+          "id": "T22",
+          "title": "Run final release gates",
+          "surface": ["workspace"],
+          "acceptance": [
+            "Targeted tests, typecheck, E2E preview, and internal beta gate pass under Node 22"
+          ],
+          "verification": [
+            "pnpm --dir artifacts/gymapp test",
+            "pnpm --dir artifacts/api-server test -- tests/routes/foods.test.mjs tests/routes/nutrition.test.mjs tests/routes/workouts.test.mjs tests/routes/ai.test.mjs tests/routes/ai-quality.test.mjs",
+            "pnpm run typecheck",
+            "CI=1 pnpm exec playwright test tests/e2e/member-flows.spec.ts -g \"nutrition preview\"",
+            "mise exec node@22 -- pnpm run verify:internal-beta"
+          ]
+        }
+      ]
+    }
+  ]
+}

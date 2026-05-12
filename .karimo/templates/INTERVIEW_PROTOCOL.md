@@ -1,0 +1,730 @@
+# PRD Interview Protocol (v5)
+
+**Version:** 5.0
+**Purpose:** Single source of truth for PRD interview structure and model assignment
+**Output format:** See [PRD_TEMPLATE.md](PRD_TEMPLATE.md)
+**Task schema:** See [TASK_SCHEMA.md](TASK_SCHEMA.md)
+
+---
+
+## Overview
+
+The KARIMO interview system conducts structured interviews to produce agent-executable PRDs. This protocol defines the complete interview flow, agent roles, and output mapping.
+
+**v7.0 Change:** Research is now loaded before the interview begins. The interviewer uses research findings to inform questions and validate assumptions.
+
+### Agent Roles
+
+| Agent | Role | Model | When Spawned |
+|-------|------|-------|--------------|
+| `karimo-interviewer` | Conducts 4-round interview | Sonnet | `/karimo:plan` command |
+| `karimo-investigator` | Scans codebase for patterns/files | Sonnet | Step 0 (auto) + Round 3 (opt-in) |
+| `karimo-reviewer` | Validates PRD before saving | Sonnet | After Round 4 |
+
+---
+
+## Quick Reference
+
+### Round to PRD Section Mapping
+
+| Round | Name | Duration | PRD Sections Filled |
+|-------|------|----------|---------------------|
+| 0 | Auto-Detection | ~1 min | Project context (first run only) |
+| 1 | Framing | ~5 min | §1 Executive Summary |
+| 2 | Requirements | ~10 min | §3 Goals, §4 Requirements, §5 UX Notes |
+| 2.5 | Complexity Assessment | ~1 min | Slicing recommendations (auto) |
+| 2.6 | Orchestration | ~2 min | Orchestration recommendations (auto, v9.2) |
+| 3 | Dependencies | ~5 min | §6 Dependencies, §7 Rollout, §8 Milestones |
+| 4 | Retrospective | ~3 min | §10 Checkpoint Learnings |
+
+### Model Assignment Rules
+
+Task complexity determines which model executes the task:
+
+| Complexity | Model | Rationale |
+|------------|-------|-----------|
+| 1–4 | Sonnet | Efficient for straightforward tasks |
+| 5–10 | Opus | Complex reasoning, multi-file coordination |
+
+**Assignment is deterministic:** There are no borderline cases or variants. A complexity score maps directly to a model.
+
+### Complexity Scoring Guidelines
+
+| Score | Description | Indicators |
+|-------|-------------|------------|
+| 1-2 | Trivial | Single file, clear pattern, <50 lines |
+| 3-4 | Standard | 2-3 files, established patterns, clear requirements |
+| 5-6 | Moderate | 4-5 files, some coordination, new patterns |
+| 7-8 | Complex | Multi-file coordination, architectural decisions |
+| 9-10 | Very Complex | System-wide changes, complex state management |
+
+---
+
+## Step 0: Auto-Detection (First Run)
+
+Before the interview starts, `/karimo:plan` checks `.karimo/config.yaml`:
+
+**If first run (no config exists):**
+1. Spawn investigator in `--mode context-scan`
+2. Auto-detect runtime, framework, commands, boundaries
+3. Present findings for user approval
+4. Create `.karimo/config.yaml` with detected values
+
+**If subsequent run:**
+1. Spawn investigator in `--mode drift-check`
+2. Report any configuration drift
+3. User acknowledges changes
+
+---
+
+## Pre-Interview Setup
+
+Before the first question, the interviewer:
+
+1. Load project configuration from `.karimo/config.yaml`
+2. **Load research context from `.karimo/prds/{slug}/research/findings.md`** (v7.0)
+3. Load `.karimo/learnings/` for compound learning context (patterns, anti-patterns, project-notes, execution-rules)
+4. Read previous PRDs from `.karimo/prds/` for retrospective context
+5. Read this protocol and the PRD template
+
+### Research Context (v7.0)
+
+If research findings are available, the interviewer:
+
+1. Summarizes key research findings at the start of Round 1
+2. Uses discovered patterns to inform questions
+3. References recommended libraries/approaches during Requirements round
+4. Incorporates identified gaps into Dependencies round
+
+**Research summary format:**
+
+```
+╭──────────────────────────────────────────────────────╮
+│  Research Context                                    │
+╰──────────────────────────────────────────────────────╯
+
+Based on research for this feature:
+
+Key Patterns Found:
+  • {pattern_name}: {brief description} (file:line)
+  • {pattern_name}: {brief description} (file:line)
+
+Recommended Approaches:
+  • {approach}: {why recommended}
+
+Identified Gaps:
+  • {gap}: {impact}
+
+These findings will inform the interview questions.
+```
+
+If no research is available (--skip-research flag used), the interviewer proceeds without research context and notes this limitation.
+
+---
+
+## Round 1: Framing (~5 minutes)
+
+**Purpose:** Establish scope, success criteria, and risk.
+
+**PRD sections filled:** §1 Executive Summary
+
+### Research Context Summary (if available)
+
+Before beginning core questions, present research findings:
+
+> **Research Context for {slug}:**
+>
+> Based on codebase analysis and external research:
+> - **Key patterns found:** {from research/internal/patterns.md}
+> - **Recommended approaches:** {from research/external/best-practices.md}
+> - **Identified gaps:** {from research/internal/errors.md}
+>
+> These findings will inform our interview questions.
+
+If research is not available, skip this section and proceed to core questions.
+
+### Core Questions (Always Ask)
+
+1. **What are we building?** Describe the feature in plain language — what it does, not how it's built.
+2. **What would you demo when this is done?** Walk through the screen, flow, output.
+3. **What's the thing most likely to go wrong or take longer than expected?** The biggest risk.
+4. **Is this MVP-get-it-working or polished-ship-it?** Ambition level for this phase.
+5. **Who uses this? What's their workflow before and after?** Target user and workflow change.
+
+### Conditional Follow-Ups
+
+| Trigger | Follow-Up |
+|---------|-----------|
+| Data model changes | "What's the migration risk? Do you have a rollback strategy?" |
+| External dependencies | "Are those ready now? Fallback if not ready?" |
+| Tight deadline | "What can be cut? What's truly non-negotiable?" |
+
+### Data Captured
+
+- `executive_summary.one_liner`
+- `executive_summary.done_looks_like`
+- `executive_summary.primary_risk`
+- `executive_summary.scope_type` (new feature / refactor / migration / integration)
+- `executive_summary.target_user`
+
+### Round Completion
+
+After Round 1:
+- Summarize what you heard in 2-3 sentences
+- State the scope classification
+- Confirm: "Does that capture it, or did I miss something?"
+
+### Save and Commit
+
+After user confirms framing:
+
+1. **Write Executive Summary section** to `PRD_{slug}.md`
+2. **Commit initial PRD structure:**
+
+```bash
+git add .karimo/prds/{NNN}_{slug}/PRD_{slug}.md
+git commit -m "docs(karimo): add PRD framing for {slug}
+
+Executive summary and scope definition completed.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+3. **Transition to Round 2**
+
+---
+
+## Round 2: Requirements (~10 minutes)
+
+**Purpose:** Break the feature into concrete requirements with priorities.
+
+**PRD sections filled:** §3 Goals, §4 Requirements, §5 UX Notes
+
+### Question Flow
+
+1. Walk through each sub-component or capability described in Round 1
+2. For each component: "Is this a Must (blocks launch), Should (important but not blocking), or Could (nice to have)?"
+3. For each **Must** requirement: "What are the specific acceptance criteria? If I handed you a PR, what would you check?"
+4. For each **Should/Could**: "If we're running short on time or capacity, is this the first thing you'd cut?"
+5. After stated requirements: "Are there requirements you're assuming that we haven't said out loud?"
+6. "What should the agent definitely NOT do? What's off-limits for this feature?"
+
+### Visual Assets Prompt
+
+After capturing requirements, prompt for visual references:
+
+> "Do you have any mockups, wireframes, or design references?
+>
+> If yes, drag them into: `.karimo/prds/{slug}/assets/`
+>
+> Say 'done' when ready, or 'skip' to continue."
+
+If user adds files:
+1. Run `node .karimo/scripts/karimo-assets.js import {slug}`
+2. Review imported assets and their auto-generated names
+3. Embed references in PRD Section 5 (UX & Interaction Notes)
+
+### Conditional Follow-Ups
+
+| Trigger | Follow-Up |
+|---------|-----------|
+| Requirement complexity > 6 | "This feels like it could be split. Can we break it into two tasks?" |
+| Unclear boundaries | "Let's draw a hard line. What's in scope for this phase, and what gets pushed to next?" |
+| UI work mentioned | "Are there design references, component patterns, or responsive requirements?" |
+| Data work mentioned | "What are the validation rules? What does the error state look like?" |
+
+### Data Captured
+
+- `requirements[]` with priority, description, acceptance criteria
+- `non_goals[]`
+- Initial task decomposition
+
+### Round Completion
+
+After Round 2:
+- Read back the prioritized requirement list
+- Flag any requirements that feel too large for a single agent task
+- Confirm: "This is what agents will be working from. Anything to add or change?"
+
+### Save and Commit
+
+After capturing all requirements:
+
+1. **Write Goals, Requirements, and UX sections** to PRD
+2. **Commit requirements sections:**
+
+```bash
+git add .karimo/prds/{NNN}_{slug}/PRD_{slug}.md
+git commit -m "docs(karimo): add PRD requirements for {slug}
+
+Goals, requirements, and UX notes completed.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+3. **Transition to Round 2.5**
+
+---
+
+## Round 2.5: Complexity Assessment (Auto-Generated)
+
+**Purpose:** Surface complexity metrics, slicing recommendations, and model distribution before defining dependencies.
+
+After capturing requirements and before defining dependencies, the interviewer auto-generates a complexity assessment:
+
+### Assessment Display
+
+```
+╭──────────────────────────────────────────────────────────────╮
+│  Complexity Assessment                                       │
+╰──────────────────────────────────────────────────────────────╯
+
+Tasks: {task_count}
+Total complexity: {total_points} points
+
+Distribution:
+  Sonnet (1-4): {sonnet_count} tasks
+  Opus (5-10): {opus_count} tasks
+  High-risk (7+): {high_risk_count} tasks
+
+{slicing_recommendation}
+
+Proceed to Dependencies? [Y] or discuss slicing [S]
+```
+
+### Slicing Recommendation Logic
+
+**Auto-propose gates when ANY of:**
+- ≥15 tasks
+- ≥8 waves
+- total_complexity ≥100 points
+- Touches `require_review` paths from config.yaml
+
+**Slicing thresholds (complexity-based):**
+
+| Total Points | Recommendation |
+|--------------|----------------|
+| <100 | "No slicing needed" (unless task/wave triggers) |
+| 100-200 | "Consider 2 slices with 1 gate" |
+| 200-300 | "Recommend 3 slices with 2 gates" |
+| 300+ | "Strong recommendation: 4+ slices" |
+
+### Gate Boundary Heuristic
+
+Tasks producing human decisions (audits, baselines, classifications — artifacts humans interpret) are gate-boundary candidates. The interviewer identifies these by looking for:
+
+- Tasks with "audit", "review", "baseline", or "classify" in the title
+- Tasks that output artifacts requiring human interpretation
+- Tasks that inform subsequent architectural decisions
+
+### Slicing Discussion (if user chooses [S])
+
+If user selects "discuss slicing":
+
+1. Present proposed slice boundaries:
+   ```
+   Proposed Slices:
+     Slice 1: Waves 1-3 (tasks: 1a-2b) — Foundation
+       Gate 1: After wave 3 — "Review baseline metrics"
+     Slice 2: Waves 4-6 (tasks: 3a-4b) — Core features
+       Gate 2: After wave 6 — "Validate core functionality"
+     Slice 3: Waves 7-8 (tasks: 5a-5c) — Integration
+   ```
+
+2. Allow user to adjust:
+   - Move gate boundaries
+   - Add/remove gates
+   - Name gates for clarity
+
+3. Capture final slicing decision in PRD metadata
+
+### Data Captured
+
+- `complexity_assessment.total_tasks`
+- `complexity_assessment.total_points`
+- `complexity_assessment.sonnet_count`
+- `complexity_assessment.opus_count`
+- `complexity_assessment.high_risk_count`
+- `complexity_assessment.slicing_recommended`
+- `complexity_assessment.slices[]` (if configured)
+
+### Round Completion
+
+After Round 2.5:
+- Confirm slicing decision (or "no slicing")
+- Transition to Round 2.6 (Orchestration Recommendation)
+
+---
+
+## Round 2.6: Orchestration Recommendation (Auto-Generated)
+
+**Purpose:** Recommend orchestration settings based on complexity metrics before defining dependencies.
+
+**v9.2 Feature:** This round uses the `orchestration-inference` skill to generate intelligent recommendations.
+
+### Inference Inputs
+
+The inference engine uses data from Round 2.5:
+- `task_count` — Total tasks
+- `wave_count` — Total waves (from initial dependency analysis)
+- `total_points` — Sum of complexity scores
+- `high_risk_count` — Tasks with complexity 7+
+- `require_review_files` — Tasks touching sensitive files
+- `review_provider` — From project config.yaml
+
+### Recommendation Display
+
+```
+╭──────────────────────────────────────────────────────────────╮
+│  Orchestration Recommendation                                │
+╰──────────────────────────────────────────────────────────────╯
+
+Based on complexity assessment ({task_count} tasks, {wave_count} waves, {total_points} points):
+
+Integration Cadence: {cadence}
+  {reason}
+
+Review Cadence: trigger={trigger}, scope={scope}
+  {reason}
+  {cost estimate if applicable}
+
+Gates: {gate_count} gates, model={model}
+  {placements with labels}
+  {reason}
+
+─────────────────────────────────────────────────────────────────
+[Y] Accept recommendations
+[C] Customize settings
+[S] Skip orchestration config (use defaults)
+```
+
+### User Response Handling
+
+**[Y] Accept:**
+- Store recommendation in interview context for `.execution_config.json`
+
+**[C] Customize:**
+- Present each axis (integration, review, gates) for override
+- Allow adjustment of gate placements
+- Store customized settings
+
+**[S] Skip:**
+- Use project defaults from config.yaml
+- No override stored
+
+### Data Captured
+
+- `orchestration_recommendation.integration.cadence`
+- `orchestration_recommendation.integration.auto_merge_on_green`
+- `orchestration_recommendation.review.trigger`
+- `orchestration_recommendation.review.scope`
+- `orchestration_recommendation.review.on_findings`
+- `orchestration_recommendation.gates.model`
+- `orchestration_recommendation.gates.placements[]`
+- `orchestration_recommendation.gates.conditions`
+
+### Round Completion
+
+After Round 2.6:
+- Confirm orchestration settings (or "skip")
+- Transition to Round 3 (Dependencies)
+
+---
+
+## Round 3: Dependencies & Architecture (~5 minutes)
+
+**Purpose:** Establish task ordering, parallel opportunities, and file-level scope.
+
+**PRD sections filled:** §6 Dependencies, §7 Rollout, §8 Milestones
+
+### Question Flow
+
+1. "Which requirements can be worked on independently — no shared state, no shared files?"
+2. "Which ones must complete before others can start? What's the dependency chain?"
+3. "Are there files that multiple requirements will touch?" (Explain file-overlap detection)
+4. "Are there external blockers — APIs not ready, design decisions not made?"
+5. "What's the testing strategy? Existing tests that must keep passing? New tests needed?"
+
+### Investigator Agent (Opt-In)
+
+Offer to spawn the investigator:
+
+> "Codebase scan available to identify affected files and existing patterns. Proceed? [Y/n]"
+
+If accepted, the investigator scans for:
+- Affected files per task
+- Existing patterns to follow
+- File overlaps between tasks
+- Import/dependency chains
+
+Results populate `tasks[].files_affected` and `tasks[].agent_context`.
+
+### Conditional Follow-Ups
+
+| Trigger | Follow-Up |
+|---------|-----------|
+| File overlap detected | "Tasks [X] and [Y] both touch [file]. Should we restructure, or are you okay with them running sequentially?" |
+| Shared service/utility mentioned | "Should we extract that as its own task — build the shared piece first?" |
+| External blockers exist | "What's the fallback? If [blocker] isn't ready, can the agent stub it out?" |
+| Cross-feature dependency | "That feature needs to be merged to main first. Should we mark this as an external blocker, or is that feature already shipped?" |
+
+### Data Captured
+
+- `external_blockers[]` — APIs, decisions, or dependencies not controlled by this PRD
+- `cross_feature_blockers[]` — Features that must be merged to main before this PRD can execute
+- `file_overlaps[]` — Files touched by multiple tasks (impacts parallelization)
+- `dependency_chain` — Task ordering based on requirements
+- `tasks[].depends_on`
+- `tasks[].files_affected`
+
+### Model Override (Optional)
+
+After dependencies are captured, offer model override:
+
+```
+╭──────────────────────────────────────────────────────────────╮
+│  Model Override (Optional)                                   │
+╰──────────────────────────────────────────────────────────────╯
+
+Current assignments (from complexity):
+  Sonnet: [1a], [1b], [1c]
+  Opus: [2a], [3a]
+
+Override any? [Y/n]
+```
+
+If user accepts override:
+1. Present each task with current model
+2. Allow forcing Opus for Sonnet tasks
+3. Allow forcing Sonnet for Opus tasks (cost savings)
+4. Capture overrides in task metadata
+
+**Override Capture Format:**
+```yaml
+model_override:
+  force_opus: ["1a", "1c"]  # Override Sonnet → Opus
+  force_sonnet: ["3a"]       # Override Opus → Sonnet
+```
+
+### Round Completion
+
+After Round 3:
+- Present the dependency graph in text form
+- Flag file overlaps
+- Note any model overrides
+- Confirm: "Does this ordering make sense?"
+
+### Save and Commit
+
+After capturing dependencies and rollout:
+
+1. **Write Dependencies, Rollout, and Milestones sections**
+2. **Commit dependency sections:**
+
+```bash
+git add .karimo/prds/{NNN}_{slug}/PRD_{slug}.md
+git commit -m "docs(karimo): add PRD dependencies for {slug}
+
+Dependencies, rollout plan, and milestones completed.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+3. **Transition to Round 4**
+
+---
+
+## Round 4: Retrospective (~3 minutes)
+
+**Purpose:** Feed compound learning data into the current plan.
+
+**PRD section filled:** §10 Checkpoint Learnings
+
+### If No Previous PRDs
+
+> "No checkpoint data from previous phases — we'll start collecting after this feature's first task completes. Do you have any general learnings from previous work you'd like to incorporate?"
+
+### If Previous PRDs Exist
+
+1. Summarize the latest checkpoint data:
+   - "Patterns that worked well: [list]"
+   - "Anti-patterns that were flagged: [list]"
+   - "Cost estimates were [over/under] by [X]% on average"
+   - "These files caused integration failures: [list]"
+2. "Does any of this change how we should approach this feature?"
+3. "Are there new rules we should add — things you want agents to always do or never do?"
+
+### If .karimo/learnings/ Has Entries
+
+1. Reference relevant learnings from the project's accumulated knowledge
+2. Apply applicable patterns and anti-patterns to task context
+3. Note any learnings that specifically apply to this feature's scope
+
+### Data Captured
+
+- Adjusted estimates
+- Updated `agent_context` with retrospective patterns
+- Learnings to add to `.karimo/learnings/{category}/`
+
+### Round Completion
+
+After Round 4:
+- Note adjustments to task estimates and agent context
+- Confirm: "Incorporating learnings. Generate PRD now? [Y/n]"
+
+---
+
+## Post-Interview: PRD Generation
+
+After Round 4:
+
+### 1. Generate PRD
+
+Follow `.karimo/templates/PRD_TEMPLATE.md` structure.
+
+### 2. Generate tasks.yaml
+
+Create task definitions following `.karimo/templates/TASK_SCHEMA.md`.
+
+### 3. Assign Models
+
+Apply model assignment based on complexity:
+- Complexity 1–4 → Sonnet
+- Complexity 5–10 → Opus
+
+Record model in each task entry.
+
+### 4. Generate Execution Plan
+
+Create `execution_plan.yaml` following `.karimo/templates/EXECUTION_PLAN_SCHEMA.md`.
+
+### 5. Spawn Reviewer Agent
+
+Spawn `karimo-reviewer` for validation with:
+- Generated PRD content
+- tasks.yaml
+- execution_plan.yaml
+
+### 6. Address Issues
+
+If reviewer flags issues:
+- Address each concern
+- Re-submit for validation
+
+### 7. Save Artifacts
+
+On approval, save to PRD folder:
+```
+.karimo/prds/{NNN}_{slug}/
+├── PRD_{slug}.md
+├── tasks.yaml
+├── execution_plan.yaml
+├── status.json (initial state)
+├── findings.md (empty template)
+├── dependencies.md (from template)
+└── assets/
+```
+
+### 8. Commit Complete PRD
+
+After saving all artifacts:
+
+```bash
+git add .karimo/prds/{NNN}_{slug}/PRD_{slug}.md .karimo/prds/{NNN}_{slug}/tasks.yaml .karimo/prds/{NNN}_{slug}/execution_plan.yaml .karimo/prds/{NNN}_{slug}/status.json .karimo/prds/{NNN}_{slug}/findings.md .karimo/prds/{NNN}_{slug}/dependencies.md
+git commit -m "docs(karimo): complete PRD for {slug}
+
+Retrospective learnings, task decomposition, and execution plan generated.
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+Then spawn `karimo-reviewer` for validation.
+
+**Note:** If reviewer finds issues and requires corrections, make a follow-up commit:
+```bash
+git commit -m "docs(karimo): fix PRD issues for {slug}
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
+## PRD Folder Structure
+
+```
+.karimo/prds/001_feature-slug/
+├── PRD_feature-slug.md # Narrative document (slug-based naming)
+├── tasks.yaml          # Task definitions (parsed by PM agent)
+├── execution_plan.yaml # Wave-based execution plan
+├── status.json         # Execution state
+├── findings.md         # Cross-task discoveries (maintained by PM)
+├── dependencies.md     # Runtime dependencies (maintained by agents)
+├── briefs/             # Generated briefs per task (created by brief-writer)
+│   ├── 1a_feature-slug.md
+│   ├── 1b_feature-slug.md
+│   └── ...
+├── assets/             # Flat folder for images (no subfolders)
+│   ├── mockup-20260319220000.png
+│   └── flow-20260319220001.png
+└── assets.json         # Asset metadata manifest
+```
+
+---
+
+## Image Handling
+
+Images can be added during the interview:
+- Screenshots of UI mockups
+- Figma exports
+- Diagrams or flowcharts
+
+**Manual Import Workflow:**
+
+1. User drags files into `.karimo/prds/{slug}/assets/`
+2. Agent runs `node .karimo/scripts/karimo-assets.js import {slug}`
+3. Files are renamed with timestamps and added to manifest
+4. Markdown references are generated for PRD embedding
+
+**Example:**
+```
+User: I added some mockups to the assets folder.
+
+Agent:
+$ node .karimo/scripts/karimo-assets.js import user-profiles
+
+✅ Imported: dashboard-mockup-20260319220000.png
+   Was: Dashboard Mockup Final.png
+
+Markdown references:
+![dashboard-mockup](./assets/dashboard-mockup-20260319220000.png)
+
+I've embedded this mockup in the UX section.
+```
+
+**Anytime Import:** User can add more images at any point. The import command is idempotent — it only processes new files.
+
+Images are stored in `.karimo/prds/{slug}/assets/` (flat folder) and referenced using relative paths in the PRD: `./assets/filename.png`
+
+---
+
+## Round Completion Signals
+
+Users signal readiness to proceed:
+- "Ready to move on" / "Next" / "Proceed"
+- "Done with this section" / "That covers it"
+- "Continue" / "Move on"
+
+The interviewer confirms and transitions to the next round.
+
+---
+
+## Session Resume
+
+If the interview is interrupted:
+- Claude Code maintains conversation context
+- Re-running `/karimo:plan` continues from where you left off
+- PRD progress is preserved in the conversation
+
+---
+
+*Generated by [KARIMO v9.7](https://github.com/opensesh/KARIMO)*

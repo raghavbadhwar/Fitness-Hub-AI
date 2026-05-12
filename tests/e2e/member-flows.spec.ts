@@ -75,3 +75,15 @@ test("trainer workout preview exposes the trainer workspace", async ({ page }) =
   await expect(page.getByText("Templates", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Reviews", { exact: true }).first()).toBeVisible();
 });
+
+test("member nutrition preview opens the search-first food logging path", async ({ page }) => {
+  await page.goto(`${MEMBER_BASE_URL}__e2e/nutrition`);
+
+  await page.getByLabel("Add food to Lunch").click();
+
+  await expect(page.getByPlaceholder("Search foods, brands, roti, oats...")).toBeVisible();
+  await expect(page.getByText("Browse 178 foods across 28 categories")).toBeVisible();
+  await expect(page.getByText("Roti / Chapati").first()).toBeVisible();
+  await expect(page.getByText("Chicken Biryani").first()).toBeVisible();
+  await expect(page.getByText(/local indian food catalog/i).first()).toBeVisible();
+});

@@ -16,6 +16,7 @@ export interface AiFoodAnalysis {
   carbs: number;
   fat: number;
   fiber: number;
+  servingGrams?: number;
   confidence: AiFoodAnalysisConfidence;
   ingredients: string[];
   healthTip: string;

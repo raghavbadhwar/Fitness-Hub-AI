@@ -646,6 +646,7 @@ export const AiAnalyzeFoodResponse = zod.object({
   carbs: zod.number(),
   fat: zod.number(),
   fiber: zod.number(),
+  servingGrams: zod.number().optional(),
   confidence: zod.enum(["high", "medium", "low"]),
   ingredients: zod.array(zod.string()),
   healthTip: zod.string(),
@@ -721,6 +722,164 @@ export const AiWorkoutSuggestionResponse = zod.object({
   warmup: zod.string(),
   cooldown: zod.string(),
   motivationalTip: zod.string(),
+});
+
+/**
+ * @summary Search foods across member, catalog, and provider-backed sources
+ */
+export const foodsSearchQueryLimitMax = 20;
+
+export const FoodsSearchQueryParams = zod.object({
+  q: zod.coerce.string().optional(),
+  limit: zod.coerce.number().min(1).max(foodsSearchQueryLimitMax).optional(),
+});
+
+export const FoodsSearchResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.string(),
+      source: zod.enum([
+        "open_food_facts",
+        "usda",
+        "nutritionix",
+        "curated",
+        "user",
+        "ai_label",
+        "member_custom",
+      ]),
+      sourceProductId: zod.string().optional(),
+      catalogItemId: zod.string().optional(),
+      memberFoodItemId: zod.string().optional(),
+      barcode: zod.string().optional(),
+      name: zod.string(),
+      brand: zod.string().optional(),
+      servingLabel: zod.string(),
+      servingGrams: zod.number().optional(),
+      calories: zod.number(),
+      protein: zod.number(),
+      carbs: zod.number(),
+      fat: zod.number(),
+      fiber: zod.number(),
+      sugar: zod.number().optional(),
+      sodiumMg: zod.number().optional(),
+      ingredients: zod.array(zod.string()),
+      allergens: zod.array(zod.string()),
+      portionOptions: zod.array(
+        zod.object({
+          label: zod.string(),
+          grams: zod.number().optional(),
+          milliliters: zod.number().optional(),
+          aliases: zod.array(zod.string()).optional(),
+          region: zod.string().optional(),
+        }),
+      ),
+      confidence: zod.enum(["high", "medium", "low"]),
+      provenance: zod.object({
+        provider: zod.string(),
+        cached: zod.boolean(),
+        qualityScore: zod.number().optional(),
+      }),
+    }),
+  ),
+  fallbackUsed: zod.string().nullish(),
+});
+
+/**
+ * @summary Resolve a packaged food barcode
+ */
+export const foodsGetBarcodePathBarcodeRegExp = new RegExp("^\\d{6,14}$");
+
+export const FoodsGetBarcodeParams = zod.object({
+  barcode: zod.coerce.string().regex(foodsGetBarcodePathBarcodeRegExp),
+});
+
+export const FoodsGetBarcodeResponse = zod.object({
+  item: zod.object({
+    id: zod.string(),
+    source: zod.enum([
+      "open_food_facts",
+      "usda",
+      "nutritionix",
+      "curated",
+      "user",
+      "ai_label",
+      "member_custom",
+    ]),
+    sourceProductId: zod.string().optional(),
+    catalogItemId: zod.string().optional(),
+    memberFoodItemId: zod.string().optional(),
+    barcode: zod.string().optional(),
+    name: zod.string(),
+    brand: zod.string().optional(),
+    servingLabel: zod.string(),
+    servingGrams: zod.number().optional(),
+    calories: zod.number(),
+    protein: zod.number(),
+    carbs: zod.number(),
+    fat: zod.number(),
+    fiber: zod.number(),
+    sugar: zod.number().optional(),
+    sodiumMg: zod.number().optional(),
+    ingredients: zod.array(zod.string()),
+    allergens: zod.array(zod.string()),
+    portionOptions: zod.array(
+      zod.object({
+        label: zod.string(),
+        grams: zod.number().optional(),
+        milliliters: zod.number().optional(),
+        aliases: zod.array(zod.string()).optional(),
+        region: zod.string().optional(),
+      }),
+    ),
+    confidence: zod.enum(["high", "medium", "low"]),
+    provenance: zod.object({
+      provider: zod.string(),
+      cached: zod.boolean(),
+      qualityScore: zod.number().optional(),
+    }),
+  }),
+  fallbackUsed: zod.string().nullish(),
+});
+
+/**
+ * @summary Save a corrected or custom food for the signed-in member
+ */
+export const foodsCreateCustomBodyCaloriesMin = 0;
+
+export const foodsCreateCustomBodyProteinMin = 0;
+
+export const foodsCreateCustomBodyCarbsMin = 0;
+
+export const foodsCreateCustomBodyFatMin = 0;
+
+export const foodsCreateCustomBodyFiberMin = 0;
+
+export const FoodsCreateCustomBody = zod.object({
+  catalogItemId: zod.string().optional(),
+  name: zod.string(),
+  brand: zod.string().optional(),
+  servingLabel: zod.string().optional(),
+  servingGrams: zod.number().optional(),
+  calories: zod.number().min(foodsCreateCustomBodyCaloriesMin),
+  protein: zod.number().min(foodsCreateCustomBodyProteinMin),
+  carbs: zod.number().min(foodsCreateCustomBodyCarbsMin),
+  fat: zod.number().min(foodsCreateCustomBodyFatMin),
+  fiber: zod.number().min(foodsCreateCustomBodyFiberMin).optional(),
+  micronutrients: zod.record(zod.string(), zod.unknown()).optional(),
+  portionOptions: zod
+    .array(
+      zod.object({
+        label: zod.string(),
+        grams: zod.number().optional(),
+        milliliters: zod.number().optional(),
+        aliases: zod.array(zod.string()).optional(),
+        region: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  source: zod.string().optional(),
+  confidence: zod.enum(["high", "medium", "low"]).optional(),
+  isFavorite: zod.boolean().optional(),
 });
 
 /**
@@ -829,6 +988,15 @@ export const NutritionListLogsResponseItem = zod.object({
       timestamp: zod.number().optional(),
       fromPhoto: zod.boolean().optional(),
       photoUri: zod.string().optional(),
+      source: zod.enum(["manual", "photo", "search", "recent", "barcode", "label"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      ingredients: zod.array(zod.string()).optional(),
+      servingGrams: zod.number().optional(),
+      barcode: zod.string().optional(),
+      correctionOf: zod.string().optional(),
+      correctedAt: zod.number().optional(),
+      relogOf: zod.string().optional(),
+      notes: zod.string().optional(),
     }),
   ),
   waterIntake: zod.number(),
@@ -865,6 +1033,15 @@ export const NutritionGetLogResponse = zod.object({
       timestamp: zod.number().optional(),
       fromPhoto: zod.boolean().optional(),
       photoUri: zod.string().optional(),
+      source: zod.enum(["manual", "photo", "search", "recent", "barcode", "label"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      ingredients: zod.array(zod.string()).optional(),
+      servingGrams: zod.number().optional(),
+      barcode: zod.string().optional(),
+      correctionOf: zod.string().optional(),
+      correctedAt: zod.number().optional(),
+      relogOf: zod.string().optional(),
+      notes: zod.string().optional(),
     }),
   ),
   waterIntake: zod.number(),
@@ -898,6 +1075,15 @@ export const NutritionPutLogBody = zod.object({
       timestamp: zod.number().optional(),
       fromPhoto: zod.boolean().optional(),
       photoUri: zod.string().optional(),
+      source: zod.enum(["manual", "photo", "search", "recent", "barcode", "label"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      ingredients: zod.array(zod.string()).optional(),
+      servingGrams: zod.number().optional(),
+      barcode: zod.string().optional(),
+      correctionOf: zod.string().optional(),
+      correctedAt: zod.number().optional(),
+      relogOf: zod.string().optional(),
+      notes: zod.string().optional(),
     }),
   ),
   waterIntake: zod.number(),
@@ -922,6 +1108,15 @@ export const NutritionPutLogResponse = zod.object({
       timestamp: zod.number().optional(),
       fromPhoto: zod.boolean().optional(),
       photoUri: zod.string().optional(),
+      source: zod.enum(["manual", "photo", "search", "recent", "barcode", "label"]).optional(),
+      confidence: zod.enum(["high", "medium", "low"]).optional(),
+      ingredients: zod.array(zod.string()).optional(),
+      servingGrams: zod.number().optional(),
+      barcode: zod.string().optional(),
+      correctionOf: zod.string().optional(),
+      correctedAt: zod.number().optional(),
+      relogOf: zod.string().optional(),
+      notes: zod.string().optional(),
     }),
   ),
   waterIntake: zod.number(),
@@ -1248,6 +1443,126 @@ export const MonthlyReviewsMarkReviewedResponse = zod.object({
 });
 
 /**
+ * @summary Search system and custom exercises
+ */
+export const workoutsSearchExercisesQueryLimitMax = 100;
+
+export const WorkoutsSearchExercisesQueryParams = zod.object({
+  q: zod.coerce.string().optional(),
+  limit: zod.coerce.number().min(1).max(workoutsSearchExercisesQueryLimitMax).optional(),
+});
+
+export const WorkoutsSearchExercisesResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.string(),
+      source: zod.enum(["system", "member_custom"]),
+      slug: zod.string().optional(),
+      baseExerciseId: zod.string().optional(),
+      name: zod.string(),
+      aliases: zod.array(zod.string()),
+      primaryMuscles: zod.array(zod.string()),
+      secondaryMuscles: zod.array(zod.string()).optional(),
+      equipment: zod.string().optional(),
+      exerciseType: zod.enum(["weight_reps", "bodyweight_reps", "duration", "distance_duration"]),
+      instructions: zod.array(zod.string()).optional(),
+      notes: zod.string().optional(),
+      isSystem: zod.boolean().optional(),
+      archivedAt: zod.string().optional(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a member custom exercise
+ */
+export const WorkoutsCreateCustomExerciseBody = zod.object({
+  baseExerciseId: zod.string().optional(),
+  name: zod.string(),
+  aliases: zod.array(zod.string()).optional(),
+  primaryMuscles: zod.array(zod.string()).optional(),
+  equipment: zod.string().optional(),
+  exerciseType: zod
+    .enum(["weight_reps", "bodyweight_reps", "duration", "distance_duration"])
+    .optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Get set history and PRs for an exercise
+ */
+export const WorkoutsGetExerciseHistoryParams = zod.object({
+  exerciseId: zod.coerce.string(),
+});
+
+export const WorkoutsGetExerciseHistoryResponse = zod.object({
+  exerciseId: zod.string(),
+  sets: zod.array(
+    zod.object({
+      id: zod.string(),
+      sessionId: zod.string(),
+      exerciseId: zod.string(),
+      exerciseName: zod.string(),
+      setId: zod.string(),
+      setIndex: zod.number(),
+      setType: zod.string(),
+      weight: zod.number(),
+      reps: zod.number(),
+      durationSeconds: zod.number().optional(),
+      distanceMeters: zod.number().optional(),
+      rpe: zod.number().optional(),
+      rir: zod.number().optional(),
+      completed: zod.boolean(),
+      performedAt: zod.string(),
+      date: zod.string(),
+    }),
+  ),
+  personalRecords: zod.array(
+    zod.object({
+      id: zod.string(),
+      exerciseId: zod.string(),
+      metric: zod.enum(["estimated_1rm", "max_weight", "max_reps", "max_volume_set"]),
+      value: zod.number(),
+      weight: zod.number().optional(),
+      reps: zod.number().optional(),
+      sessionId: zod.string().optional(),
+      setId: zod.string().optional(),
+      achievedAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get bounded workout analytics for the signed-in member
+ */
+export const workoutsGetAnalyticsQueryFromRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const workoutsGetAnalyticsQueryToRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
+export const WorkoutsGetAnalyticsQueryParams = zod.object({
+  from: zod.coerce.string().regex(workoutsGetAnalyticsQueryFromRegExp).optional(),
+  to: zod.coerce.string().regex(workoutsGetAnalyticsQueryToRegExp).optional(),
+});
+
+export const WorkoutsGetAnalyticsResponse = zod.object({
+  from: zod.string().nullish(),
+  to: zod.string().nullish(),
+  completedSets: zod.number(),
+  totalVolume: zod.number(),
+  workoutDays: zod.number(),
+  topExercises: zod.array(
+    zod.object({
+      exerciseId: zod.string(),
+      name: zod.string(),
+      volume: zod.number(),
+      sets: zod.number(),
+    }),
+  ),
+});
+
+/**
  * Returns member accounts that a trainer or owner can assign workouts to.
  * @summary List assignable members
  */
@@ -1361,6 +1676,10 @@ export const WorkoutsCreateMemberPlanBody = zod.object({
  * @summary List signed-in member workout sessions
  */
 export const workoutsListSessionsResponseDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const workoutsListSessionsResponseExercisesItemSetsItemRpeMax = 10;
+
+export const workoutsListSessionsResponseExercisesItemSetsItemRirMin = 0;
+export const workoutsListSessionsResponseExercisesItemSetsItemRirMax = 10;
 
 export const WorkoutsListSessionsResponseItem = zod.object({
   id: zod.string(),
@@ -1380,6 +1699,21 @@ export const WorkoutsListSessionsResponseItem = zod.object({
           weight: zod.number(),
           reps: zod.number(),
           completed: zod.boolean(),
+          type: zod.enum(["warmup", "normal", "drop", "failure"]).optional(),
+          rpe: zod
+            .number()
+            .min(1)
+            .max(workoutsListSessionsResponseExercisesItemSetsItemRpeMax)
+            .optional(),
+          rir: zod
+            .number()
+            .min(workoutsListSessionsResponseExercisesItemSetsItemRirMin)
+            .max(workoutsListSessionsResponseExercisesItemSetsItemRirMax)
+            .optional(),
+          notes: zod.string().optional(),
+          previousWeight: zod.number().optional(),
+          previousReps: zod.number().optional(),
+          progressionHint: zod.string().optional(),
         }),
       ),
       notes: zod.string().nullish(),
@@ -1399,6 +1733,10 @@ export const WorkoutsListSessionsResponse = zod.array(WorkoutsListSessionsRespon
  * @summary Create or upsert a signed-in member workout session
  */
 export const workoutsCreateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const workoutsCreateSessionBodyExercisesItemSetsItemRpeMax = 10;
+
+export const workoutsCreateSessionBodyExercisesItemSetsItemRirMin = 0;
+export const workoutsCreateSessionBodyExercisesItemSetsItemRirMax = 10;
 
 export const WorkoutsCreateSessionBody = zod.object({
   id: zod.string(),
@@ -1418,6 +1756,21 @@ export const WorkoutsCreateSessionBody = zod.object({
           weight: zod.number(),
           reps: zod.number(),
           completed: zod.boolean(),
+          type: zod.enum(["warmup", "normal", "drop", "failure"]).optional(),
+          rpe: zod
+            .number()
+            .min(1)
+            .max(workoutsCreateSessionBodyExercisesItemSetsItemRpeMax)
+            .optional(),
+          rir: zod
+            .number()
+            .min(workoutsCreateSessionBodyExercisesItemSetsItemRirMin)
+            .max(workoutsCreateSessionBodyExercisesItemSetsItemRirMax)
+            .optional(),
+          notes: zod.string().optional(),
+          previousWeight: zod.number().optional(),
+          previousReps: zod.number().optional(),
+          progressionHint: zod.string().optional(),
         }),
       ),
       notes: zod.string().nullish(),
@@ -1440,6 +1793,10 @@ export const WorkoutsUpdateSessionParams = zod.object({
 });
 
 export const workoutsUpdateSessionBodyDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const workoutsUpdateSessionBodyExercisesItemSetsItemRpeMax = 10;
+
+export const workoutsUpdateSessionBodyExercisesItemSetsItemRirMin = 0;
+export const workoutsUpdateSessionBodyExercisesItemSetsItemRirMax = 10;
 
 export const WorkoutsUpdateSessionBody = zod.object({
   id: zod.string(),
@@ -1459,6 +1816,21 @@ export const WorkoutsUpdateSessionBody = zod.object({
           weight: zod.number(),
           reps: zod.number(),
           completed: zod.boolean(),
+          type: zod.enum(["warmup", "normal", "drop", "failure"]).optional(),
+          rpe: zod
+            .number()
+            .min(1)
+            .max(workoutsUpdateSessionBodyExercisesItemSetsItemRpeMax)
+            .optional(),
+          rir: zod
+            .number()
+            .min(workoutsUpdateSessionBodyExercisesItemSetsItemRirMin)
+            .max(workoutsUpdateSessionBodyExercisesItemSetsItemRirMax)
+            .optional(),
+          notes: zod.string().optional(),
+          previousWeight: zod.number().optional(),
+          previousReps: zod.number().optional(),
+          progressionHint: zod.string().optional(),
         }),
       ),
       notes: zod.string().nullish(),
@@ -1474,6 +1846,10 @@ export const WorkoutsUpdateSessionBody = zod.object({
 });
 
 export const workoutsUpdateSessionResponseSessionDateRegExp = new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const workoutsUpdateSessionResponseSessionExercisesItemSetsItemRpeMax = 10;
+
+export const workoutsUpdateSessionResponseSessionExercisesItemSetsItemRirMin = 0;
+export const workoutsUpdateSessionResponseSessionExercisesItemSetsItemRirMax = 10;
 
 export const WorkoutsUpdateSessionResponse = zod.object({
   session: zod.object({
@@ -1494,6 +1870,21 @@ export const WorkoutsUpdateSessionResponse = zod.object({
             weight: zod.number(),
             reps: zod.number(),
             completed: zod.boolean(),
+            type: zod.enum(["warmup", "normal", "drop", "failure"]).optional(),
+            rpe: zod
+              .number()
+              .min(1)
+              .max(workoutsUpdateSessionResponseSessionExercisesItemSetsItemRpeMax)
+              .optional(),
+            rir: zod
+              .number()
+              .min(workoutsUpdateSessionResponseSessionExercisesItemSetsItemRirMin)
+              .max(workoutsUpdateSessionResponseSessionExercisesItemSetsItemRirMax)
+              .optional(),
+            notes: zod.string().optional(),
+            previousWeight: zod.number().optional(),
+            previousReps: zod.number().optional(),
+            progressionHint: zod.string().optional(),
           }),
         ),
         notes: zod.string().nullish(),

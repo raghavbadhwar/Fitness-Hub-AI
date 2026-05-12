@@ -214,13 +214,26 @@ describe("nutrition routes", () => {
     const updateResponse = await request(app)
       .put("/nutrition/logs/2026-05-07")
       .send({
-        entries: [{ id: "entry_2", name: "Paneer", calories: 300 }],
+        entries: [
+          {
+            id: "entry_2",
+            name: "Paneer",
+            calories: 300,
+            source: "photo",
+            confidence: "medium",
+            ingredients: ["paneer", "tomato"],
+            correctionOf: "AI paneer guess",
+          },
+        ],
         waterIntake: 6,
       });
 
     assert.equal(updateResponse.status, 200);
     assert.equal(updateResponse.body.waterIntake, 6);
     assert.equal(updateResponse.body.entries[0].name, "Paneer");
+    assert.equal(updateResponse.body.entries[0].source, "photo");
+    assert.deepEqual(updateResponse.body.entries[0].ingredients, ["paneer", "tomato"]);
+    assert.equal(updateResponse.body.entries[0].correctionOf, "AI paneer guess");
     assert.equal(nutritionLogs.size, 1);
   });
 

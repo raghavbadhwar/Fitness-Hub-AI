@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef, useState } from "react";
+import Svg, { Circle } from "react-native-svg";
 import {
   Animated,
   Platform,
@@ -15,10 +16,11 @@ import {
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
 import { useTypography } from "@/hooks/useTypography";
-import { useWorkout } from "@/contexts/WorkoutContext";
+import { useWorkout, type ExerciseSet } from "@/contexts/WorkoutContext";
 import { EXERCISES } from "@/constants/exercises";
 import { ConfirmSheet } from "@/components/ConfirmSheet";
 import { generateId } from "@/lib/id";
+import { buildExerciseHistorySummary } from "@/lib/workout-history";
 
 type Colors = ReturnType<typeof useColors>;
 
@@ -27,6 +29,12 @@ const RING_SIZE = 140;
 const STROKE = 10;
 const ACCENT_COLOR = "#FF6B00";
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
+const SET_TYPE_OPTIONS: { value: NonNullable<ExerciseSet["type"]>; label: string }[] = [
+  { value: "normal", label: "N" },
+  { value: "warmup", label: "W" },
+  { value: "drop", label: "D" },
+  { value: "failure", label: "F" },
+];
 
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
   Chest: "#EF4444",
@@ -51,6 +59,13 @@ const MUSCLE_GROUP_COLORS: Record<string, string> = {
 
 function getMuscleColor(muscleGroup: string): string {
   return MUSCLE_GROUP_COLORS[muscleGroup] || MUSCLE_GROUP_COLORS.Other;
+}
+
+function formatHistoryDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function PulsingDot({ color }: { color: string }) {
@@ -97,80 +112,37 @@ function ProgressRing({
   color: string;
   bgColor: string;
 }) {
-  const rotateAnim = useRef(new Animated.Value(progress)).current;
-
-  useEffect(() => {
-    rotateAnim.setValue(progress);
-  }, [progress]);
-
-  const angle = progress * 360;
-  const showSecondHalf = angle > 180;
-
-  const firstRotation = rotateAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: ["0deg", "180deg", "180deg"],
-  });
-
-  const secondRotation = rotateAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: ["0deg", "0deg", "180deg"],
-  });
+  const clampedProgress = Math.max(0, Math.min(progress, 1));
+  const radius = (RING_SIZE - STROKE) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - clampedProgress);
+  const center = RING_SIZE / 2;
 
   return (
-    <View style={{ width: RING_SIZE, height: RING_SIZE, position: "relative" }}>
-      <View style={[ringStyles.base, { borderColor: bgColor }]} />
-
-      <View style={ringStyles.half}>
-        <Animated.View
-          style={[
-            ringStyles.halfCircle,
-            { borderColor: color },
-            { transform: [{ rotate: firstRotation }] },
-          ]}
-        />
-      </View>
-
-      {showSecondHalf && (
-        <View style={[ringStyles.half, { transform: [{ rotate: "180deg" }] }]}>
-          <Animated.View
-            style={[
-              ringStyles.halfCircle,
-              { borderColor: color },
-              { transform: [{ rotate: secondRotation }] },
-            ]}
-          />
-        </View>
-      )}
-    </View>
+    <Svg width={RING_SIZE} height={RING_SIZE} accessible={false}>
+      <Circle
+        cx={center}
+        cy={center}
+        r={radius}
+        stroke={bgColor}
+        strokeWidth={STROKE}
+        fill="none"
+      />
+      <Circle
+        cx={center}
+        cy={center}
+        r={radius}
+        stroke={color}
+        strokeWidth={STROKE}
+        fill="none"
+        strokeDasharray={[circumference, circumference]}
+        strokeDashoffset={strokeDashoffset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${center} ${center})`}
+      />
+    </Svg>
   );
 }
-
-const ringStyles = StyleSheet.create({
-  base: {
-    position: "absolute",
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: STROKE,
-  },
-  half: {
-    position: "absolute",
-    width: RING_SIZE,
-    height: RING_SIZE / 2,
-    overflow: "hidden",
-    top: 0,
-  },
-  halfCircle: {
-    position: "absolute",
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: STROKE,
-    top: 0,
-    left: 0,
-    transformOrigin: `${RING_SIZE / 2}px ${RING_SIZE / 2}px`,
-  },
-});
 
 function RestTimerOverlay({
   visible,
@@ -335,7 +307,7 @@ export default function WorkoutSessionScreen() {
     sessionId: string;
     assignedWorkoutId?: string;
   }>();
-  const { activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } =
+  const { sessions, activeSession, endSession, addExerciseToSession, addSetToExercise, updateSet } =
     useWorkout();
   const router = useRouter();
   const colors = useColors();
@@ -455,6 +427,7 @@ export default function WorkoutSessionScreen() {
         weight: 0,
         reps: parseInt(ex.defaultReps) || 10,
         completed: false,
+        type: "normal",
       })),
     });
     setShowExercisePicker(false);
@@ -523,6 +496,8 @@ export default function WorkoutSessionScreen() {
             session.exercises.map((ex) => {
               const exerciseData = EXERCISES.find((e) => e.id === ex.exerciseId);
               const muscleColor = getMuscleColor(exerciseData?.muscleGroup || "Other");
+              const historySummary = buildExerciseHistorySummary(sessions, ex.exerciseId);
+              const lastSet = historySummary?.lastSets[0];
               return (
                 <Pressable
                   key={ex.id}
@@ -546,6 +521,21 @@ export default function WorkoutSessionScreen() {
                             <Text style={[styles.exMuscle, { color: muscleColor }]}>
                               {exerciseData.muscleGroup}
                             </Text>
+                          ) : null}
+                          {historySummary && lastSet ? (
+                            <View
+                              style={[
+                                styles.historyStrip,
+                                { backgroundColor: colors.surface, borderColor: colors.border },
+                              ]}
+                            >
+                              <Feather name="clock" size={12} color={colors.mutedForeground} />
+                              <Text style={[styles.historyText, { color: colors.mutedForeground }]}>
+                                {formatHistoryDate(historySummary.lastPerformedAt)} · Last{" "}
+                                {lastSet.weight}kg x {lastSet.reps} · Best e1RM{" "}
+                                {historySummary.bestEstimatedOneRepMax}kg
+                              </Text>
+                            </View>
                           ) : null}
                         </View>
                         <View style={styles.exHeaderRight}>
@@ -605,57 +595,185 @@ export default function WorkoutSessionScreen() {
                             return (
                               <View
                                 key={set.id}
-                                style={[styles.setRow, set.completed && { opacity: 0.6 }]}
+                                style={[styles.setBlock, set.completed && { opacity: 0.72 }]}
                               >
-                                <Text style={[styles.setNum, { color: colors.mutedForeground }]}>
-                                  {idx + 1}
-                                </Text>
-                                <View style={styles.setStepperCell}>
-                                  <StepperInput
-                                    value={set.weight}
-                                    onChange={(val) =>
-                                      updateSet(session.id, ex.id, set.id, { weight: val })
-                                    }
-                                    step={2.5}
-                                    decimals={1}
-                                    editable={!set.completed}
-                                    colors={colors}
-                                    accessibilityLabel={`${ex.name} set ${idx + 1} weight in kilograms`}
-                                  />
+                                <View style={styles.setRow}>
+                                  <Text style={[styles.setNum, { color: colors.mutedForeground }]}>
+                                    {idx + 1}
+                                  </Text>
+                                  <View style={styles.setStepperCell}>
+                                    <StepperInput
+                                      value={set.weight}
+                                      onChange={(val) =>
+                                        updateSet(session.id, ex.id, set.id, { weight: val })
+                                      }
+                                      step={2.5}
+                                      decimals={1}
+                                      editable={!set.completed}
+                                      colors={colors}
+                                      accessibilityLabel={`${ex.name} set ${idx + 1} weight in kilograms`}
+                                    />
+                                  </View>
+                                  <View style={styles.setStepperCell}>
+                                    <StepperInput
+                                      value={set.reps}
+                                      onChange={(val) =>
+                                        updateSet(session.id, ex.id, set.id, { reps: val })
+                                      }
+                                      step={1}
+                                      decimals={0}
+                                      editable={!set.completed}
+                                      colors={colors}
+                                      accessibilityLabel={`${ex.name} set ${idx + 1} reps`}
+                                    />
+                                  </View>
+                                  <Animated.View style={{ transform: [{ scale: checkAnim }] }}>
+                                    <Pressable
+                                      style={[
+                                        styles.doneBtn,
+                                        set.completed
+                                          ? { backgroundColor: "#22C55E", borderWidth: 0 }
+                                          : { backgroundColor: colors.border, borderWidth: 0 },
+                                      ]}
+                                      onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`${set.completed ? "Mark incomplete" : "Mark complete"} ${ex.name} set ${idx + 1}`}
+                                      accessibilityState={{ checked: set.completed }}
+                                    >
+                                      <Feather
+                                        name="check"
+                                        size={18}
+                                        color={set.completed ? "#fff" : colors.mutedForeground}
+                                      />
+                                    </Pressable>
+                                  </Animated.View>
                                 </View>
-                                <View style={styles.setStepperCell}>
-                                  <StepperInput
-                                    value={set.reps}
-                                    onChange={(val) =>
-                                      updateSet(session.id, ex.id, set.id, { reps: val })
-                                    }
-                                    step={1}
-                                    decimals={0}
-                                    editable={!set.completed}
-                                    colors={colors}
-                                    accessibilityLabel={`${ex.name} set ${idx + 1} reps`}
-                                  />
-                                </View>
-                                <Animated.View style={{ transform: [{ scale: checkAnim }] }}>
+                                {set.progressionHint || set.previousWeight || set.previousReps ? (
+                                  <Text
+                                    style={[
+                                      styles.previousSetHint,
+                                      { color: colors.mutedForeground },
+                                    ]}
+                                  >
+                                    {set.progressionHint ??
+                                      `Previous: ${set.previousWeight ?? 0}kg x ${set.previousReps ?? 0}`}
+                                  </Text>
+                                ) : null}
+                                <View style={styles.setMetaRow}>
+                                  <View style={styles.setTypeGroup}>
+                                    {SET_TYPE_OPTIONS.map((option) => {
+                                      const selected = (set.type ?? "normal") === option.value;
+                                      return (
+                                        <Pressable
+                                          key={option.value}
+                                          style={[
+                                            styles.setTypeChip,
+                                            {
+                                              borderColor: selected ? ACCENT_COLOR : colors.border,
+                                              backgroundColor: selected
+                                                ? ACCENT_COLOR + "18"
+                                                : colors.surface,
+                                            },
+                                          ]}
+                                          disabled={set.completed}
+                                          onPress={() =>
+                                            updateSet(session.id, ex.id, set.id, {
+                                              type: option.value,
+                                            })
+                                          }
+                                          accessibilityRole="button"
+                                          accessibilityLabel={`${option.value} set type`}
+                                          accessibilityState={{ selected, disabled: set.completed }}
+                                        >
+                                          <Text
+                                            style={[
+                                              styles.setTypeText,
+                                              {
+                                                color: selected
+                                                  ? ACCENT_COLOR
+                                                  : colors.mutedForeground,
+                                              },
+                                            ]}
+                                          >
+                                            {option.label}
+                                          </Text>
+                                        </Pressable>
+                                      );
+                                    })}
+                                  </View>
                                   <Pressable
                                     style={[
-                                      styles.doneBtn,
-                                      set.completed
-                                        ? { backgroundColor: "#22C55E", borderWidth: 0 }
-                                        : { backgroundColor: colors.border, borderWidth: 0 },
+                                      styles.effortChip,
+                                      {
+                                        borderColor: colors.border,
+                                        backgroundColor: colors.surface,
+                                      },
                                     ]}
-                                    onPress={() => handleToggleSet(ex.id, set.id, set.completed)}
+                                    disabled={set.completed}
+                                    onPress={() =>
+                                      updateSet(session.id, ex.id, set.id, {
+                                        rpe:
+                                          typeof set.rpe === "number"
+                                            ? set.rpe >= 10
+                                              ? undefined
+                                              : set.rpe + 0.5
+                                            : 7,
+                                      })
+                                    }
                                     accessibilityRole="button"
-                                    accessibilityLabel={`${set.completed ? "Mark incomplete" : "Mark complete"} ${ex.name} set ${idx + 1}`}
-                                    accessibilityState={{ checked: set.completed }}
+                                    accessibilityLabel={`${ex.name} set ${idx + 1} RPE`}
                                   >
-                                    <Feather
-                                      name="check"
-                                      size={18}
-                                      color={set.completed ? "#fff" : colors.mutedForeground}
-                                    />
+                                    <Text style={[styles.effortText, { color: colors.text }]}>
+                                      RPE {set.rpe ?? "-"}
+                                    </Text>
                                   </Pressable>
-                                </Animated.View>
+                                  <Pressable
+                                    style={[
+                                      styles.effortChip,
+                                      {
+                                        borderColor: colors.border,
+                                        backgroundColor: colors.surface,
+                                      },
+                                    ]}
+                                    disabled={set.completed}
+                                    onPress={() =>
+                                      updateSet(session.id, ex.id, set.id, {
+                                        rir:
+                                          typeof set.rir === "number"
+                                            ? set.rir >= 5
+                                              ? undefined
+                                              : set.rir + 1
+                                            : 2,
+                                      })
+                                    }
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${ex.name} set ${idx + 1} reps in reserve`}
+                                  >
+                                    <Text style={[styles.effortText, { color: colors.text }]}>
+                                      RIR {set.rir ?? "-"}
+                                    </Text>
+                                  </Pressable>
+                                </View>
+                                <TextInput
+                                  style={[
+                                    styles.setNoteInput,
+                                    {
+                                      color: colors.text,
+                                      backgroundColor: colors.surface,
+                                      borderColor: colors.border,
+                                    },
+                                  ]}
+                                  value={set.notes ?? ""}
+                                  onChangeText={(notes) =>
+                                    updateSet(session.id, ex.id, set.id, {
+                                      notes: notes.trim() ? notes : undefined,
+                                    })
+                                  }
+                                  editable={!set.completed}
+                                  placeholder="Set note"
+                                  placeholderTextColor={colors.mutedForeground}
+                                  accessibilityLabel={`${ex.name} set ${idx + 1} note`}
+                                />
                               </View>
                             );
                           })}
@@ -667,6 +785,9 @@ export default function WorkoutSessionScreen() {
                                 weight: lastSet?.weight || 0,
                                 reps: lastSet?.reps || 10,
                                 completed: false,
+                                type: lastSet?.type ?? "normal",
+                                previousWeight: lastSet?.weight,
+                                previousReps: lastSet?.reps,
                               });
                             }}
                             accessibilityRole="button"
@@ -818,15 +939,57 @@ const styles = StyleSheet.create({
   exMuscle: { fontSize: 12, fontWeight: "600", marginTop: 2 },
   exHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   exSetsCount: { fontSize: 13 },
+  historyStrip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 8,
+    maxWidth: "100%",
+  },
+  historyText: { fontSize: 11, fontWeight: "600", flexShrink: 1 },
   setsContainer: { gap: 8 },
   setHeaderRow: { flexDirection: "row", gap: 6, paddingHorizontal: 2, alignItems: "center" },
   setHeaderLabel: { fontSize: 10, textAlign: "center", fontWeight: "600" },
   setNumHeader: { width: 20 },
   setStepperHeader: { flex: 1 },
   setDoneHeader: { width: 40 },
+  setBlock: { gap: 6 },
   setRow: { flexDirection: "row", gap: 6, alignItems: "center" },
   setNum: { width: 20, fontSize: 13, textAlign: "center" },
   setStepperCell: { flex: 1 },
+  previousSetHint: { fontSize: 11, paddingLeft: 26 },
+  setMetaRow: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+    flexWrap: "wrap",
+    paddingLeft: 26,
+  },
+  setTypeGroup: { flexDirection: "row", gap: 4 },
+  setTypeChip: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  setTypeText: { fontSize: 11, fontWeight: "800" },
+  effortChip: { borderRadius: 7, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6 },
+  effortText: { fontSize: 11, fontWeight: "700" },
+  setNoteInput: {
+    marginLeft: 26,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+  },
   stepper: { flexDirection: "row", alignItems: "center", gap: 2 },
   stepperBtn: {
     width: 28,
@@ -928,7 +1091,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ringCenter: { position: "absolute", alignItems: "center" },
+  ringCenter: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   restTime: { fontSize: 36, fontWeight: "800", fontVariant: ["tabular-nums"] },
   restLabel: { fontSize: 13, marginTop: 2 },
   skipRestBtn: {

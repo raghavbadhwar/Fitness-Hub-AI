@@ -1,6 +1,6 @@
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -169,6 +169,9 @@ export default function WorkoutScreen() {
   const colors = useColors();
   const { getToken, userId } = useAuth();
   const { todayLog } = useNutrition();
+  const getTokenRef = useRef(getToken);
+  const assignedFetchInFlightRef = useRef(false);
+  const hasHydratedAssignedRef = useRef(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const profile = useMemo(
     () =>
@@ -217,9 +220,30 @@ export default function WorkoutScreen() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SavedWorkoutPlan | null>(null);
 
-  const weeklyVolume = getWeeklyVolume();
-  const thisWeekVolume = weeklyVolume.reduce((sum, d) => sum + d.volume, 0);
-  const recentSessions = sessions.slice(0, 10);
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
+
+  useEffect(() => {
+    assignedFetchInFlightRef.current = false;
+    hasHydratedAssignedRef.current = false;
+    setAssignedWorkouts([]);
+    setLoadingAssigned(false);
+  }, [isTrainerOrOwner, userId]);
+
+  const weeklyVolume = useMemo(() => getWeeklyVolume(), [getWeeklyVolume]);
+  const thisWeekVolume = useMemo(
+    () => weeklyVolume.reduce((sum, day) => sum + day.volume, 0),
+    [weeklyVolume],
+  );
+  const recentSessions = useMemo(() => sessions.slice(0, 10), [sessions]);
+  const completedSessionsThisWeek = useMemo(() => {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 7);
+    return sessions.filter((session) => new Date(session.date) >= weekAgo && session.completed)
+      .length;
+  }, [sessions]);
   const todayNutritionSummary = useMemo(() => {
     const totals = todayLog.entries.reduce(
       (acc, entry) => ({
@@ -388,21 +412,35 @@ export default function WorkoutScreen() {
     [getToken, isTrainerOrOwner],
   );
 
-  const fetchAssignedWorkouts = useCallback(async () => {
-    if (isTrainerOrOwner || !userId) return;
-    setLoadingAssigned(true);
-    try {
-      const data = await authenticatedJsonRequest<AssignedWorkout[]>({
-        getToken,
-        path: `/api/workouts/assigned?memberId=${encodeURIComponent(userId)}`,
-      });
-      setAssignedWorkouts(data);
-    } catch (err) {
-      console.error("Failed to fetch assigned workouts", err);
-    } finally {
-      setLoadingAssigned(false);
-    }
-  }, [isTrainerOrOwner, userId, getToken]);
+  const fetchAssignedWorkouts = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (isTrainerOrOwner || !userId) return;
+      if (assignedFetchInFlightRef.current) return;
+
+      const shouldShowLoading = !options?.silent || !hasHydratedAssignedRef.current;
+      assignedFetchInFlightRef.current = true;
+      if (shouldShowLoading) {
+        setLoadingAssigned(true);
+      }
+
+      try {
+        const data = await authenticatedJsonRequest<AssignedWorkout[]>({
+          getToken: getTokenRef.current,
+          path: `/api/workouts/assigned?memberId=${encodeURIComponent(userId)}`,
+        });
+        setAssignedWorkouts(data);
+        hasHydratedAssignedRef.current = true;
+      } catch (err) {
+        console.error("Failed to fetch assigned workouts", err);
+      } finally {
+        assignedFetchInFlightRef.current = false;
+        if (shouldShowLoading) {
+          setLoadingAssigned(false);
+        }
+      }
+    },
+    [isTrainerOrOwner, userId],
+  );
 
   useEffect(() => {
     if (isTrainerOrOwner && activeTab === "templates") {
@@ -436,7 +474,7 @@ export default function WorkoutScreen() {
     useCallback(() => {
       void refreshProfile();
       if (!isTrainerOrOwner && userId) {
-        fetchAssignedWorkouts();
+        void fetchAssignedWorkouts({ silent: true });
       }
     }, [fetchAssignedWorkouts, isTrainerOrOwner, refreshProfile, userId]),
   );
@@ -669,8 +707,11 @@ export default function WorkoutScreen() {
     }
   }, [getToken, trainerMonthlyReview]);
 
-  const prs = Object.values(personalRecords);
-  const incompleteAssignedWorkouts = assignedWorkouts.filter((assigned) => !assigned.completedAt);
+  const prs = useMemo(() => Object.values(personalRecords), [personalRecords]);
+  const incompleteAssignedWorkouts = useMemo(
+    () => assignedWorkouts.filter((assigned) => !assigned.completedAt),
+    [assignedWorkouts],
+  );
   const nextAssignedWorkout = incompleteAssignedWorkouts[0];
   const firstSavedPlan = savedPlans[0];
   const primaryWorkoutName =
@@ -769,14 +810,7 @@ export default function WorkoutScreen() {
             ]}
           >
             <Text style={[styles.weekStatVal, { color: colors.primary }]}>
-              {
-                sessions.filter((s) => {
-                  const today = new Date();
-                  const weekAgo = new Date(today);
-                  weekAgo.setDate(today.getDate() - 7);
-                  return new Date(s.date) >= weekAgo && s.completed;
-                }).length
-              }
+              {completedSessionsThisWeek}
             </Text>
             <Text style={[styles.weekStatLabel, { color: colors.mutedForeground }]}>This Week</Text>
           </View>

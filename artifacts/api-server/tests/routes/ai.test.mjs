@@ -6,6 +6,8 @@ import request from "supertest";
 process.env.AI_MAX_IMAGE_BASE64_BYTES = "12";
 process.env.AI_MAX_CHAT_MESSAGES = "2";
 process.env.AI_MAX_CHAT_MESSAGE_CHARS = "20";
+process.env.AI_RATE_LIMIT_MAX_PER_MINUTE = "20";
+process.env.AI_RATE_LIMIT_STORE = "memory";
 
 const authState = { userId: "member_1" };
 const accessState = { allowed: true };

@@ -7,6 +7,7 @@ import workoutsRouter from "./workouts";
 import profilesRouter from "./profiles";
 import monthlyReviewsRouter from "./monthly-reviews";
 import nutritionRouter from "./nutrition";
+import foodsRouter from "./foods";
 import progressRouter from "./progress";
 import notificationsRouter from "./notifications";
 
@@ -18,6 +19,7 @@ router.use(classesRouter);
 router.use("/admin", adminRouter);
 router.use("/workouts", workoutsRouter);
 router.use("/nutrition", nutritionRouter);
+router.use("/foods", foodsRouter);
 router.use("/progress", progressRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/profiles", profilesRouter);

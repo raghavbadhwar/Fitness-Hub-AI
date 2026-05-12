@@ -5,6 +5,7 @@ import { AuthenticatedApiError, authenticatedJsonRequest } from "@/lib/authentic
 import { getLocalDateKey } from "@/lib/date-key";
 import { generateId } from "@/lib/id";
 import { decodeVersionedWithLegacyFallback, encodeVersioned } from "@/lib/versioned-storage";
+import { hydrateSessionExercisesFromHistory } from "@/lib/workout-history";
 import React, {
   createContext,
   useCallback,
@@ -20,6 +21,13 @@ export interface ExerciseSet {
   weight: number;
   reps: number;
   completed: boolean;
+  type?: "warmup" | "normal" | "drop" | "failure";
+  rpe?: number;
+  rir?: number;
+  notes?: string;
+  previousWeight?: number;
+  previousReps?: number;
+  progressionHint?: string;
 }
 
 export interface WorkoutExercise {
@@ -151,6 +159,21 @@ function clampPositiveInteger(value: number, minimum = 1): number {
   return Number.isFinite(value) ? Math.max(minimum, Math.round(value)) : minimum;
 }
 
+function asFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function normalizeSetType(value: unknown): ExerciseSet["type"] {
+  return value === "warmup" || value === "normal" || value === "drop" || value === "failure"
+    ? value
+    : undefined;
+}
+
 function normalizeSavedPlan(value: unknown): SavedWorkoutPlan | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -236,6 +259,10 @@ function normalizeWorkoutSession(value: unknown): WorkoutSession | null {
           const weight =
             typeof setRecord.weight === "number" ? setRecord.weight : Number(setRecord.weight);
           const reps = typeof setRecord.reps === "number" ? setRecord.reps : Number(setRecord.reps);
+          const rpe = asFiniteNumber(setRecord.rpe);
+          const rir = asFiniteNumber(setRecord.rir);
+          const previousWeight = asFiniteNumber(setRecord.previousWeight);
+          const previousReps = asFiniteNumber(setRecord.previousReps);
           return {
             id:
               typeof setRecord.id === "string" && setRecord.id.trim()
@@ -244,6 +271,17 @@ function normalizeWorkoutSession(value: unknown): WorkoutSession | null {
             weight: Number.isFinite(weight) ? Math.max(0, Math.round(weight)) : 0,
             reps: Number.isFinite(reps) ? Math.max(0, Math.round(reps)) : 0,
             completed: Boolean(setRecord.completed),
+            ...(normalizeSetType(setRecord.type) ? { type: normalizeSetType(setRecord.type) } : {}),
+            ...(typeof rpe === "number" ? { rpe: Math.min(10, Math.max(1, rpe)) } : {}),
+            ...(typeof rir === "number" ? { rir: Math.min(10, Math.max(0, Math.round(rir))) } : {}),
+            ...(typeof setRecord.notes === "string" && setRecord.notes.trim()
+              ? { notes: setRecord.notes.trim() }
+              : {}),
+            ...(typeof previousWeight === "number" ? { previousWeight } : {}),
+            ...(typeof previousReps === "number" ? { previousReps } : {}),
+            ...(typeof setRecord.progressionHint === "string" && setRecord.progressionHint.trim()
+              ? { progressionHint: setRecord.progressionHint.trim() }
+              : {}),
           };
         })
         .filter((set): set is ExerciseSet => Boolean(set));
@@ -593,12 +631,17 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   const startSession = useCallback(
     (name: string, exercises: Omit<WorkoutExercise, "id">[] = []): WorkoutSession => {
+      const hydratedExercises = hydrateSessionExercisesFromHistory(exercises, sessionsRef.current);
       const session: WorkoutSession = {
         id: generateId(),
         name,
         date: getLocalDateKey(),
         startTime: Date.now(),
-        exercises: exercises.map((exercise) => ({ ...exercise, id: generateId() })),
+        exercises: hydratedExercises.map((exercise) => ({
+          ...exercise,
+          id: generateId(),
+          sets: exercise.sets.map((set) => ({ type: "normal" as const, ...set })),
+        })),
         totalVolume: 0,
         caloriesBurned: 0,
         completed: false,
@@ -801,9 +844,11 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const addExerciseToSession = useCallback(
     (sessionId: string, exercise: Omit<WorkoutExercise, "id">) => {
       if (!activeSession || activeSession.id !== sessionId) return;
+      const hydratedExercise =
+        hydrateSessionExercisesFromHistory([exercise], sessionsRef.current)[0] ?? exercise;
       const updated = {
         ...activeSession,
-        exercises: [...activeSession.exercises, { ...exercise, id: generateId() }],
+        exercises: [...activeSession.exercises, { ...hydratedExercise, id: generateId() }],
       };
       setActiveSession(updated);
     },
@@ -970,6 +1015,7 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
           weight: 0,
           reps: clampPositiveInteger(exercise.reps),
           completed: false,
+          type: "normal" as const,
         })),
       }));
 
@@ -1008,32 +1054,50 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [sessions]);
 
-  return (
-    <WorkoutContext.Provider
-      value={{
-        sessions,
-        personalRecords,
-        savedPlans,
-        behaviorProfile,
-        activeSession,
-        startSession,
-        endSession,
-        addExerciseToSession,
-        addSetToExercise,
-        updateSet,
-        deleteSession,
-        savePlan,
-        deletePlan,
-        startPlanSession,
-        getRecentSessions,
-        getWeeklyVolume,
-        get30DayVolume,
-        isLoading,
-      }}
-    >
-      {children}
-    </WorkoutContext.Provider>
+  const contextValue = useMemo<WorkoutContextType>(
+    () => ({
+      sessions,
+      personalRecords,
+      savedPlans,
+      behaviorProfile,
+      activeSession,
+      startSession,
+      endSession,
+      addExerciseToSession,
+      addSetToExercise,
+      updateSet,
+      deleteSession,
+      savePlan,
+      deletePlan,
+      startPlanSession,
+      getRecentSessions,
+      getWeeklyVolume,
+      get30DayVolume,
+      isLoading,
+    }),
+    [
+      sessions,
+      personalRecords,
+      savedPlans,
+      behaviorProfile,
+      activeSession,
+      startSession,
+      endSession,
+      addExerciseToSession,
+      addSetToExercise,
+      updateSet,
+      deleteSession,
+      savePlan,
+      deletePlan,
+      startPlanSession,
+      getRecentSessions,
+      getWeeklyVolume,
+      get30DayVolume,
+      isLoading,
+    ],
   );
+
+  return <WorkoutContext.Provider value={contextValue}>{children}</WorkoutContext.Provider>;
 }
 
 export function useWorkout() {
