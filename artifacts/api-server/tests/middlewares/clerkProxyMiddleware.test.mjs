@@ -109,8 +109,8 @@ describe("clerkProxyMiddleware", () => {
       headers: {
         "x-forwarded-proto": "https",
         host: "example.com",
-        "x-forwarded-for": "192.168.1.1, 10.0.0.1",
       },
+      ip: "192.168.1.1",
     };
 
     onProxyReq(mockProxyReq, mockReq);
