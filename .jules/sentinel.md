@@ -1,0 +1,4 @@
+## 2024-05-14 - IP Spoofing via X-Forwarded-For Header
+**Vulnerability:** The application was extracting client IP addresses directly from the `req.headers["x-forwarded-for"]` array in `clerkProxyMiddleware.ts` without relying on Express's secure `req.ip` mechanism.
+**Learning:** Extracting `X-Forwarded-For` manually is vulnerable to IP spoofing because attackers can easily inject fake IP addresses into HTTP headers. In proxy environments, `req.ip` securely returns the client IP address based on the `trust proxy` configuration, mitigating this risk.
+**Prevention:** Always rely on the framework's secure mechanisms (e.g., Express `req.ip`) to resolve client IP addresses. Avoid manually parsing IP addresses from `req.headers["x-forwarded-for"]`.
