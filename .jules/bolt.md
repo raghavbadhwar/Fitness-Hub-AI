@@ -1,0 +1,3 @@
+## 2024-05-15 - Replace in-memory array processing with database aggregation
+**Learning:** In the admin dashboard route, fetching all classes into an array (`allClasses = await db.select().from(gymClassesTable)...`) and then performing `.reduce()`, `.filter()`, and sorting in memory creates a significant N+1-like array processing bottleneck as the class history grows. Database engines are optimized to do this faster and with less network/memory overhead.
+**Action:** When computing sums, counts, or grouping data, write database queries using `sum()`, `count()`, and `.groupBy()` (e.g., `db.select({ total: sum(...) }).from(...)`) and execute them concurrently via `Promise.all()` instead of downloading the entire table to Node.js for client-side reducing.
