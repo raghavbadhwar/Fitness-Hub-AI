@@ -51,7 +51,9 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
+        // Sentinel: Prevent protocol spoofing by using Express's secure req.protocol
+        // rather than manually extracting the client-controlled header.
+        const protocol = req.protocol || "https";
         const host = req.headers.host || "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
