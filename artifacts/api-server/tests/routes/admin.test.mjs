@@ -119,9 +119,12 @@ function matchesCondition(row, condition, fieldMap) {
   if (condition.op === "and") {
     return condition.conditions.every((child) => matchesCondition(row, child, fieldMap));
   }
-  if (condition.op !== "eq") return true;
   const fieldName = fieldMap.get(condition.field);
-  return fieldName ? row[fieldName] === condition.value : true;
+  if (!fieldName) return true;
+  if (condition.op === "eq") return row[fieldName] === condition.value;
+  if (condition.op === "gte") return row[fieldName] >= condition.value;
+  if (condition.op === "lte") return row[fieldName] <= condition.value;
+  return true;
 }
 
 mock.module("drizzle-orm", {
@@ -135,11 +138,17 @@ mock.module("drizzle-orm", {
     gte(field, value) {
       return { op: "gte", field, value };
     },
+    lte(field, value) {
+      return { op: "lte", field, value };
+    },
+    sum(field) {
+      return { op: "sum", field };
+    },
     count() {
       return { op: "count" };
     },
-    sum() {
-      return { op: "sum" };
+    desc(field) {
+      return { op: "desc", field };
     },
   },
 });
@@ -221,7 +230,10 @@ mock.module("@clerk/backend", {
 mock.module("@workspace/db", {
   namedExports: {
     db: {
-      select() {
+      select(schema) {
+        const isSum = schema && schema.totalEnrollmentsRaw && schema.totalEnrollmentsRaw.op === "sum";
+        const isCount = schema && schema.count && schema.count.op === "count";
+
         function selectRows(table, condition, count = Number.POSITIVE_INFINITY) {
           if (table === userProfiles) {
             const rows = [...userProfilesByClerkId.values()]
@@ -273,21 +285,40 @@ mock.module("@workspace/db", {
 
         return {
           from(table) {
-            const makeQuery = (condition) => ({
-              limit(count) {
-                return Promise.resolve(selectRows(table, condition, count));
-              },
-              then(resolve, reject) {
-                return Promise.resolve(selectRows(table, condition)).then(resolve, reject);
-              },
-            });
+            const makeQuery = (condition, withGroup = false) => {
+              const query = {
+                groupBy() { return query; },
+                orderBy() { return query; },
+                limit(limitCount) {
+                  if (isCount && table === gymClassesTable) {
+                    return Promise.resolve([{ category: "Yoga", count: 1 }]);
+                  }
+                  return Promise.resolve(selectRows(table, condition, limitCount));
+                },
+                then(resolve, reject) {
+                  if (isSum && table === gymClassesTable) {
+                    const rows = selectRows(table, condition);
+                    const total = rows.reduce((acc, row) => acc + (row.enrolledCount || 0), 0);
+                    return Promise.resolve([{ totalEnrollmentsRaw: total }]).then(resolve, reject);
+                  }
+                  if (isCount && table === gymClassesTable) {
+                    return Promise.resolve([{ category: "Yoga", count: 1 }]).then(resolve, reject);
+                  }
+                  return Promise.resolve(selectRows(table, condition)).then(resolve, reject);
+                },
+              };
+              return query;
+            };
 
             return {
               where(condition) {
                 return makeQuery(condition);
               },
+              groupBy() {
+                return makeQuery(null, true);
+              },
               then(resolve, reject) {
-                return Promise.resolve(selectRows(table)).then(resolve, reject);
+                return makeQuery(null).then(resolve, reject);
               },
             };
           },
