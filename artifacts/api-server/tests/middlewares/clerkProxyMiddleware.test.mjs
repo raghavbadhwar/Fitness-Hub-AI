@@ -107,9 +107,9 @@ describe("clerkProxyMiddleware", () => {
 
     const mockReq = {
       headers: {
-        "x-forwarded-proto": "https",
         host: "example.com",
       },
+      protocol: "https",
       ip: "192.168.1.1",
     };
 
@@ -143,7 +143,7 @@ describe("clerkProxyMiddleware", () => {
 
     onProxyReq(mockProxyReq, mockReq);
 
-    // Should fallback to https if x-forwarded-proto is missing, and empty host if host missing
+    // Should fallback to https if protocol is missing, and empty host if host missing
     assert.equal(setHeaders.get("Clerk-Proxy-Url"), `https://${CLERK_PROXY_PATH}`);
     assert.equal(setHeaders.get("Clerk-Secret-Key"), "test_secret_key");
     assert.equal(setHeaders.get("X-Forwarded-For"), "127.0.0.1"); // fallback to req.socket.remoteAddress
