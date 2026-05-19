@@ -16,7 +16,7 @@
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
@@ -51,14 +51,18 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
+        // Sentinel: Prevent protocol spoofing by using the framework's secure
+        // req.protocol which respects 'trust proxy' configuration, rather than
+        // blindly trusting client-provided x-forwarded-proto headers.
+        const protocol = (req as Request).protocol || "https";
         const host = req.headers.host || "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", secretKey);
 
-        const clientIp = req.ip || req.socket?.remoteAddress || "";
+        // Sentinel: Prevent IP spoofing via x-forwarded-for headers by using req.ip
+        const clientIp = (req as Request).ip || req.socket?.remoteAddress || "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
