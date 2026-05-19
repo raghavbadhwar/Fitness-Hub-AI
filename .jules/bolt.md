@@ -1,0 +1,3 @@
+## 2025-02-14 - Optimize admin dashboard stats with database aggregations
+**Learning:** The `/dashboard` endpoint fetched all historical class data into application memory to calculate `sum` and `count` aggregations, leading to potential severe O(n) memory bloat and API latency as the gym scales.
+**Action:** Always prefer pushing aggregations (like `sum`, `count`, and `groupBy`) and date filtering down to the database level via Drizzle ORM to avoid pulling unnecessary records across the wire and into Node.js memory. Test mocks for Drizzle ORM need to explicitly implement these operators (`sum`, `count`, `desc`, `lte`, `gte`) to support these optimizations cleanly without breaking the test suite.
