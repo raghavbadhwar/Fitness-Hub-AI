@@ -781,4 +781,42 @@ describe("admin routes", () => {
     assert.equal(response.body[0].id, "u_0");
     assert.equal(response.body[100].id, "u_100");
   });
+
+  it("dedupes and caches totalActiveMembers count on the dashboard route", async () => {
+    getUserListCalls = 0;
+    clerkUsers.set(
+      "member_2",
+      defaultClerkUser({
+        id: "member_2",
+        firstName: "Alex",
+        lastName: "Lane",
+        publicMetadata: { role: "member" },
+        emailAddresses: [{ emailAddress: "alex@example.com" }],
+      }),
+    );
+    userProfilesByClerkId.set("member_2", {
+      id: 2,
+      clerkId: "member_2",
+      name: "Alex Lane",
+      role: "member",
+      updatedAt: new Date("2026-04-19T09:00:00.000Z"),
+    });
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      request(app).get("/admin/dashboard"),
+      request(app).get("/admin/dashboard"),
+    ]);
+
+    assert.equal(firstResponse.status, 200);
+    assert.equal(secondResponse.status, 200);
+    assert.equal(firstResponse.body.totalActiveMembers, 2);
+    assert.equal(secondResponse.body.totalActiveMembers, 2);
+    assert.equal(getUserListCalls, 1);
+
+    // Fast path: cached value is returned directly
+    const cachedResponse = await request(app).get("/admin/dashboard");
+    assert.equal(cachedResponse.status, 200);
+    assert.equal(cachedResponse.body.totalActiveMembers, 2);
+    assert.equal(getUserListCalls, 1);
+  });
 });

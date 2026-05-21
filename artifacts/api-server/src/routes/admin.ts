@@ -59,6 +59,13 @@ type AttendanceRecord = {
 
 const attendanceStatuses = new Set<AttendanceStatus>(["booked", "checked_in", "no_show"]);
 
+type ActiveMemberCacheEntry = {
+  promise: Promise<number>;
+  expiresAt: number;
+};
+const activeMemberCountCache = new Map<string, ActiveMemberCacheEntry>();
+const ACTIVE_MEMBER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 function normalizeAttendanceRecords(value: unknown): AttendanceRecord[] {
   if (!Array.isArray(value)) return [];
 
@@ -449,13 +456,28 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
-    try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
-    } catch {
-      totalActiveMembers = 0;
+    const nowMs = Date.now();
+    let cacheEntry = activeMemberCountCache.get(access.gymId);
+
+    // If cache is missing or expired, fetch and cache the promise to prevent concurrent request stampedes
+    if (!cacheEntry || cacheEntry.expiresAt <= nowMs) {
+      const fetchPromise = listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
+        .then((members) => members.filter((m) => m.accessStatus === "approved").length)
+        .catch((err) => {
+          req.log.error({ err }, "Failed to fetch total active members for dashboard");
+          // On failure, clear the cache entry so the next request can retry immediately
+          activeMemberCountCache.delete(access.gymId);
+          return 0;
+        });
+
+      cacheEntry = {
+        promise: fetchPromise,
+        expiresAt: nowMs + ACTIVE_MEMBER_CACHE_TTL_MS,
+      };
+      activeMemberCountCache.set(access.gymId, cacheEntry);
     }
+
+    totalActiveMembers = await cacheEntry.promise;
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyClassCounts = dayNames.map((day, idx) => {
