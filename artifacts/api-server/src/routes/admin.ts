@@ -436,17 +436,30 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    // ⚡ Bolt Optimization: Replace multiple O(n) iterations (filter, reduce, map-sort)
+    // with a single O(n) pass. Removes array allocations and sorting overhead.
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
+    let maxCategoryCount = 0;
+    let mostPopularCategory = "None";
     const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+    for (let i = 0; i < allClasses.length; i++) {
+      const c = allClasses[i];
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+      totalEnrollments += c.enrolledCount;
+
+      const category = c.category || "None";
+      const catCount = (categoryCounts[category] ?? 0) + 1;
+      categoryCounts[category] = catCount;
+      if (catCount > maxCategoryCount) {
+        maxCategoryCount = catCount;
+        mostPopularCategory = category;
+      }
     }
-    const mostPopularCategory =
-      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
@@ -458,12 +471,25 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weeklyClassMap: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const dayDate = new Date(startOfWeek);
+      dayDate.setDate(startOfWeek.getDate() + i);
+      weeklyClassMap[dayDate.toISOString().split("T")[0]] = 0;
+    }
+
+    for (let i = 0; i < allClasses.length; i++) {
+      const c = allClasses[i];
+      if (weeklyClassMap[c.date] !== undefined) {
+        weeklyClassMap[c.date]++;
+      }
+    }
+
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: weeklyClassMap[dateStr] };
     });
 
     res.json({
