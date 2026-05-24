@@ -18,6 +18,13 @@ import {
 } from "../lib/admin-members.ts";
 import { isGrantableUserRole, normalizeEmail } from "../lib/user-access.ts";
 
+// ⚡ Bolt Optimization:
+// Cache the Clerk API fetch for active members for 5 minutes.
+// Storing the Promise itself prevents cache stampedes (request coalescing)
+// if multiple dashboard requests arrive concurrently.
+const MEMBERS_CACHE_TTL = 5 * 60 * 1000;
+const activeMembersCache = new Map<string, { count: Promise<number>; timestamp: number }>();
+
 const CLASS_COLORS: Record<string, string> = {
   Yoga: "#22C55E",
   Zumba: "#F59E0B",
@@ -436,35 +443,67 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weekDates = dayNames.map((_, idx) => {
+      const dayDate = new Date(startOfWeek);
+      dayDate.setDate(startOfWeek.getDate() + idx);
+      return dayDate.toISOString().split("T")[0];
+    });
+
+    const dayCounts: Record<string, number> = {};
+    for (const dateStr of weekDates) {
+      dayCounts[dateStr] = 0;
     }
+
+    // ⚡ Bolt Optimization:
+    // Replaced multiple O(N) array methods (.filter, .reduce, and nested .map)
+    // with a single O(N) accumulation pass. Reduces excessive array allocations
+    // and significantly speeds up dashboard stats computation for large class datasets.
+    for (const c of allClasses) {
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+      totalEnrollments += c.enrolledCount;
+      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+      if (dayCounts[c.date] !== undefined) {
+        dayCounts[c.date]++;
+      }
+    }
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      const cacheEntry = activeMembersCache.get(access.gymId);
+      if (cacheEntry && now.getTime() - cacheEntry.timestamp < MEMBERS_CACHE_TTL) {
+        totalActiveMembers = await cacheEntry.count;
+      } else {
+        const fetchMembersPromise = listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
+          .then((members) => members.filter((m) => m.accessStatus === "approved").length)
+          .catch((err) => {
+            activeMembersCache.delete(access.gymId);
+            throw err;
+          });
+        activeMembersCache.set(access.gymId, {
+          count: fetchMembersPromise,
+          timestamp: now.getTime(),
+        });
+        totalActiveMembers = await fetchMembersPromise;
+      }
     } catch {
       totalActiveMembers = 0;
     }
 
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklyClassCounts = dayNames.map((day, idx) => {
-      const dayDate = new Date(startOfWeek);
-      dayDate.setDate(startOfWeek.getDate() + idx);
-      const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
-    });
+    const weeklyClassCounts = dayNames.map((day, idx) => ({
+      day,
+      count: dayCounts[weekDates[idx]],
+    }));
 
     res.json({
       totalClassesThisWeek,
