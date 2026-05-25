@@ -1,4 +1,10 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-05-25 - Protocol and Host Spoofing via Unvalidated Header
+**Vulnerability:** The API server's clerk proxy middleware manually extracted the `x-forwarded-proto` and `host` headers from the proxy request. A malicious actor could spoof these headers to mask the request's true origin or protocol, bypassing intended security rules when the server is not behind a trusted proxy or if the proxy fails to strip these headers.
+**Learning:** Extracting raw `x-forwarded-proto` or `host` headers directly skips Express's built-in handling of proxy trust. Similar to XFF headers, relying on these headers directly without validating the deployment's `trust proxy` configuration opens the door to spoofing attacks.
+**Prevention:** Always use Express-augmented properties like `req.protocol` and `req.get("host")` when extracting protocol or host information, as they correctly respect the application's `trust proxy` setting.
