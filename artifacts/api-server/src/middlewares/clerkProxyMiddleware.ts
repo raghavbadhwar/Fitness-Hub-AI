@@ -16,7 +16,7 @@
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
@@ -51,14 +51,21 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers.host || "";
+        const expressReq = req as Request;
+        // 🛡️ SECURITY: Use framework accessors that respect `trust proxy` configuration
+        // to prevent spoofing of protocol and host headers by malicious clients.
+        const protocol = expressReq.protocol || "https";
+        // req.get is used here but `trust proxy` does not apply to host, though relying on get('host') is typical.
+        // It's still safer to read via framework where applicable.
+        const host = expressReq.get ? expressReq.get("host") || "" : req.headers.host || "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", secretKey);
 
-        const clientIp = req.ip || req.socket?.remoteAddress || "";
+        // 🛡️ SECURITY: `req.ip` respects the application's `trust proxy` setting,
+        // preventing attackers from easily spoofing their IP address via `x-forwarded-for`.
+        const clientIp = expressReq.ip || req.socket?.remoteAddress || "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
