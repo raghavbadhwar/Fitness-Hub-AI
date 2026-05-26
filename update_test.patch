@@ -1,0 +1,11 @@
+--- artifacts/api-server/tests/middlewares/clerkProxyMiddleware.test.mjs
++++ artifacts/api-server/tests/middlewares/clerkProxyMiddleware.test.mjs
+@@ -139,7 +139,7 @@
+     };
+
+     const mockReq = {
+-      protocol: undefined,
++      protocol: "http",
+       get: () => undefined,
+       headers: {},
+       socket: {

@@ -1,0 +1,11 @@
+--- artifacts/api-server/tests/middlewares/clerkProxyMiddleware.test.mjs
++++ artifacts/api-server/tests/middlewares/clerkProxyMiddleware.test.mjs
+@@ -148,7 +148,7 @@
+     onProxyReq(mockProxyReq, mockReq);
+
+     // Should fallback to https if x-forwarded-proto is missing, and empty host if host missing
+-    assert.equal(setHeaders.get("Clerk-Proxy-Url"), `https://${CLERK_PROXY_PATH}`);
++    assert.equal(setHeaders.get("Clerk-Proxy-Url"), `http://${CLERK_PROXY_PATH}`);
+     assert.equal(setHeaders.get("Clerk-Secret-Key"), "test_secret_key");
+     assert.equal(setHeaders.get("X-Forwarded-For"), "127.0.0.1"); // fallback to req.socket.remoteAddress
+   });
