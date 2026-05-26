@@ -1,0 +1,3 @@
+## 2024-05-18 - [Promise Caching for Admin Dashboard]
+**Learning:** In the `api-server` `admin.ts` dashboard route, retrieving `totalActiveMembers` involves an expensive call to `listAdminMembers` which can cause cache stampedes under concurrent load. Caching just the value isn't enough; caching the `Promise` of the value prevents multiple concurrent requests from triggering the same expensive computation simultaneously.
+**Action:** Implement Promise caching for `totalActiveMembers` with a 5-minute TTL to optimize dashboard performance. Store a map of `gymId -> { promise: Promise<number>, expiresAt: number }`.
