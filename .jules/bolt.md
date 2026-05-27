@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - Prevent Promise Catch Swallowing in Caches
+**Learning:** When storing Promises in a cache mapping and relying on a `.catch` to invalidate the entry on failure, be careful not to catch and resolve the Promise too early! If you do `.then(...).catch(() => fallback)`, the resulting Promise resolves successfully to `fallback`. The subsequent `.catch()` attached for cache invalidation will never fire (creating "negative caching" where an error state is cached instead of discarded).
+**Action:** Always store the original, "uncaught" promise in the cache mapping so that failure triggers the invalidation `.catch()`, then chain a *new* `.catch()` on the return value *after* storing it to handle graceful fallbacks for the caller.

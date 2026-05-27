@@ -18,6 +18,28 @@ import {
 } from "../lib/admin-members.ts";
 import { isGrantableUserRole, normalizeEmail } from "../lib/user-access.ts";
 
+type ActiveMemberCacheEntry = {
+  expiresAt: number;
+  promise: Promise<number>;
+};
+const activeMembersCache = new Map<string, ActiveMemberCacheEntry>();
+
+function getCachedTotalActiveMembers(gymId: string, secretKey: string): Promise<number> {
+  const now = Date.now();
+  const cached = activeMembersCache.get(gymId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = listAdminMembers(secretKey, gymId)
+    .then((members) => members.filter((m) => m.accessStatus === "approved").length);
+
+  activeMembersCache.set(gymId, { expiresAt: now + 5 * 60 * 1000, promise });
+
+  promise.catch(() => activeMembersCache.delete(gymId));
+
+  // Return a promise that gracefully defaults to 0 on failure to match original behavior
+  return promise.catch(() => 0);
+}
+
 const CLASS_COLORS: Record<string, string> = {
   Yoga: "#22C55E",
   Zumba: "#F59E0B",
@@ -436,34 +458,44 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    // ⚡ Bolt: Single-pass O(N) accumulation loop
+    // Replaces chaining multiple array methods (.filter, .reduce, etc) reducing multiple array allocations.
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
-    }
-    const mostPopularCategory =
-      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
+    const dailyCounts: Record<string, number> = {};
 
-    let totalActiveMembers = 0;
-    try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
-    } catch {
-      totalActiveMembers = 0;
+    for (const c of allClasses) {
+      totalEnrollments += c.enrolledCount;
+      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+        dailyCounts[c.date] = (dailyCounts[c.date] ?? 0) + 1;
+      }
     }
+
+    let mostPopularCategory = "None";
+    let maxCategoryCount = 0;
+    for (const [cat, count] of Object.entries(categoryCounts)) {
+      if (count > maxCategoryCount) {
+        maxCategoryCount = count;
+        mostPopularCategory = cat;
+      }
+    }
+
+    const totalActiveMembers = await getCachedTotalActiveMembers(
+      access.gymId,
+      process.env.CLERK_SECRET_KEY!
+    );
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: dailyCounts[dateStr] ?? 0 };
     });
 
     res.json({
