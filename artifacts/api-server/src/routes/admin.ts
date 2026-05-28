@@ -458,12 +458,30 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklyClassCounts = dayNames.map((day, idx) => {
+
+    // ⚡ Bolt Optimization:
+    // Replaced 7 independent Array.prototype.filter() passes over `allClasses` (O(7N))
+    // with a single O(N) accumulation pass over `allClasses`.
+    // We map each date string in the current week to its respective day index
+    // and increment a pre-initialized array of counts to prevent main-thread blocking
+    // on larger datasets.
+    const dateStrToIdx = new Map<string, number>();
+    for (let idx = 0; idx < 7; idx++) {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
-      const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      dateStrToIdx.set(dayDate.toISOString().split("T")[0], idx);
+    }
+
+    const weeklyCountsByDayIndex = [0, 0, 0, 0, 0, 0, 0];
+    for (const c of allClasses) {
+      const idx = dateStrToIdx.get(c.date);
+      if (idx !== undefined) {
+        weeklyCountsByDayIndex[idx]++;
+      }
+    }
+
+    const weeklyClassCounts = dayNames.map((day, idx) => {
+      return { day, count: weeklyCountsByDayIndex[idx] };
     });
 
     res.json({
