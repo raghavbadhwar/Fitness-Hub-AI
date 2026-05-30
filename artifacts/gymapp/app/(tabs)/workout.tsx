@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "@/components/native-compat";
 import { useColors } from "@/hooks/useColors";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useApp } from "@/contexts/AppContext";
 import { useNutrition } from "@/contexts/NutritionContext";
 import {
@@ -184,6 +185,7 @@ export default function WorkoutScreen() {
 
   const [activeTab, setActiveTab] = useState<TabOption>("workouts");
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [selectedMuscle, setSelectedMuscle] = useState("All");
 
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -301,8 +303,11 @@ export default function WorkoutScreen() {
   ]);
 
   const filteredExercises = useMemo(() => {
-    return searchExercises(exerciseSearch, selectedMuscle === "All" ? undefined : selectedMuscle);
-  }, [exerciseSearch, selectedMuscle]);
+    return searchExercises(
+      debouncedExerciseSearch,
+      selectedMuscle === "All" ? undefined : selectedMuscle,
+    );
+  }, [debouncedExerciseSearch, selectedMuscle]);
 
   const filteredAssignableMembers = useMemo(() => {
     const query = memberSearch.trim().toLowerCase();
@@ -1899,9 +1904,13 @@ function CreateTemplateModal({
   const [selectedExercises, setSelectedExercises] = useState<TemplateExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [showPicker, setShowPicker] = useState(false);
 
-  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
+  const filteredForPicker = useMemo(
+    () => searchExercises(debouncedExerciseSearch),
+    [debouncedExerciseSearch],
+  );
 
   const addExercise = (exId: string) => {
     const ex = EXERCISES.find((e) => e.id === exId);
@@ -2147,6 +2156,7 @@ function MemberPlanModal({
   const [selectedExercises, setSelectedExercises] = useState<SaveWorkoutPlanInput["exercises"]>([]);
   const [saving, setSaving] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState("");
+  const debouncedExerciseSearch = useDebounce(exerciseSearch, 300);
   const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
@@ -2159,7 +2169,10 @@ function MemberPlanModal({
     setSaving(false);
   }, [initialPlan, visible]);
 
-  const filteredForPicker = useMemo(() => searchExercises(exerciseSearch), [exerciseSearch]);
+  const filteredForPicker = useMemo(
+    () => searchExercises(debouncedExerciseSearch),
+    [debouncedExerciseSearch],
+  );
 
   const addExercise = (exerciseId: string) => {
     const exercise = EXERCISES.find((item) => item.id === exerciseId);
