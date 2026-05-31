@@ -1,0 +1,3 @@
+## 2024-03-24 - Consolidated Array Iterations in Dashboard Stats
+**Learning:** In `artifacts/api-server/src/routes/admin.ts`, dashboard stats previously involved multiple iterations over `allClasses` (O(N) operations via `filter`, `reduce`, and `for` loop). Combining these into a single pass reduces redundant loop executions and array allocations, improving endpoint performance for instances with a large number of gym classes.
+**Action:** Replace multiple sequential `.filter().length`, `.reduce()`, and loops with a unified O(N) loop and pre-initialized hash maps when computing independent aggregates.
