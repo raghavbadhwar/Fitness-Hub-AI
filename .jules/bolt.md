@@ -1,0 +1,3 @@
+## 2024-05-14 - Admin Dashboard Re-rendering/API Overhead
+**Learning:** The admin `/dashboard` endpoint was executing multiple sequential O(N) array loops (`filter`, `reduce`, custom category counting) over `allClasses`, which increases CPU and memory allocations needlessly. Additionally, `totalActiveMembers` was hitting Clerk directly to list and fetch users on every dashboard render.
+**Action:** Consolidate array iterations into a single O(N) loop when possible. For expensive third-party data lookups (like fetching member counts from Clerk), employ a `Promise` caching strategy with an appropriate TTL to prevent stampedes while still keeping data fresh.

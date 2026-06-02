@@ -33,6 +33,8 @@ const CLASS_COLORS: Record<string, string> = {
 
 const router = Router();
 
+const activeMembersCache = new Map<string, { expiresAt: number; promise: Promise<number> }>();
+
 router.use(requireAuth());
 
 function logRouteError(req: Request, err: unknown, message: string) {
@@ -436,23 +438,50 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
-
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
+    const dateCounts: Record<string, number> = {};
+
+    // ⚡ Bolt Optimization: Consolidate multiple O(N) loops (filter, reduce, map)
+    // into a single O(N) pass to reduce array allocations and improve CPU execution.
     for (const c of allClasses) {
+      totalEnrollments += c.enrolledCount;
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+        dateCounts[c.date] = (dateCounts[c.date] ?? 0) + 1;
+      }
     }
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
+    const nowMs = Date.now();
+    let cachedMembers = activeMembersCache.get(access.gymId);
+
+    // ⚡ Bolt Optimization: Cache the active member count query to prevent
+    // repeatedly fetching the large admin members list from Clerk on every dashboard render.
+    // Caches the Promise itself to prevent cache stampedes under load, with a 5-minute TTL.
+    if (!cachedMembers || cachedMembers.expiresAt <= nowMs) {
+      const promise = listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId).then(
+        (members) => members.filter((m) => m.accessStatus === "approved").length,
+      );
+
+      promise.catch(() => {
+        if (activeMembersCache.get(access.gymId)?.promise === promise) {
+          activeMembersCache.delete(access.gymId);
+        }
+      });
+
+      cachedMembers = { expiresAt: nowMs + 5 * 60 * 1000, promise };
+      activeMembersCache.set(access.gymId, cachedMembers);
+    }
+
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      totalActiveMembers = await cachedMembers.promise;
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,8 +491,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: dateCounts[dateStr] ?? 0 };
     });
 
     res.json({
