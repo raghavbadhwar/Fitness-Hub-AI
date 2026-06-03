@@ -1,0 +1,4 @@
+## 2024-03-24 - Node.js Event Loop Blocking & Cache Stampedes
+**Learning:** Chained array methods (`filter`, `reduce`, `map`) create multiple intermediate arrays which trigger frequent garbage collection, and iterating multiple times over large datasets block the Node.js event loop causing elevated P99 latencies. Additionally, heavy I/O tasks like `listAdminMembers` called per dashboard request can easily create cache stampedes under concurrent loads if the raw value is cached instead of the promise itself.
+
+**Action:** Replace multiple chained array loops with single-pass O(N) accumulations that mutate predefined hash maps or counters. Always use Promise caching for high-latency external API calls in high-throughput routes, and ensure error rejection properly removes the promise from the cache map to prevent caching failed states.
