@@ -436,23 +436,37 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
-
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
+    const dayCountsMap: Record<string, number> = {};
+
     for (const c of allClasses) {
+      // 1. Accumulate total enrollments
+      totalEnrollments += c.enrolledCount;
+
+      // 2. Count category popularity
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+      // 3. Check if class is in this week
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+
+      // 4. Group by date for weekly class counts
+      dayCountsMap[c.date] = (dayCountsMap[c.date] ?? 0) + 1;
     }
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      const members = await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId);
+      totalActiveMembers = members.reduce(
+        (count, member) => (member.accessStatus === "approved" ? count + 1 : count),
+        0
+      );
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,8 +476,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: dayCountsMap[dateStr] ?? 0 };
     });
 
     res.json({

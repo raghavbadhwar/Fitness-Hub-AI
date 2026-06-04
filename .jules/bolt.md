@@ -1,0 +1,3 @@
+## 2024-06-04 - Optimize O(N) Array Iterations
+**Learning:** Combining multiple `.filter()`, `.reduce()`, and inner loop iterations into a single O(N) loop reduces memory allocations and intermediate arrays, especially in routes that fetch all records like `/dashboard` fetching all scheduled classes. Array length counting via `.filter(...).length` allocates a full intermediate array just to extract the `.length` property.
+**Action:** Use `.reduce((acc, curr) => condition ? acc + 1 : acc, 0)` for counting directly without array allocation. Prefer a single `for...of` pass to accumulate multiple metrics simultaneously rather than chaining many array methods that iterate over the same data repeatedly.
