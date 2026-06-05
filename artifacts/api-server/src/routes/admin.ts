@@ -59,6 +59,36 @@ type AttendanceRecord = {
 
 const attendanceStatuses = new Set<AttendanceStatus>(["booked", "checked_in", "no_show"]);
 
+// ⚡ Bolt: Cache optimization for active members calculation
+// By caching the Promise instead of the resolved value, we prevent "cache stampedes"
+// under concurrent load. This ensures only 1 API call to Clerk happens every 5 minutes
+// per gym, reducing latency and preventing rate-limits.
+const activeMemberCountCache = new Map<string, { promise: Promise<number>; expiresAt: number }>();
+
+function getActiveMemberCount(gymId: string): Promise<number> {
+  const now = Date.now();
+  const cached = activeMemberCountCache.get(gymId);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.promise.catch(() => 0);
+  }
+
+  const promise = listAdminMembers(process.env.CLERK_SECRET_KEY!, gymId).then(
+    (members) => members.filter((member) => member.accessStatus === "approved").length,
+  );
+
+  promise.catch(() => {
+    activeMemberCountCache.delete(gymId);
+  });
+
+  activeMemberCountCache.set(gymId, {
+    promise,
+    expiresAt: now + 5 * 60 * 1000, // 5 minutes cache
+  });
+
+  return promise.catch(() => 0);
+}
+
 function normalizeAttendanceRecords(value: unknown): AttendanceRecord[] {
   if (!Array.isArray(value)) return [];
 
@@ -448,14 +478,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
-    let totalActiveMembers = 0;
-    try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
-    } catch {
-      totalActiveMembers = 0;
-    }
+    const totalActiveMembers = await getActiveMemberCount(access.gymId);
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyClassCounts = dayNames.map((day, idx) => {
