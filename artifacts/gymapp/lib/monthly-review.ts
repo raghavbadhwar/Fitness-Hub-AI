@@ -416,18 +416,26 @@ export function buildMonthlyReviewSnapshot(args: {
     },
     { calories: 0, protein: 0 },
   );
-  const calorieAdherenceDays = loggedNutritionDays.filter((log) => {
+  // ⚡ Bolt: Replaced .filter().length chains with .reduce to skip intermediate array allocations
+  // Expected impact: ~O(N) memory reduction for daily stat aggregations across a month
+  const calorieAdherenceDays = loggedNutritionDays.reduce((acc, log) => {
     const calories = log.entries.reduce((sum, entry) => sum + entry.calories, 0);
-    if (args.profile.dailyCalorieTarget <= 0) return false;
-    return (
-      Math.abs(calories - args.profile.dailyCalorieTarget) / args.profile.dailyCalorieTarget <= 0.18
-    );
-  }).length;
-  const proteinAdherenceDays = loggedNutritionDays.filter((log) => {
+    if (args.profile.dailyCalorieTarget <= 0) return acc;
+    return Math.abs(calories - args.profile.dailyCalorieTarget) / args.profile.dailyCalorieTarget <=
+      0.18
+      ? acc + 1
+      : acc;
+  }, 0);
+  const proteinAdherenceDays = loggedNutritionDays.reduce((acc, log) => {
     const protein = log.entries.reduce((sum, entry) => sum + entry.protein, 0);
-    return args.profile.dailyProteinTarget > 0 && protein >= args.profile.dailyProteinTarget * 0.8;
-  }).length;
-  const waterLoggedDays = loggedNutritionDays.filter((log) => log.waterIntake > 0).length;
+    return args.profile.dailyProteinTarget > 0 && protein >= args.profile.dailyProteinTarget * 0.8
+      ? acc + 1
+      : acc;
+  }, 0);
+  const waterLoggedDays = loggedNutritionDays.reduce(
+    (acc, log) => (log.waterIntake > 0 ? acc + 1 : acc),
+    0,
+  );
 
   const weightsInMonth = args.weightLog
     .filter((entry) => isDateInRange(entry.date, rangeStart, rangeEnd))
@@ -436,12 +444,15 @@ export function buildMonthlyReviewSnapshot(args: {
   const bodyWeightEnd = weightsInMonth[weightsInMonth.length - 1]?.weight ?? null;
   const weightDelta =
     bodyWeightStart !== null && bodyWeightEnd !== null ? bodyWeightEnd - bodyWeightStart : null;
-  const bodyMeasurementsLogged = args.bodyMeasurements.filter((entry) =>
-    isDateInRange(entry.date, rangeStart, rangeEnd),
-  ).length;
-  const plansSavedThisMonth = args.savedPlans.filter(
-    (plan) => monthFromDateKey(plan.updatedAt.slice(0, 10)) === args.month,
-  ).length;
+  // ⚡ Bolt: Using reduce over filter().length prevents full array allocation for counting
+  const bodyMeasurementsLogged = args.bodyMeasurements.reduce(
+    (acc, entry) => (isDateInRange(entry.date, rangeStart, rangeEnd) ? acc + 1 : acc),
+    0,
+  );
+  const plansSavedThisMonth = args.savedPlans.reduce(
+    (acc, plan) => (monthFromDateKey(plan.updatedAt.slice(0, 10)) === args.month ? acc + 1 : acc),
+    0,
+  );
 
   const metricsBase = {
     monthLabel: formatMonthLabel(args.month),
