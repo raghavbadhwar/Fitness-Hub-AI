@@ -111,6 +111,11 @@ describe("clerkProxyMiddleware", () => {
         host: "example.com",
       },
       ip: "192.168.1.1",
+      protocol: "https",
+      get(header) {
+        if (header.toLowerCase() === "host") return "example.com";
+        return undefined;
+      },
     };
 
     onProxyReq(mockProxyReq, mockReq);
@@ -138,6 +143,10 @@ describe("clerkProxyMiddleware", () => {
       headers: {},
       socket: {
         remoteAddress: "127.0.0.1",
+      },
+      protocol: undefined,
+      get() {
+        return undefined;
       },
     };
 
