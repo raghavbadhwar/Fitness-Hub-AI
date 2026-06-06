@@ -450,9 +450,11 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
+      // ⚡ Bolt: Using reduce over filter().length prevents full array allocation for counting
+      // Expected impact: ~O(N) memory reduction for member arrays
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc), 0);
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,7 +464,9 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      // ⚡ Bolt: Using reduce over filter().length prevents full array allocation for counting
+      // Expected impact: ~O(N) memory reduction inside the weekly map loop
+      const dayCount = allClasses.reduce((acc, c) => (c.date === dateStr ? acc + 1 : acc), 0);
       return { day, count: dayCount };
     });
 
