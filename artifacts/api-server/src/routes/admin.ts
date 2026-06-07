@@ -35,6 +35,10 @@ const router = Router();
 
 router.use(requireAuth());
 
+// In-memory cache for total active members per gym
+// TTL: 5 minutes
+const activeMembersCache = new Map<string, { promise: Promise<number>; expiresAt: number }>();
+
 function logRouteError(req: Request, err: unknown, message: string) {
   req.log?.error?.({ err }, message);
 }
@@ -449,12 +453,41 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
-    try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
-    } catch {
-      totalActiveMembers = 0;
+    const cacheKey = access.gymId;
+    const nowMs = Date.now();
+    const cached = activeMembersCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > nowMs) {
+      try {
+        totalActiveMembers = await cached.promise;
+      } catch {
+        totalActiveMembers = 0;
+      }
+    } else {
+      const fetchPromise = listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId).then(
+        (members) => {
+          return members.reduce(
+            (acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc),
+            0,
+          );
+        },
+      );
+
+      fetchPromise.catch(() => {
+        // Remove from cache on failure to allow retry
+        activeMembersCache.delete(cacheKey);
+      });
+
+      activeMembersCache.set(cacheKey, {
+        promise: fetchPromise,
+        expiresAt: nowMs + 5 * 60 * 1000, // 5 minutes TTL
+      });
+
+      try {
+        totalActiveMembers = await fetchPromise;
+      } catch {
+        totalActiveMembers = 0;
+      }
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
