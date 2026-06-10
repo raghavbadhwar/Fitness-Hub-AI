@@ -439,11 +439,26 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
     const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dateToDay: Record<string, string> = {};
+    const weeklyCountsMap: Record<string, number> = {};
 
+    for (let idx = 0; idx < 7; idx++) {
+      const dayDate = new Date(startOfWeek);
+      dayDate.setDate(startOfWeek.getDate() + idx);
+      const dateStr = dayDate.toISOString().split("T")[0];
+      dateToDay[dateStr] = dayNames[idx];
+      weeklyCountsMap[dayNames[idx]] = 0;
+    }
+
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
     for (const c of allClasses) {
+      totalEnrollments += c.enrolledCount;
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+      if (dateToDay[c.date]) {
+        weeklyCountsMap[dateToDay[c.date]] += 1;
+      }
     }
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
@@ -457,14 +472,10 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       totalActiveMembers = 0;
     }
 
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklyClassCounts = dayNames.map((day, idx) => {
-      const dayDate = new Date(startOfWeek);
-      dayDate.setDate(startOfWeek.getDate() + idx);
-      const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
-    });
+    const weeklyClassCounts = dayNames.map((day) => ({
+      day,
+      count: weeklyCountsMap[day] ?? 0,
+    }));
 
     res.json({
       totalClassesThisWeek,
