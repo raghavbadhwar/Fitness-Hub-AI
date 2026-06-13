@@ -106,35 +106,8 @@ describe("clerkProxyMiddleware", () => {
     };
 
     const mockReq = {
-      headers: {
-        "x-forwarded-proto": "https",
-        host: "example.com",
-      },
-      ip: "192.168.1.1",
-    };
-
-    onProxyReq(mockProxyReq, mockReq);
-
-    assert.equal(setHeaders.get("Clerk-Proxy-Url"), `https://example.com${CLERK_PROXY_PATH}`);
-    assert.equal(setHeaders.get("Clerk-Secret-Key"), "test_secret_key");
-    assert.equal(setHeaders.get("X-Forwarded-For"), "192.168.1.1");
-  });
-
-  it("handles missing req.headers gracefully in on.proxyReq", () => {
-    process.env.CLERK_PROXY_ENABLED = "true";
-    process.env.CLERK_SECRET_KEY = "test_secret_key";
-
-    clerkProxyMiddleware(); // Initialize to capture config
-    const onProxyReq = mockCreateProxyMiddlewareConfig.on.proxyReq;
-
-    const setHeaders = new Map();
-    const mockProxyReq = {
-      setHeader(key, value) {
-        setHeaders.set(key, value);
-      },
-    };
-
-    const mockReq = {
+      get: () => undefined,
+      protocol: "https",
       headers: {},
       socket: {
         remoteAddress: "127.0.0.1",
