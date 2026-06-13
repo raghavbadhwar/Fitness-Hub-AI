@@ -106,10 +106,8 @@ describe("clerkProxyMiddleware", () => {
     };
 
     const mockReq = {
-      headers: {
-        "x-forwarded-proto": "https",
-        host: "example.com",
-      },
+      protocol: "https",
+      get: (header) => (header.toLowerCase() === "host" ? "example.com" : undefined),
       ip: "192.168.1.1",
     };
 
@@ -135,7 +133,7 @@ describe("clerkProxyMiddleware", () => {
     };
 
     const mockReq = {
-      headers: {},
+      get: () => undefined,
       socket: {
         remoteAddress: "127.0.0.1",
       },
