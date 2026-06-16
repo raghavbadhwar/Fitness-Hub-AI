@@ -450,20 +450,29 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      const members = await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId);
+      totalActiveMembers = members.reduce(
+        (acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc),
+        0,
+      );
     } catch {
       totalActiveMembers = 0;
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const classesByDate = allClasses.reduce(
+      (acc, c) => {
+        acc[c.date] = (acc[c.date] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: classesByDate[dateStr] || 0 };
     });
 
     res.json({
