@@ -436,15 +436,35 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
+
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dateStrs = dayNames.map((_, idx) => {
+      const dayDate = new Date(startOfWeek);
+      dayDate.setDate(startOfWeek.getDate() + idx);
+      return dayDate.toISOString().split("T")[0];
+    });
+
+    const weeklyCountsByDate: Record<string, number> = {};
+
     for (const c of allClasses) {
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+      totalEnrollments += c.enrolledCount;
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+      weeklyCountsByDate[c.date] = (weeklyCountsByDate[c.date] ?? 0) + 1;
     }
+
+    const weeklyClassCounts = dayNames.map((day, idx) => ({
+      day,
+      count: weeklyCountsByDate[dateStrs[idx]!] ?? 0,
+    }));
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
@@ -452,19 +472,10 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     try {
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc), 0);
     } catch {
       totalActiveMembers = 0;
     }
-
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklyClassCounts = dayNames.map((day, idx) => {
-      const dayDate = new Date(startOfWeek);
-      dayDate.setDate(startOfWeek.getDate() + idx);
-      const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
-    });
 
     res.json({
       totalClassesThisWeek,
