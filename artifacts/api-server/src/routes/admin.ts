@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { createClerkClient } from "@clerk/backend";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sum, count, desc, gte, lte } from "drizzle-orm";
 import { db, gymClassesTable, gymSettingsTable } from "@workspace/db";
 import {
   AdminCreateClassBody,
@@ -432,21 +432,40 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     const weekEnd = endOfWeek.toISOString().split("T")[0];
 
-    const allClasses = await db
-      .select()
+    const [enrollmentResult] = await db
+      .select({ total: sum(gymClassesTable.enrolledCount) })
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
+    const totalEnrollments = Number(enrollmentResult?.total ?? 0);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
+    const categoryResults = await db
+      .select({ category: gymClassesTable.category, count: count() })
+      .from(gymClassesTable)
+      .where(eq(gymClassesTable.gymId, access.gymId))
+      .groupBy(gymClassesTable.category)
+      .orderBy(desc(count()))
+      .limit(1);
+    const mostPopularCategory = categoryResults[0]?.category ?? "None";
 
-    const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+    const weeklyCountsResults = await db
+      .select({ date: gymClassesTable.date, count: count() })
+      .from(gymClassesTable)
+      .where(
+        and(
+          eq(gymClassesTable.gymId, access.gymId),
+          gte(gymClassesTable.date, weekStart),
+          lte(gymClassesTable.date, weekEnd),
+        ),
+      )
+      .groupBy(gymClassesTable.date);
+
+    let totalClassesThisWeek = 0;
+    const weeklyCountsMap = new Map<string, number>();
+    for (const row of weeklyCountsResults) {
+      const c = Number(row.count);
+      weeklyCountsMap.set(row.date, c);
+      totalClassesThisWeek += c;
     }
-    const mostPopularCategory =
-      Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
@@ -462,7 +481,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      const dayCount = weeklyCountsMap.get(dateStr) ?? 0;
       return { day, count: dayCount };
     });
 
