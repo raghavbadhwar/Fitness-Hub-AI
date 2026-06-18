@@ -436,15 +436,22 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
-
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
+    // ⚡ Bolt Optimization: Use a single-pass O(N) loop to accumulate counts.
+    // Impact: Avoids multiple intermediate array allocations and O(N^2) complexity from nested .filter().length calls.
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
     const categoryCounts: Record<string, number> = {};
+    const dateCounts: Record<string, number> = {};
+
     for (const c of allClasses) {
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+      totalEnrollments += c.enrolledCount;
       categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+      dateCounts[c.date] = (dateCounts[c.date] ?? 0) + 1;
     }
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
@@ -452,7 +459,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     try {
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => member.accessStatus === "approved" ? acc + 1 : acc, 0);
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,8 +469,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: dateCounts[dateStr] ?? 0 };
     });
 
     res.json({
