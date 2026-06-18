@@ -106,16 +106,18 @@ describe("clerkProxyMiddleware", () => {
     };
 
     const mockReq = {
+      protocol: "https",
+      hostname: "example.com",
       headers: {
-        "x-forwarded-proto": "https",
-        host: "example.com",
+        "x-forwarded-host": "example.com:4000",
       },
+      get: (header) => (header.toLowerCase() === "host" ? "example.com:4000" : undefined),
       ip: "192.168.1.1",
     };
 
     onProxyReq(mockProxyReq, mockReq);
 
-    assert.equal(setHeaders.get("Clerk-Proxy-Url"), `https://example.com${CLERK_PROXY_PATH}`);
+    assert.equal(setHeaders.get("Clerk-Proxy-Url"), `https://example.com:4000${CLERK_PROXY_PATH}`);
     assert.equal(setHeaders.get("Clerk-Secret-Key"), "test_secret_key");
     assert.equal(setHeaders.get("X-Forwarded-For"), "192.168.1.1");
   });
@@ -135,7 +137,10 @@ describe("clerkProxyMiddleware", () => {
     };
 
     const mockReq = {
+      protocol: "https",
+      hostname: "",
       headers: {},
+      get: () => undefined,
       socket: {
         remoteAddress: "127.0.0.1",
       },
