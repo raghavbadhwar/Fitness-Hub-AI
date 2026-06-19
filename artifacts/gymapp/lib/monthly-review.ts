@@ -377,15 +377,14 @@ export function buildMonthlyReviewSnapshot(args: {
     (session) => session.completed && isDateInRange(session.date, rangeStart, rangeEnd),
   );
   const workoutDateKeys = [...new Set(completedSessions.map((session) => session.date))].sort();
-  const totalVolume = completedSessions.reduce((sum, session) => sum + session.totalVolume, 0);
-  const totalDurationMinutes = completedSessions.reduce(
-    (sum, session) => sum + (session.duration ?? 0),
-    0,
-  );
-  const caloriesBurned = completedSessions.reduce(
-    (sum, session) => sum + session.caloriesBurned,
-    0,
-  );
+  let totalVolume = 0;
+  let totalDurationMinutes = 0;
+  let caloriesBurned = 0;
+  for (const session of completedSessions) {
+    totalVolume += session.totalVolume;
+    totalDurationMinutes += session.duration ?? 0;
+    caloriesBurned += session.caloriesBurned;
+  }
   const prsInMonth = args.personalRecords.filter((record) =>
     isDateInRange(record.date, rangeStart, rangeEnd),
   );
@@ -399,35 +398,42 @@ export function buildMonthlyReviewSnapshot(args: {
   const loggedNutritionDays = nutritionLogs.filter(
     (log) => log.entries.length > 0 || log.waterIntake > 0,
   );
-  const nutritionTotals = loggedNutritionDays.reduce(
-    (acc, log) => {
-      const entryTotals = log.entries.reduce(
-        (entryAcc, entry) => ({
-          calories: entryAcc.calories + entry.calories,
-          protein: entryAcc.protein + entry.protein,
-        }),
-        { calories: 0, protein: 0 },
-      );
+  const nutritionTotals = { calories: 0, protein: 0 };
+  let calorieAdherenceDays = 0;
+  let proteinAdherenceDays = 0;
+  let waterLoggedDays = 0;
 
-      return {
-        calories: acc.calories + entryTotals.calories,
-        protein: acc.protein + entryTotals.protein,
-      };
-    },
-    { calories: 0, protein: 0 },
-  );
-  const calorieAdherenceDays = loggedNutritionDays.filter((log) => {
-    const calories = log.entries.reduce((sum, entry) => sum + entry.calories, 0);
-    if (args.profile.dailyCalorieTarget <= 0) return false;
-    return (
-      Math.abs(calories - args.profile.dailyCalorieTarget) / args.profile.dailyCalorieTarget <= 0.18
-    );
-  }).length;
-  const proteinAdherenceDays = loggedNutritionDays.filter((log) => {
-    const protein = log.entries.reduce((sum, entry) => sum + entry.protein, 0);
-    return args.profile.dailyProteinTarget > 0 && protein >= args.profile.dailyProteinTarget * 0.8;
-  }).length;
-  const waterLoggedDays = loggedNutritionDays.filter((log) => log.waterIntake > 0).length;
+  for (const log of loggedNutritionDays) {
+    let logCalories = 0;
+    let logProtein = 0;
+
+    for (const entry of log.entries) {
+      logCalories += entry.calories;
+      logProtein += entry.protein;
+    }
+
+    nutritionTotals.calories += logCalories;
+    nutritionTotals.protein += logProtein;
+
+    if (
+      args.profile.dailyCalorieTarget > 0 &&
+      Math.abs(logCalories - args.profile.dailyCalorieTarget) / args.profile.dailyCalorieTarget <=
+        0.18
+    ) {
+      calorieAdherenceDays++;
+    }
+
+    if (
+      args.profile.dailyProteinTarget > 0 &&
+      logProtein >= args.profile.dailyProteinTarget * 0.8
+    ) {
+      proteinAdherenceDays++;
+    }
+
+    if (log.waterIntake > 0) {
+      waterLoggedDays++;
+    }
+  }
 
   const weightsInMonth = args.weightLog
     .filter((entry) => isDateInRange(entry.date, rangeStart, rangeEnd))
