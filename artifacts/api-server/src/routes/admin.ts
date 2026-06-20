@@ -436,35 +436,51 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
-
-    const totalClassesThisWeek = thisWeekClasses.length;
-    const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
-
-    const categoryCounts: Record<string, number> = {};
-    for (const c of allClasses) {
-      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dateToDayIndex: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const dayDate = new Date(startOfWeek);
+      dayDate.setDate(startOfWeek.getDate() + i);
+      dateToDayIndex[dayDate.toISOString().split("T")[0]] = i;
     }
+
+    // ⚡ Bolt: Single-pass O(N) accumulation loop to prevent multiple array allocations
+    let totalClassesThisWeek = 0;
+    let totalEnrollments = 0;
+    const categoryCounts: Record<string, number> = {};
+    const weeklyClassCountValues = [0, 0, 0, 0, 0, 0, 0];
+
+    for (let i = 0; i < allClasses.length; i++) {
+      const c = allClasses[i];
+      if (c.date >= weekStart && c.date <= weekEnd) {
+        totalClassesThisWeek++;
+      }
+      totalEnrollments += c.enrolledCount;
+      categoryCounts[c.category] = (categoryCounts[c.category] ?? 0) + 1;
+
+      const dayIdx = dateToDayIndex[c.date];
+      if (dayIdx !== undefined) {
+        weeklyClassCountValues[dayIdx]++;
+      }
+    }
+
     const mostPopularCategory =
       Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None";
 
     let totalActiveMembers = 0;
     try {
+      // ⚡ Bolt: Use .reduce for counting to prevent intermediate array allocation
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc), 0);
     } catch {
       totalActiveMembers = 0;
     }
 
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklyClassCounts = dayNames.map((day, idx) => {
-      const dayDate = new Date(startOfWeek);
-      dayDate.setDate(startOfWeek.getDate() + idx);
-      const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
-    });
+    const weeklyClassCounts = dayNames.map((day, idx) => ({
+      day,
+      count: weeklyClassCountValues[idx],
+    }));
 
     res.json({
       totalClassesThisWeek,
