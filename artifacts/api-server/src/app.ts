@@ -37,8 +37,8 @@ app.use(
 app.use(corsMiddleware);
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "500kb" })); // 🛡️ Sentinel: Reduce JSON body limit from 10mb to mitigate DoS attacks
+app.use(express.urlencoded({ extended: true, limit: "500kb" })); // 🛡️ Sentinel: Enforce limit on urlencoded payloads as well
 
 app.use(clerkMiddleware());
 
