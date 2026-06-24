@@ -450,9 +450,10 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
+      // ⚡ Bolt: Use reduce instead of filter.length to avoid allocating an intermediate array
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc), 0);
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,7 +463,8 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      // ⚡ Bolt: Use reduce instead of filter.length to avoid allocating an intermediate array
+      const dayCount = allClasses.reduce((acc, c) => (c.date === dateStr ? acc + 1 : acc), 0);
       return { day, count: dayCount };
     });
 
