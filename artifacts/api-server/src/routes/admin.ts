@@ -450,9 +450,10 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
+      // ⚡ Bolt: Single-pass O(N) accumulation loop to avoid intermediate array allocation
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((count, member) => member.accessStatus === "approved" ? count + 1 : count, 0);
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,7 +463,8 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      // ⚡ Bolt: Single-pass O(N) accumulation loop to avoid intermediate array allocation
+      const dayCount = allClasses.reduce((count, c) => c.date === dateStr ? count + 1 : count, 0);
       return { day, count: dayCount };
     });
 
