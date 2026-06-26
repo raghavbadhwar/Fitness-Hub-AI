@@ -452,7 +452,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     try {
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc), 0); // ⚡ Bolt: Prevent intermediate array allocation for counting
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,7 +462,7 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      const dayCount = allClasses.reduce((acc, c) => (c.date === dateStr ? acc + 1 : acc), 0); // ⚡ Bolt: Prevent intermediate array allocation for counting
       return { day, count: dayCount };
     });
 
