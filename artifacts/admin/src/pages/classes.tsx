@@ -815,7 +815,8 @@ function WeekCalendar({
               <div className="text-xs text-muted-foreground">{grouped[date].length} sessions</div>
             </div>
             <Badge variant="outline">
-              {grouped[date].filter((cls) => cls.status === "scheduled").length} live
+              {/* ⚡ Bolt: Prevent intermediate array allocation for counting */}
+              {grouped[date].reduce((acc, cls) => (cls.status === "scheduled" ? acc + 1 : acc), 0)} live
             </Badge>
           </div>
           <div className="space-y-3">
