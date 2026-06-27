@@ -1,0 +1,3 @@
+## 2024-06-27 - Single-Pass O(N) Accumulation for Dashboard Stats
+**Learning:** The dashboard route in the API server was previously iterating over the `allClasses` array multiple times using `filter().length`, `reduce()`, and `map()` with nested `filter()`s. In Javascript/Node.js, each `.filter()` creates an intermediate array in memory, and multiple passes over large datasets can cause unnecessary CPU and memory usage (garbage collection overhead).
+**Action:** Replace multiple `.filter()`, `.reduce()`, and loops with a single `for...of` loop or `.reduce()` to compute all aggregated metrics (totals, daily counts, category frequencies) in O(N) time and O(1) extra space. Avoid `.filter(condition).length` in favor of `.reduce((acc, curr) => condition ? acc + 1 : acc, 0)`.
