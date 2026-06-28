@@ -1,0 +1,3 @@
+## 2024-06-28 - Missing WHERE Clause on Drizzle Query Causes Full Table Scan
+**Learning:** In multi-tenant systems using Drizzle, omitting a `.where()` clause on a table with a tenant ID (like `gymId`) can lead to full table scans and loading the entire table's contents into memory, which crashes the backend as data scales.
+**Action:** Always verify that every `db.select()` in a tenant-specific context explicitly filters by the tenant ID (e.g., `.where(eq(table.gymId, gymId))`).

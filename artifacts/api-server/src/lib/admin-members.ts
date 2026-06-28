@@ -192,7 +192,8 @@ async function listAdminMembersUncached(
   const users = await listAllClerkUsers(secretKey);
   const [profiles, aiProfiles, accessControls] = await Promise.all([
     db.select().from(userProfiles).where(eq(userProfiles.gymId, gymId)),
-    db.select().from(memberAiProfiles),
+    // ⚡ Bolt: Added missing gymId filter to prevent full table scan and OOM
+    db.select().from(memberAiProfiles).where(eq(memberAiProfiles.gymId, gymId)),
     db.select().from(userAccessControls).where(eq(userAccessControls.gymId, gymId)),
   ]);
   const profileMap = new Map(profiles.map((profile) => [profile.clerkId, profile]));
