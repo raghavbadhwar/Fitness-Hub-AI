@@ -436,9 +436,13 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       .select()
       .from(gymClassesTable)
       .where(eq(gymClassesTable.gymId, access.gymId));
-    const thisWeekClasses = allClasses.filter((c) => c.date >= weekStart && c.date <= weekEnd);
 
-    const totalClassesThisWeek = thisWeekClasses.length;
+    // ⚡ Bolt: Single-pass O(N) accumulation loop without intermediate array allocation
+    const totalClassesThisWeek = allClasses.reduce(
+      (acc, c) => (c.date >= weekStart && c.date <= weekEnd ? acc + 1 : acc),
+      0
+    );
+
     const totalEnrollments = allClasses.reduce((sum, c) => sum + c.enrolledCount, 0);
 
     const categoryCounts: Record<string, number> = {};
@@ -450,9 +454,12 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
-      totalActiveMembers = (
-        await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      const members = await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId);
+      // ⚡ Bolt: Single-pass O(N) accumulation loop without intermediate array allocation
+      totalActiveMembers = members.reduce(
+        (acc, member) => (member.accessStatus === "approved" ? acc + 1 : acc),
+        0
+      );
     } catch {
       totalActiveMembers = 0;
     }
@@ -462,7 +469,8 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      // ⚡ Bolt: Single-pass O(N) accumulation loop without intermediate array allocation
+      const dayCount = allClasses.reduce((acc, c) => (c.date === dateStr ? acc + 1 : acc), 0);
       return { day, count: dayCount };
     });
 
