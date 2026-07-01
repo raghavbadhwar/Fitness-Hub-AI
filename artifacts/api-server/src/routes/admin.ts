@@ -450,20 +450,29 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
 
     let totalActiveMembers = 0;
     try {
+      // ⚡ Bolt: Use .reduce() counter instead of .filter().length to avoid intermediate array allocation
       totalActiveMembers = (
         await listAdminMembers(process.env.CLERK_SECRET_KEY!, access.gymId)
-      ).filter((member) => member.accessStatus === "approved").length;
+      ).reduce((count, member) => (member.accessStatus === "approved" ? count + 1 : count), 0);
     } catch {
       totalActiveMembers = 0;
     }
+
+    // ⚡ Bolt: Single-pass O(N) accumulation loop to precompute class counts by date instead of O(N*M) filters
+    const classCountsByDate = allClasses.reduce(
+      (acc, c) => {
+        acc[c.date] = (acc[c.date] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: classCountsByDate[dateStr] || 0 };
     });
 
     res.json({
