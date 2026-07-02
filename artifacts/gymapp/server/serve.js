@@ -67,7 +67,29 @@ function serveManifest(platform, res) {
 function serveLandingPage(req, res, landingPageTemplate, appName) {
   const forwardedProto = req.headers["x-forwarded-proto"];
   const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const hostHeader = req.headers["host"];
+  let host = hostHeader || "localhost";
+
+  if (forwardedHost) {
+    const parts = forwardedHost.split(",");
+    if (parts.length > 0) {
+      const first = parts[0].trim();
+      if (first) {
+        try {
+          const xfhUrl = new URL(`http://${first}`);
+          const hostUrl = new URL(`http://${hostHeader || "localhost"}`);
+          if (xfhUrl.hostname === hostUrl.hostname) {
+            host = first;
+          } else {
+            host = hostHeader;
+          }
+        } catch {
+          host = hostHeader;
+        }
+      }
+    }
+  }
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
