@@ -16,7 +16,7 @@
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
-import type { RequestHandler } from "express";
+import type { RequestHandler, Request } from "express";
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
@@ -51,14 +51,43 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers.host || "";
+        const expressReq = req as Request;
+        const protocol = expressReq.protocol === "http" ? "http" : "https";
+
+        let port = "";
+        try {
+          const xfh = expressReq.get("x-forwarded-host");
+          const hostHeader = expressReq.get("host");
+
+          const xfhTrimmed = (xfh || "").split(",")[0].trim();
+          const hostTrimmed = (hostHeader || "").split(",")[0].trim();
+
+          let parsedUrl;
+          if (xfhTrimmed) {
+            parsedUrl = new URL(`http://${xfhTrimmed}`);
+            if (parsedUrl.hostname !== expressReq.hostname) {
+              parsedUrl = new URL(`http://${hostTrimmed || "localhost"}`);
+            }
+          } else {
+            parsedUrl = new URL(`http://${hostTrimmed || "localhost"}`);
+          }
+
+          if (parsedUrl.port) {
+            port = `:${parsedUrl.port}`;
+          }
+        } catch {
+          // ignore
+        }
+
+        const host = expressReq.hostname
+          ? `${expressReq.hostname}${port}`
+          : expressReq.get("host") || "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", secretKey);
 
-        const clientIp = req.ip || req.socket?.remoteAddress || "";
+        const clientIp = expressReq.ip || expressReq.socket?.remoteAddress || "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }

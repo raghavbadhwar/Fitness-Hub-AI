@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-05-15 - Host Header Injection via Unvalidated x-forwarded-host
+
+**Vulnerability:** The application was manually parsing `x-forwarded-host` (and `x-forwarded-proto`) directly from `req.headers` without validation against Express's `trust proxy` mechanism (`req.hostname`) or comparing it to the `host` header. This could allow attackers to perform SSRF or Host Header Injection by sending malicious `x-forwarded-host` headers.
+**Learning:** Directly trusting `x-forwarded-host` bypasses Express's proxy trust rules. It's critical to parse it securely, ensuring the hostname portion matches a trusted source (like `req.hostname` which strips the port but validates via proxy rules), and carefully extracting the port, or strictly validating it against the `Host` header when outside an Express context.
+**Prevention:** In Express, use `req.hostname` and carefully reconstruct the full host by combining it with the validated port extracted from `x-forwarded-host`. In vanilla Node.js, ensure the hostname derived from `x-forwarded-host` strictly matches the hostname from the `Host` header using the `URL` parser.
