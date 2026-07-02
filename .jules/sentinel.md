@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-05-15 - Protocol Spoofing and Host Header Injection in Clerk Proxy
+
+**Vulnerability:** The API server's clerk proxy middleware manually parsed `req.headers["x-forwarded-proto"]` and `req.headers.host` to construct the proxy URL. Because these headers are client-controlled, a malicious actor could spoof the protocol or host, potentially bypassing security controls or directing the proxy to malicious destinations, leading to Server-Side Request Forgery (SSRF) or Host Header Injection.
+**Learning:** Manually parsing `x-forwarded-*` headers directly from `req.headers` skips Express's secure handling of proxy trust. When an application is running behind a trusted proxy, it should rely on Express's `req.protocol` and `req.hostname` which safely evaluate headers based on the `trust proxy` setting.
+**Prevention:** Cast the `http.IncomingMessage` to Express's `Request` type inside `http-proxy-middleware` hooks to securely access `req.protocol` and `req.hostname`. When extracting the port from `x-forwarded-host`, always validate that its hostname matches `req.hostname` and wrap parsing in a `try...catch` block to prevent DoS crashes from invalid inputs.
