@@ -751,29 +751,41 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
   const getRecentSessions = useCallback((count = 10) => sessions.slice(0, count), [sessions]);
 
   const getWeeklyVolume = useCallback(() => {
+    // ⚡ Bolt: Single-pass O(N) accumulation loop to avoid repeated array filtering O(N*M)
+    const volumeMap = sessions.reduce(
+      (acc, session) => {
+        if (session.completed) acc[session.date] = (acc[session.date] || 0) + session.totalVolume;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
     const result = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateKey = getLocalDateKey(date);
-      const dayVolume = sessions
-        .filter((session) => session.date === dateKey && session.completed)
-        .reduce((sum, session) => sum + session.totalVolume, 0);
-      result.push({ date: dateKey, volume: dayVolume });
+      result.push({ date: dateKey, volume: volumeMap[dateKey] || 0 });
     }
     return result;
   }, [sessions]);
 
   const get30DayVolume = useCallback(() => {
+    // ⚡ Bolt: Single-pass O(N) accumulation loop to avoid repeated array filtering O(N*M)
+    const volumeMap = sessions.reduce(
+      (acc, session) => {
+        if (session.completed) acc[session.date] = (acc[session.date] || 0) + session.totalVolume;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
     const result = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateKey = getLocalDateKey(date);
-      const dayVolume = sessions
-        .filter((session) => session.date === dateKey && session.completed)
-        .reduce((sum, session) => sum + session.totalVolume, 0);
-      result.push({ date: dateKey, volume: dayVolume });
+      result.push({ date: dateKey, volume: volumeMap[dateKey] || 0 });
     }
     return result;
   }, [sessions]);
