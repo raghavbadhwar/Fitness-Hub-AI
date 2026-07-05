@@ -16,7 +16,7 @@
  */
 
 import { createProxyMiddleware } from "http-proxy-middleware";
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
@@ -51,9 +51,32 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers.host || "";
-        const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
+        const expressReq = req as Request;
+        const protocol = expressReq.protocol === "http" ? "http" : "https";
+        const host = expressReq.hostname || "";
+        let port = "";
+
+        const forwardedHostRaw = expressReq.get("x-forwarded-host");
+        const hostHeaderRaw = expressReq.get("host");
+
+        try {
+          if (forwardedHostRaw) {
+            const forwardedHost = forwardedHostRaw.split(",")[0].trim();
+            const parsed = new URL(`http://${forwardedHost}`);
+            if (parsed.hostname === expressReq.hostname && parsed.port) {
+              port = `:${parsed.port}`;
+            }
+          } else if (hostHeaderRaw) {
+            const parsed = new URL(`http://${hostHeaderRaw}`);
+            if (parsed.hostname === expressReq.hostname && parsed.port) {
+              port = `:${parsed.port}`;
+            }
+          }
+        } catch {
+          // Ignore invalid URL
+        }
+
+        const proxyUrl = `${protocol}://${host}${port}${CLERK_PROXY_PATH}`;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", secretKey);
