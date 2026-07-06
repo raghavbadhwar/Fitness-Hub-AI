@@ -116,6 +116,16 @@ function filterClasses(condition) {
   if (condition?.op === "eq" && condition.field === gymClassesTable.gymId) {
     rows = rows.filter((cls) => cls.gymId === condition.value);
   }
+  if (condition?.op === "sql") {
+    const column = condition.values[0];
+    const searchVal = JSON.parse(condition.values[1])[0];
+    if (column === gymClassesTable.enrolledMemberIds) {
+      rows = rows.filter((cls) => cls.enrolledMemberIds.includes(searchVal));
+    }
+    if (column === gymClassesTable.waitlistedMemberIds) {
+      rows = rows.filter((cls) => cls.waitlistedMemberIds.includes(searchVal));
+    }
+  }
 
   return rows;
 }
@@ -233,6 +243,9 @@ mock.module("drizzle-orm", {
     },
     and(...conditions) {
       return { op: "and", conditions };
+    },
+    sql(strings, ...values) {
+      return { op: "sql", strings, values };
     },
   },
 });

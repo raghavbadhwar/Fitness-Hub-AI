@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { db, gymClassesTable, pool, type ClassAttendanceRecord } from "@workspace/db";
 import { requireApprovedAccess } from "../lib/user-access.ts";
 
@@ -238,20 +238,21 @@ router.get(
     const callerUserId = access.userId;
 
     const today = new Date().toISOString().split("T")[0];
+    // ⚡ Bolt: Push down JSON array filter to PostgreSQL to prevent in-memory O(N) filtering
     const classes = await db
       .select({
         id: gymClassesTable.id,
-        enrolledMemberIds: gymClassesTable.enrolledMemberIds,
       })
       .from(gymClassesTable)
-      .where(and(eq(gymClassesTable.gymId, access.gymId), gte(gymClassesTable.date, today)));
+      .where(
+        and(
+          eq(gymClassesTable.gymId, access.gymId),
+          gte(gymClassesTable.date, today),
+          sql`${gymClassesTable.enrolledMemberIds} @> ${JSON.stringify([callerUserId])}::jsonb`
+        ),
+      );
 
-    const enrolledClassIds = classes
-      .filter(
-        (cls) =>
-          Array.isArray(cls.enrolledMemberIds) && cls.enrolledMemberIds.includes(callerUserId),
-      )
-      .map((cls) => String(cls.id));
+    const enrolledClassIds = classes.map((cls) => String(cls.id));
 
     res.json({ classIds: enrolledClassIds });
   },
@@ -266,20 +267,21 @@ router.get(
     const callerUserId = access.userId;
 
     const today = new Date().toISOString().split("T")[0];
+    // ⚡ Bolt: Push down JSON array filter to PostgreSQL to prevent in-memory O(N) filtering
     const classes = await db
       .select({
         id: gymClassesTable.id,
-        waitlistedMemberIds: gymClassesTable.waitlistedMemberIds,
       })
       .from(gymClassesTable)
-      .where(and(eq(gymClassesTable.gymId, access.gymId), gte(gymClassesTable.date, today)));
+      .where(
+        and(
+          eq(gymClassesTable.gymId, access.gymId),
+          gte(gymClassesTable.date, today),
+          sql`${gymClassesTable.waitlistedMemberIds} @> ${JSON.stringify([callerUserId])}::jsonb`
+        ),
+      );
 
-    const waitlistedClassIds = classes
-      .filter(
-        (cls) =>
-          Array.isArray(cls.waitlistedMemberIds) && cls.waitlistedMemberIds.includes(callerUserId),
-      )
-      .map((cls) => String(cls.id));
+    const waitlistedClassIds = classes.map((cls) => String(cls.id));
 
     res.json({ classIds: waitlistedClassIds });
   },
