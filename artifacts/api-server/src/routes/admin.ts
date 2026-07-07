@@ -458,12 +458,18 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    // ⚡ Bolt: Single-pass O(N) accumulation loop instead of repeated O(N*M) filtering inside mapping loop.
+    const dateCounts: Record<string, number> = {};
+    for (const c of allClasses) {
+      dateCounts[c.date] = (dateCounts[c.date] || 0) + 1;
+    }
+
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
-      return { day, count: dayCount };
+      return { day, count: dateCounts[dateStr] || 0 };
     });
 
     res.json({
