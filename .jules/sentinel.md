@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-07-10 - Host Header Injection via Unvalidated Forwarded Headers
+
+**Vulnerability:** The standalone Expo production server (`artifacts/gymapp/server/serve.js`) manually parsed `x-forwarded-host` and `x-forwarded-proto` directly from incoming requests to determine the application's base URL. Because these headers are client-controlled and were parsed without any proxy validation or `trust proxy` mechanism, an attacker could supply spoofed headers to inject arbitrary hosts into the landing page HTML.
+**Learning:** In raw Node.js servers (or frameworks without properly configured proxy trust), blindly trusting `x-forwarded-*` headers allows attackers to control URLs constructed by the server. This can lead to Host Header Injection, Server-Side Request Forgery (SSRF), or malicious redirects.
+**Prevention:** Never trust `x-forwarded-*` headers implicitly. When building URLs from the request, prefer `req.headers["host"]` unless the application is operating behind a trusted reverse proxy and has explicitly verified the proxy's identity. If proxy headers are required, implement strict allowlists for proxy IP addresses.
