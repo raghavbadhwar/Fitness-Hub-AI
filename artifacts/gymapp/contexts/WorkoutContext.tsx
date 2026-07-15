@@ -752,28 +752,40 @@ export function WorkoutProvider({ children }: { children: React.ReactNode }) {
 
   const getWeeklyVolume = useCallback(() => {
     const result = [];
+
+    // O(N) pre-calculation of volume per day
+    const volumeByDate = sessions.reduce<Record<string, number>>((acc, session) => {
+      if (session.completed) {
+        acc[session.date] = (acc[session.date] || 0) + session.totalVolume;
+      }
+      return acc;
+    }, {});
+
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateKey = getLocalDateKey(date);
-      const dayVolume = sessions
-        .filter((session) => session.date === dateKey && session.completed)
-        .reduce((sum, session) => sum + session.totalVolume, 0);
-      result.push({ date: dateKey, volume: dayVolume });
+      result.push({ date: dateKey, volume: volumeByDate[dateKey] || 0 });
     }
     return result;
   }, [sessions]);
 
   const get30DayVolume = useCallback(() => {
     const result = [];
+
+    // O(N) pre-calculation of volume per day
+    const volumeByDate = sessions.reduce<Record<string, number>>((acc, session) => {
+      if (session.completed) {
+        acc[session.date] = (acc[session.date] || 0) + session.totalVolume;
+      }
+      return acc;
+    }, {});
+
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateKey = getLocalDateKey(date);
-      const dayVolume = sessions
-        .filter((session) => session.date === dateKey && session.completed)
-        .reduce((sum, session) => sum + session.totalVolume, 0);
-      result.push({ date: dateKey, volume: dayVolume });
+      result.push({ date: dateKey, volume: volumeByDate[dateKey] || 0 });
     }
     return result;
   }, [sessions]);
