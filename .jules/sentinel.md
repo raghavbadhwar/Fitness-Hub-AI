@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-05-15 - Host Header Injection in Raw Node.js Server
+
+**Vulnerability:** A standalone Node.js production server for Expo builds blindly trusted the `x-forwarded-host` header for the `baseUrl`. Because this header is client-controlled, a malicious actor could spoof it to perform Host Header Injection or Server-Side Request Forgery (SSRF) attacks, causing the application to generate self-referential URLs pointing to a malicious domain.
+**Learning:** Blindly trusting `x-forwarded-host` in raw Node.js servers bypasses framework-level proxy trust mechanisms (like Express's `trust proxy`). Raw servers don't inherently validate if proxy headers actually came from a trusted proxy in the deployment topology.
+**Prevention:** Avoid reading `x-forwarded-host` directly to construct critical URLs in raw Node.js servers. Use the standard `host` header instead, which is safer. Ensure that parsing client-controlled headers like `x-forwarded-proto` accounts for comma-separated lists from chained proxies (e.g., extracting the first trimmed value) to avoid invalid URL errors.
