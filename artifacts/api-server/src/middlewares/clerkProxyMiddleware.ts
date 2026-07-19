@@ -51,8 +51,10 @@ export function clerkProxyMiddleware(): RequestHandler {
     pathRewrite: (path: string) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers.host || "";
+        const xForwardedProto = req.headers["x-forwarded-proto"];
+        const protocol =
+          typeof xForwardedProto === "string" ? xForwardedProto.split(",")[0].trim() : "https";
+        const host = typeof req.headers.host === "string" ? req.headers.host.trim() : "";
         const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
