@@ -66,8 +66,13 @@ function serveManifest(platform, res) {
 
 function serveLandingPage(req, res, landingPageTemplate, appName) {
   const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const protocol =
+    typeof forwardedProto === "string" ? forwardedProto.split(",")[0].trim() : "https";
+  const hostValue = req.headers["x-forwarded-host"] || req.headers["host"];
+  const host =
+    typeof hostValue === "string" && hostValue.trim() !== ""
+      ? hostValue.split(",")[0].trim()
+      : "localhost";
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
@@ -107,7 +112,17 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  let url;
+  try {
+    const hostHeader = req.headers.host;
+    const host =
+      typeof hostHeader === "string" && hostHeader.trim() !== "" ? hostHeader.trim() : "localhost";
+    url = new URL(req.url || "/", `http://${host}`);
+  } catch {
+    res.writeHead(400);
+    res.end("Bad Request");
+    return;
+  }
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
