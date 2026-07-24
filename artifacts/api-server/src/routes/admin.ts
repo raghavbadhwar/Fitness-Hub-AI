@@ -458,11 +458,21 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
     }
 
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    // ⚡ Bolt: Replace O(N*M) array filtering in the map loop with a single O(N) hash map lookup
+    // to improve performance when calculating weekly class counts
+    const classesByDate = allClasses.reduce(
+      (acc, c) => {
+        acc[c.date] = (acc[c.date] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      const dayCount = classesByDate[dateStr] || 0;
       return { day, count: dayCount };
     });
 
