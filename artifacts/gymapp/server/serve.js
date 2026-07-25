@@ -65,9 +65,10 @@ function serveManifest(platform, res) {
 }
 
 function serveLandingPage(req, res, landingPageTemplate, appName) {
-  const forwardedProto = req.headers["x-forwarded-proto"];
+  const rawProto = req.headers["x-forwarded-proto"];
+  const forwardedProto = typeof rawProto === "string" ? rawProto.split(",")[0].trim() : undefined;
   const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const host = req.headers["host"] || "localhost";
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
@@ -107,7 +108,14 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  let url;
+  try {
+    url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  } catch {
+    res.writeHead(400);
+    res.end("Bad Request");
+    return;
+  }
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
