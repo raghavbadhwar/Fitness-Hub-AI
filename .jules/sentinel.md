@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-07-26 - Denial of Service and SSRF in Expo Server
+
+**Vulnerability:** The raw Node.js Expo static server (`serve.js`) blindly trusted the `host` and `x-forwarded-host` headers. Passing a malformed `host` header (e.g. `%foo`) caused `new URL()` to crash the process (DoS). The `x-forwarded-host` header was trusted for `baseUrl` without a proxy trust mechanism (SSRF). Finally `x-forwarded-proto` was used directly, risking a crash if it contains multiple comma-separated values.
+**Learning:** Never pass unvalidated headers directly to `new URL()` without a `try-catch` block, as `ERR_INVALID_URL` crashes raw Node.js servers. Additionally, in raw Node servers without a `trust proxy` configuration, trusting `x-forwarded-host` allows Host Header Injection and SSRF.
+**Prevention:** Always wrap `new URL()` in a `try-catch` block when processing client headers and return `400 Bad Request` on failure. Use the standard `host` header instead of `x-forwarded-host` in raw Node servers. Safely split and trim comma-separated proxy headers (e.g. `x-forwarded-proto.split(',')[0].trim()`).
