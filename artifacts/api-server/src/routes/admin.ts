@@ -457,12 +457,22 @@ router.get("/dashboard", async (req: Request, res: Response): Promise<void> => {
       totalActiveMembers = 0;
     }
 
+    // ⚡ Bolt Optimization: Group classes by date into a hash map to achieve O(N) lookup.
+    // Reduces the time complexity of the subsequent loop from O(N*M) to O(N + M).
+    const classCountsByDate = allClasses.reduce(
+      (acc, c) => {
+        acc[c.date] = (acc[c.date] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyClassCounts = dayNames.map((day, idx) => {
       const dayDate = new Date(startOfWeek);
       dayDate.setDate(startOfWeek.getDate() + idx);
       const dateStr = dayDate.toISOString().split("T")[0];
-      const dayCount = allClasses.filter((c) => c.date === dateStr).length;
+      const dayCount = classCountsByDate[dateStr] || 0;
       return { day, count: dayCount };
     });
 
