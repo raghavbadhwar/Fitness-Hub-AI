@@ -66,8 +66,12 @@ function serveManifest(platform, res) {
 
 function serveLandingPage(req, res, landingPageTemplate, appName) {
   const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol = forwardedProto || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
+  const protocol = forwardedProto ? forwardedProto.split(",")[0].trim() : "https";
+
+  // Use raw host header instead of x-forwarded-host to prevent Host Header Injection in raw Node server
+  const rawHost = req.headers["host"] || "localhost";
+  const host = rawHost.split(",")[0].trim();
+
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
@@ -107,7 +111,16 @@ const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, "utf-8");
 const appName = getAppName();
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  let url;
+  try {
+    const rawHost = req.headers.host ? req.headers.host.split(",")[0].trim() : "localhost";
+    url = new URL(req.url || "/", `http://${rawHost}`);
+  } catch {
+    res.writeHead(400, { "content-type": "text/plain" });
+    res.end("Bad Request: Invalid URL");
+    return;
+  }
+
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
