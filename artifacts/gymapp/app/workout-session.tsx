@@ -373,15 +373,19 @@ export default function WorkoutSessionScreen() {
     );
   }
 
-  const totalSets = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
-  const completedSets = session.exercises.reduce(
-    (sum, ex) => sum + ex.sets.filter((s) => s.completed).length,
-    0,
-  );
-  const totalVolume = session.exercises.reduce(
-    (total, ex) =>
-      total + ex.sets.filter((s) => s.completed).reduce((sum, s) => sum + s.weight * s.reps, 0),
-    0,
+  // ⚡ Bolt Optimization: Single-pass stats calculation to reduce loop iterations and avoid intermediate array allocations.
+  const { totalSets, completedSets, totalVolume } = session.exercises.reduce(
+    (acc, ex) => {
+      acc.totalSets += ex.sets.length;
+      ex.sets.forEach((s) => {
+        if (s.completed) {
+          acc.completedSets += 1;
+          acc.totalVolume += s.weight * s.reps;
+        }
+      });
+      return acc;
+    },
+    { totalSets: 0, completedSets: 0, totalVolume: 0 },
   );
 
   const getCheckAnim = (setId: string) => {
