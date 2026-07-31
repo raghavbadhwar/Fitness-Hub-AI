@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2024-05-24 - Uncaught Exception DoS & Host Header Injection
+
+**Vulnerability:** The raw Node.js server in `artifacts/gymapp/server/serve.js` constructs a `new URL()` using the client-controlled `req.headers.host` without a `try-catch` block, causing an uncaught `TypeError: Invalid URL` crash (DoS) if the host header is malformed. Additionally, it blindly trusts `req.headers["x-forwarded-host"]` in `serveLandingPage`, introducing Host Header Injection/SSRF vulnerabilities.
+**Learning:** In raw Node.js environments lacking built-in proxy trust mechanisms (like Express's `trust proxy`), manually parsing `x-forwarded-host` is unsafe. Moreover, providing a fallback string (`|| "localhost"`) to `new URL()` is insufficient to prevent uncaught exceptions if the input itself is an invalid URL format.
+**Prevention:** Always wrap `new URL()` parsing in a `try-catch` block when processing client-controlled headers. Prefer the standard `host` header over `x-forwarded-host` in raw servers to prevent injection, and ensure headers like `x-forwarded-proto` are safely parsed by splitting on commas to handle chained proxies.
