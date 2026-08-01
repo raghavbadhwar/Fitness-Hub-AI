@@ -1,4 +1,11 @@
 ## 2024-05-14 - IP Spoofing via Unvalidated Header
+
 **Vulnerability:** The API server's clerk proxy middleware manually parsed the `x-forwarded-for` header from incoming requests to determine the client IP address. Because this header is client-controlled, a malicious actor could send a spoofed `x-forwarded-for` header to bypass IP-based logging, rate limiting, or to mask their true origin in the proxy request.
 **Learning:** Manually parsing `x-forwarded-for` directly from `req.headers` skips the framework's secure handling of proxy trust. When an Express application is running behind a trusted proxy (like a load balancer or ingress controller), the framework needs to be explicitly configured using `app.set("trust proxy", ...)` to securely parse the XFF header, starting from the most trusted proxy backwards.
 **Prevention:** Always use `req.ip` in Express (or the equivalent secure accessor in other frameworks) rather than reading `req.headers["x-forwarded-for"]` directly. Ensure the application's `trust proxy` setting is correctly configured for the deployment environment so that `req.ip` returns the true client IP instead of a spoofed or intermediate proxy IP.
+
+## 2025-01-31 - Uncaught TypeError DoS via Host Header Injection
+
+**Vulnerability:** The application blindly parsed client-controlled `req.headers.host` directly into `new URL(...)` without error handling. A malicious user sending an invalid host header (like `%foo`) causes `new URL()` to throw a `TypeError: Invalid URL`. In Express or typical HTTP servers without proper try/catch for synchronous exceptions in the request handler, this crashes the entire server process (Denial of Service).
+**Learning:** In Node.js, `new URL()` throws a synchronous error for invalid inputs. When constructing URLs using client-provided data (especially headers which might contain malformed payloads), a fallback string like `req.headers.host || 'localhost'` is not enough. Invalid strings will still trigger the exception.
+**Prevention:** Always wrap `new URL()` constructions that rely on client input in a `try-catch` block. If parsing fails, gracefully reject the request with a `400 Bad Request` instead of letting the exception crash the server process.
