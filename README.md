@@ -1,5 +1,7 @@
 # Fitness Hub AI
 
+**Status:** integrated product prototype · not a verified production service
+
 Fitness Hub AI is a pnpm workspace for an AI-assisted gym product with three core surfaces:
 
 - an owner-only admin web app
@@ -7,6 +9,10 @@ Fitness Hub AI is a pnpm workspace for an AI-assisted gym product with three cor
 - a shared Express API with Clerk auth, Drizzle, and Gemini-backed AI flows
 
 The repository is organized as a monorepo because the product shares auth rules, API contracts, database schema, generated clients, and internal automation tooling.
+
+## Contribution and evidence
+
+I developed the role-separated product architecture, shared API contract, owner/member workflows, and verification tooling represented in this repository. The architecture diagrams and runnable checks below are the evidence boundary; the repository does not establish live members, production operations, or commercial results.
 
 ## Workspace Overview
 
@@ -103,6 +109,13 @@ Notes:
 - Reuse shared workspace packages via `@workspace/*` imports instead of duplicating types or API helpers.
 - Admin access is owner-only and should stay enforced on both the client and server.
 - The `plugins/` folder contains repo-local Codex plugins and is optional for app runtime.
+
+## Security and limitations
+
+- Admin actions are owner-gated at both UI and API boundaries; member clients use a separate surface.
+- Model-backed food, workout, and chat outputs require human judgment and configured local credentials.
+- `.env.test` and CI values are explicit non-production placeholders; real credentials must stay local or in a secret manager.
+- The internal-beta gate is evidence for a candidate build only, not a production-readiness or customer-usage claim.
 
 ## Repository Hygiene
 
