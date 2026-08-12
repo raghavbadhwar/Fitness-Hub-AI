@@ -16,6 +16,18 @@ I developed the role-separated product architecture, shared API contract, owner/
 
 ## Workspace Overview
 
+```mermaid
+flowchart LR
+  M["Member app"] --> API["Shared Express API"]
+  A["Owner admin"] --> API
+  API --> AUTH["Clerk auth and role checks"]
+  API --> DB["Drizzle and PostgreSQL"]
+  API --> AI["Gemini-assisted flows"]
+  SPEC["OpenAPI contract"] --> M
+  SPEC --> A
+  SPEC --> API
+```
+
 | Path                         | Purpose                                                      |
 | ---------------------------- | ------------------------------------------------------------ |
 | `artifacts/admin`            | Owner-facing React + Vite admin panel served under `/admin/` |
