@@ -1,0 +1,3 @@
+## 2026-06-30 - Optimize array element counting and filtering
+**Learning:** Using `.filter(condition).length` on large arrays is an anti-pattern because it unnecessarily allocates a new intermediate array just to count matches. Furthermore, looping over days to re-filter arrays repeatedly (O(N*7)) multiplies these allocations and iterations.
+**Action:** Replace `.filter(condition).length` with a single-pass `reduce` to safely accumulate the count without memory overhead. When aggregating properties in a loop (like counting values per date), build a hash map lookup (O(N)) once using `reduce` instead of repeatedly filtering the source data per key.
